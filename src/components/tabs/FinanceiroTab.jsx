@@ -15,6 +15,15 @@ const STATUS_OPTIONS = [
   { value: "Pago", label: "Pago" },
 ];
 
+// Um mês certinho depois — cai no mesmo dia do mês seguinte. Meses com menos dias que o
+// vencimento original "estouram" pro mês seguinte (ex.: 31/jan + 1 mês = 03/mar), efeito
+// nativo do Date; aceitável aqui, ajustar manualmente se cair num vencimento raro assim.
+function addMonths(dateStr, n) {
+  const d = new Date(`${dateStr}T00:00:00`);
+  d.setMonth(d.getMonth() + n);
+  return d.toISOString().slice(0, 10);
+}
+
 export default function FinanceiroTab() {
   const { data: honorarios, loading, insert, update, remove } = useSupabaseTable("honorarios", {
     select: "*, cliente:clientes(id,nome)",
@@ -22,12 +31,21 @@ export default function FinanceiroTab() {
   const { data: clientes } = useSupabaseTable("clientes", { select: "id,nome", orderBy: "nome", ascending: true });
   const [editing, setEditing] = useState(null);
 
-  const fields = useMemo(() => [
-    { key: "cliente_id", label: "Cliente", type: "select", options: clientes.map((c) => ({ value: c.id, label: c.nome })) },
-    { key: "valor", label: "Valor (R$)", type: "number" },
-    { key: "vencimento", label: "Vencimento", type: "date" },
-    { key: "status", label: "Situação", type: "select", options: STATUS_OPTIONS },
-  ], [clientes]);
+  // Não existe conceito de "parcela"/"mensalidade" no banco — cada cobrança é uma linha
+  // solta em honorarios. Pra parcelamento ou cliente PJ mensal, "parcelas" só controla
+  // quantas linhas gerar de uma vez, uma por mês a partir do vencimento informado.
+  const fields = useMemo(() => {
+    const base = [
+      { key: "cliente_id", label: "Cliente", type: "select", options: clientes.map((c) => ({ value: c.id, label: c.nome })) },
+      { key: "valor", label: editing?.id ? "Valor (R$)" : "Valor de cada parcela (R$)", type: "number" },
+      { key: "vencimento", label: editing?.id ? "Vencimento" : "Vencimento da 1ª parcela", type: "date" },
+    ];
+    if (!editing?.id) {
+      base.push({ key: "parcelas", label: "Repetir mensalmente por quantas parcelas? (1 = cobrança única)", type: "number", optional: true });
+    }
+    base.push({ key: "status", label: "Situação", type: "select", options: STATUS_OPTIONS });
+    return base;
+  }, [clientes, editing]);
 
   const abertos = honorarios.filter((h) => h.status === "Em aberto").reduce((s, h) => s + h.valor, 0);
   const vencidos = honorarios.filter((h) => h.status === "Vencido");
@@ -98,7 +116,13 @@ export default function FinanceiroTab() {
         fields={fields}
         initialValues={editing}
         onClose={() => setEditing(null)}
-        onSubmit={(values) => (editing?.id ? update(editing.id, values) : insert(values))}
+        onSubmit={({ parcelas, ...values }) => {
+          if (editing?.id) return update(editing.id, values);
+          const n = Math.max(1, parseInt(parcelas, 10) || 1);
+          if (n === 1) return insert(values);
+          const linhas = Array.from({ length: n }, (_, i) => ({ ...values, vencimento: addMonths(values.vencimento, i) }));
+          return insert(linhas);
+        }}
       />
     </div>
   );

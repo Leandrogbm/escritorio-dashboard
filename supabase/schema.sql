@@ -7,6 +7,7 @@ create table organizations (
   id uuid primary key default gen_random_uuid(),
   nome text not null,
   slug text unique not null,
+  cnpj text unique, -- cadastro self-service (signup-empresa) usa os dígitos do CNPJ como slug
   created_at timestamptz not null default now()
 );
 
@@ -79,11 +80,15 @@ create index honorarios_org_id_idx on honorarios (org_id);
 -- Aba "Equipe": deriva de profiles + contagem de processos ativos, sem tabela própria.
 -- security_invoker = true é obrigatório aqui — sem isso a view roda com o privilégio de quem
 -- criou (o dono do banco) e ignora RLS, vazando dados de outros tenants.
+-- role <> 'admin': admin administra a conta, não é fee-earner — não faz sentido aparecer
+-- com métricas de horas faturáveis. Ele continua com acesso a todas as abas normalmente,
+-- só não lista a própria linha aqui.
 create view equipe_view with (security_invoker = true) as
   select p.id, p.org_id, p.nome, p.cargo, p.horas_mes as horas, p.meta_horas as meta,
          count(pr.id) filter (where pr.status <> 'Encerrado') as ativos
   from profiles p
   left join processos pr on pr.responsavel_id = p.id
+  where p.role <> 'admin'
   group by p.id;
 
 -- ── Funções helper (fonte única de verdade pra RLS e client) ────────────────
@@ -113,6 +118,9 @@ create or replace function set_org_id() returns trigger
 
 alter table organizations enable row level security;
 create policy org_select on organizations for select using (id = auth_org_id());
+-- sem policy de insert de propósito: criar organization só acontece na Edge Function
+-- signup-empresa, com service_role (ignora RLS) — um visitante sem org ainda não tem
+-- como passar em auth_org_id() pra se auto-inserir de qualquer forma.
 
 alter table profiles enable row level security;
 create trigger trg_set_org_id before insert on profiles for each row execute function set_org_id();
@@ -123,8 +131,8 @@ create policy profiles_update on profiles for update
 -- insert só o admin — feito pela Edge Function admin-create-user (supabase/functions/),
 -- que cria o Auth user com senha temporária (mandada por email) e insere o profile
 -- numa tacada, usando a service_role key.
--- Sem policy de delete: remover colaborador é feito apagando o usuário no Auth
--- (Studio → Authentication), o cascade cuida do resto.
+-- Sem policy de delete: remover colaborador é feito apagando o usuário no Auth, via a
+-- Edge Function admin-delete-user (admin ou sócio) — o cascade cuida do profile sozinho.
 create policy profiles_insert on profiles for insert
   with check (auth_role() = 'admin');
 
@@ -141,7 +149,8 @@ create trigger trg_set_org_id before insert on clientes for each row execute fun
 create policy clientes_sel on clientes for select using (org_id = auth_org_id() and has_module('clientes'));
 create policy clientes_ins on clientes for insert with check (org_id = auth_org_id() and has_module('clientes'));
 create policy clientes_upd on clientes for update using (org_id = auth_org_id() and has_module('clientes')) with check (org_id = auth_org_id());
-create policy clientes_del on clientes for delete using (org_id = auth_org_id() and has_module('clientes'));
+-- só admin/sócio excluem cliente (diferente das outras policies, que valem pra quem tem o módulo)
+create policy clientes_del on clientes for delete using (org_id = auth_org_id() and has_module('clientes') and auth_role() in ('admin','socio'));
 
 alter table processos enable row level security;
 create trigger trg_set_org_id before insert on processos for each row execute function set_org_id();

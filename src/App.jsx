@@ -55,7 +55,7 @@ export default function App() {
       case "prazos": return <PrazosTab />;
       case "processos": return <ProcessosTab />;
       case "financeiro": return <FinanceiroTab />;
-      case "clientes": return <ClientesTab />;
+      case "clientes": return <ClientesTab currentRole={currentRole} />;
       case "equipe": return <EquipeTab currentRole={currentRole} />;
       case "executivo": return <ExecutivoTab />;
       default: return <EmptyState />;
@@ -69,6 +69,7 @@ export default function App() {
         activeTab={activeTab}
         setActiveTab={setActiveTab}
         currentRole={currentRole}
+        orgNome={profile.organizations?.nome}
       />
 
       <div className="flex-1 flex flex-col min-w-0">

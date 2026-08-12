@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { Scale } from "lucide-react";
 import Card from "./Card.jsx";
+import Signup from "./Signup.jsx";
 import { COLORS } from "../lib/theme.js";
 import { supabase } from "../lib/supabaseClient.js";
 
@@ -11,6 +12,7 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   const [forgot, setForgot] = useState(false); // true = mostra o form de "esqueci minha senha"
   const [sent, setSent] = useState(false);
+  const [signingUp, setSigningUp] = useState(false); // true = mostra o cadastro de empresa nova
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -32,6 +34,10 @@ export default function Login() {
     if (resetError) setError(resetError.message);
     else setSent(true);
   };
+
+  if (signingUp) {
+    return <Signup onDone={() => setSigningUp(false)} onCancel={() => setSigningUp(false)} />;
+  }
 
   if (forgot) {
     return (
@@ -90,7 +96,7 @@ export default function Login() {
         <div className="flex flex-col items-center gap-2 mb-6">
           <Scale size={28} color={COLORS.brass} />
           <p style={{ fontFamily: "'Source Serif 4', serif", color: COLORS.ink, fontWeight: 600, fontSize: 18 }}>
-            Gimenes &amp; Pires
+            Escritório Dashboard
           </p>
           <p className="text-xs" style={{ color: COLORS.slate }}>Acesse com seu e-mail e senha</p>
         </div>
@@ -128,18 +134,28 @@ export default function Login() {
             {loading ? "Entrando..." : "Entrar"}
           </button>
 
-          <button
-            type="button"
-            onClick={() => { setForgot(true); setError(""); }}
-            className="text-xs underline"
-            style={{ color: COLORS.slate }}
-          >
-            Esqueci minha senha
-          </button>
+          <div className="flex items-center justify-between">
+            <button
+              type="button"
+              onClick={() => { setForgot(true); setError(""); }}
+              className="text-xs underline"
+              style={{ color: COLORS.slate }}
+            >
+              Esqueci minha senha
+            </button>
+            <button
+              type="button"
+              onClick={() => { setSigningUp(true); setError(""); }}
+              className="text-xs underline"
+              style={{ color: COLORS.slate }}
+            >
+              Cadastrar minha empresa
+            </button>
+          </div>
         </form>
 
         <p className="text-xs mt-5 text-center" style={{ color: COLORS.slate }}>
-          Acesso restrito. Fale com o administrador do escritório para receber suas credenciais.
+          Acesso restrito. Fale com o administrador do seu escritório para receber suas credenciais.
         </p>
       </Card>
     </div>

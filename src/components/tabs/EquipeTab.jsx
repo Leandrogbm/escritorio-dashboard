@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Building2, Plus } from "lucide-react";
+import { Building2, Plus, Trash2 } from "lucide-react";
 import Card from "../Card.jsx";
 import SectionTitle from "../SectionTitle.jsx";
 import Stamp from "../Stamp.jsx";
@@ -29,6 +29,7 @@ export default function EquipeTab({ currentRole }) {
   const { data: equipe, loading, refresh } = useSupabaseTable("equipe_view", { orderBy: "nome", ascending: true });
   const [editing, setEditing] = useState(null); // {...} = editar métricas de quem já existe
   const [creating, setCreating] = useState(false); // novo colaborador
+  const podeExcluir = currentRole === "admin" || currentRole === "socio";
 
   const salvarMetricas = async (values) => {
     const { error } = await supabase.from("profiles").update(values).eq("id", editing.id);
@@ -43,6 +44,16 @@ export default function EquipeTab({ currentRole }) {
     await refresh();
     // email de senha temporária falhou mas o colaborador já foi criado — avisa o admin.
     if (data?.warning) throw new Error(data.warning);
+  };
+
+  const excluirColaborador = async (id) => {
+    if (!confirm("Excluir este colaborador? A conta de login dele também é apagada.")) return;
+    const { error } = await supabase.functions.invoke("admin-delete-user", { body: { userId: id } });
+    if (error) {
+      alert((await error.context?.json?.().catch(() => null))?.error ?? error.message);
+      return;
+    }
+    await refresh();
   };
 
   return (
@@ -76,7 +87,19 @@ export default function EquipeTab({ currentRole }) {
                   <p style={{ fontFamily: "'Source Serif 4', serif", fontWeight: 600, color: COLORS.ink }}>{e.nome}</p>
                   <p className="text-xs" style={{ color: COLORS.brass, letterSpacing: "0.04em" }}>{(e.cargo || "—").toUpperCase()}</p>
                 </div>
-                <Stamp tone="neutral">{e.ativos} ativos</Stamp>
+                <div className="flex items-center gap-2">
+                  <Stamp tone="neutral">{e.ativos} ativos</Stamp>
+                  {podeExcluir && (
+                    <button
+                      onClick={(ev) => { ev.stopPropagation(); excluirColaborador(e.id); }}
+                      aria-label="Excluir colaborador"
+                      className="p-1.5 rounded hover:opacity-70"
+                      style={{ color: COLORS.wine }}
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  )}
+                </div>
               </div>
               <div className="mt-4">
                 <div className="flex justify-between text-xs mb-1" style={{ color: COLORS.slate }}>

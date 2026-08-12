@@ -13,7 +13,7 @@ export default function TopBar({ profile, signOut }) {
     >
       <div className="flex items-center gap-2" style={{ color: COLORS.slate }}>
         <Scale size={16} />
-        <span className="text-sm">Gimenes &amp; Pires</span>
+        <span className="text-sm">{profile.organizations?.nome ?? "Escritório Dashboard"}</span>
       </div>
 
       <div className="flex items-center gap-3">

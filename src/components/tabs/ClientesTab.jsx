@@ -14,9 +14,10 @@ const FIELDS = [
   { key: "contrato_renovacao", label: "Renovação de contrato", type: "date", optional: true },
 ];
 
-export default function ClientesTab() {
+export default function ClientesTab({ currentRole }) {
   const { data: clientes, loading, insert, update, remove } = useSupabaseTable("clientes", { orderBy: "nome", ascending: true });
   const [editing, setEditing] = useState(null); // null = fechado, {} = novo, {...} = editando
+  const podeExcluir = currentRole === "admin" || currentRole === "socio"; // RLS (clientes_del) já barra no banco — isso só esconde o botão
 
   return (
     <div>
@@ -53,7 +54,7 @@ export default function ClientesTab() {
                 <td className="px-4 py-3" style={{ color: COLORS.slate }}>{c.tipo}</td>
                 <td className="px-4 py-3" style={{ color: COLORS.slate }}>{c.origem || "—"}</td>
                 <td className="px-4 py-3" style={{ color: COLORS.slate }}>{c.contrato_renovacao || "—"}</td>
-                <td className="px-4 py-3"><RowActions onEdit={() => setEditing(c)} onDelete={() => remove(c.id)} /></td>
+                <td className="px-4 py-3"><RowActions onEdit={() => setEditing(c)} onDelete={podeExcluir ? () => remove(c.id) : undefined} /></td>
               </tr>
             ))}
           </tbody>

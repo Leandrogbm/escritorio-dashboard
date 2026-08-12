@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from "react";
-import { Briefcase, Plus } from "lucide-react";
+import { Briefcase, Plus, AlertTriangle } from "lucide-react";
 import Card from "../Card.jsx";
 import SectionTitle from "../SectionTitle.jsx";
 import Stamp from "../Stamp.jsx";
@@ -17,7 +17,22 @@ export default function ProcessosTab() {
   });
   const { data: clientes } = useSupabaseTable("clientes", { select: "id,nome", orderBy: "nome", ascending: true });
   const { data: equipe } = useSupabaseTable("profiles", { select: "id,nome", orderBy: "nome", ascending: true });
+  // Sem módulo financeiro liberado pro perfil, a RLS de honorarios devolve vazio — o aviso
+  // só aparece pra quem já enxerga essa informação de qualquer forma.
+  const { data: honorarios } = useSupabaseTable("honorarios", { select: "cliente_id, status, vencimento" });
   const [editing, setEditing] = useState(null);
+
+  // Inadimplente = tem honorário vencido, ou "em aberto" com vencimento já passado
+  // (cobre o caso de ninguém ter marcado como "Vencido" manualmente ainda).
+  const clientesInadimplentes = useMemo(() => {
+    const hoje = new Date().toISOString().slice(0, 10);
+    const map = new Map();
+    for (const h of honorarios) {
+      const atrasado = h.status === "Vencido" || (h.status === "Em aberto" && h.vencimento < hoje);
+      if (atrasado) map.set(h.cliente_id, (map.get(h.cliente_id) ?? 0) + 1);
+    }
+    return map;
+  }, [honorarios]);
 
   const fields = useMemo(() => [
     { key: "numero", label: "Número do processo" },
@@ -44,7 +59,9 @@ export default function ProcessosTab() {
         <p className="text-sm" style={{ color: COLORS.slate }}>Nenhum processo cadastrado ainda.</p>
       )}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {processos.map((p) => (
+        {processos.map((p) => {
+          const atrasos = clientesInadimplentes.get(p.cliente?.id);
+          return (
           <Card key={p.id}>
             <div className="flex items-start justify-between gap-3">
               <div>
@@ -53,6 +70,12 @@ export default function ProcessosTab() {
               </div>
               <Stamp tone={STATUS_TONE[p.status]}>{p.status}</Stamp>
             </div>
+            {atrasos > 0 && (
+              <div className="flex items-center gap-1.5 mt-2 px-2.5 py-1.5 rounded-md text-xs" style={{ background: "rgba(155,28,28,0.08)", color: COLORS.wine }}>
+                <AlertTriangle size={13} />
+                Cliente com {atrasos} honorário{atrasos > 1 ? "s" : ""} em atraso
+              </div>
+            )}
             <div className="flex items-center justify-between mt-4 pt-4" style={{ borderTop: `1px solid ${COLORS.line}` }}>
               <span className="text-xs uppercase tracking-wide" style={{ color: COLORS.brass, fontWeight: 600 }}>{p.area}</span>
               <span className="text-sm" style={{ color: COLORS.slate }}>{p.responsavel?.nome ?? "—"}</span>
@@ -65,7 +88,8 @@ export default function ProcessosTab() {
               />
             </div>
           </Card>
-        ))}
+          );
+        })}
       </div>
 
       <RecordFormModal

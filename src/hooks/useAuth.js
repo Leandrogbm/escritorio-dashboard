@@ -40,7 +40,7 @@ export function useAuth() {
     setProfile(undefined);
     supabase
       .from("profiles")
-      .select("*")
+      .select("*, organizations(nome)")
       .eq("id", session.user.id)
       .maybeSingle()
       .then(({ data }) => setProfile(data));
