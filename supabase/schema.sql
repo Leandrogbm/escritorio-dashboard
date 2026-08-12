@@ -114,17 +114,41 @@ create or replace function has_module(module_key text) returns boolean
 create or replace function set_org_id() returns trigger
   language plpgsql as $$ begin new.org_id := auth_org_id(); return new; end; $$;
 
+-- ── Admin da plataforma (dono do mysaldo) ───────────────────────────────
+-- Separado do admin de cada empresa. Duas coisas: (1) painel de billing — plano/valor/
+-- status que cada empresa paga PRA plataforma, nada a ver com o financeiro interno dela
+-- (honorarios); (2) acesso de SUPORTE somente-leitura a qualquer empresa (correção de bug/
+-- reclamação) — por isso "or is_platform_admin()" aparece só nas policies de SELECT abaixo,
+-- nunca em insert/update/delete: corrigir de verdade é código/banco, não editar pela UI
+-- da empresa. Definido antes da seção de RLS porque as policies logo abaixo já usam.
+
+create table platform_admins (
+  user_id uuid primary key references auth.users(id) on delete cascade
+);
+alter table platform_admins enable row level security;
+-- só o próprio platform admin lê essa tabela (pra saber que é um) — sem policy de insert,
+-- entra só via SQL/Studio direto, é bootstrap raro.
+create policy platform_admins_select on platform_admins for select using (user_id = auth.uid());
+
+create or replace function is_platform_admin() returns boolean
+  language sql stable security definer set search_path = public
+  as $$ select exists (select 1 from platform_admins where user_id = auth.uid()) $$;
+
 -- ── RLS ──────────────────────────────────────────────────────────────────
 
 alter table organizations enable row level security;
-create policy org_select on organizations for select using (id = auth_org_id());
+create policy org_select on organizations for select using (id = auth_org_id() or is_platform_admin());
 -- sem policy de insert de propósito: criar organization só acontece na Edge Function
 -- signup-empresa, com service_role (ignora RLS) — um visitante sem org ainda não tem
 -- como passar em auth_org_id() pra se auto-inserir de qualquer forma.
+-- update só pra billing (plano/valor_mensal/status_pagamento), e só o platform admin —
+-- não faz sentido a própria empresa mexer no que ela paga pra plataforma.
+create policy organizations_billing_upd on organizations for update
+  using (is_platform_admin()) with check (is_platform_admin());
 
 alter table profiles enable row level security;
 create trigger trg_set_org_id before insert on profiles for each row execute function set_org_id();
-create policy profiles_select on profiles for select using (org_id = auth_org_id());
+create policy profiles_select on profiles for select using (org_id = auth_org_id() or is_platform_admin());
 create policy profiles_update on profiles for update
   using (org_id = auth_org_id() and (id = auth.uid() or auth_role() = 'admin'))
   with check (org_id = auth_org_id());
@@ -146,7 +170,7 @@ create policy role_permissions_write on role_permissions for all
 
 alter table clientes enable row level security;
 create trigger trg_set_org_id before insert on clientes for each row execute function set_org_id();
-create policy clientes_sel on clientes for select using (org_id = auth_org_id() and has_module('clientes'));
+create policy clientes_sel on clientes for select using ((org_id = auth_org_id() and has_module('clientes')) or is_platform_admin());
 create policy clientes_ins on clientes for insert with check (org_id = auth_org_id() and has_module('clientes'));
 create policy clientes_upd on clientes for update using (org_id = auth_org_id() and has_module('clientes')) with check (org_id = auth_org_id());
 -- só admin/sócio excluem cliente (diferente das outras policies, que valem pra quem tem o módulo)
@@ -154,55 +178,40 @@ create policy clientes_del on clientes for delete using (org_id = auth_org_id() 
 
 alter table processos enable row level security;
 create trigger trg_set_org_id before insert on processos for each row execute function set_org_id();
-create policy processos_sel on processos for select using (org_id = auth_org_id() and has_module('processos'));
+create policy processos_sel on processos for select using ((org_id = auth_org_id() and has_module('processos')) or is_platform_admin());
 create policy processos_ins on processos for insert with check (org_id = auth_org_id() and has_module('processos'));
 create policy processos_upd on processos for update using (org_id = auth_org_id() and has_module('processos')) with check (org_id = auth_org_id());
 create policy processos_del on processos for delete using (org_id = auth_org_id() and has_module('processos'));
 
 alter table prazos enable row level security;
 create trigger trg_set_org_id before insert on prazos for each row execute function set_org_id();
-create policy prazos_sel on prazos for select using (org_id = auth_org_id() and has_module('prazos'));
+create policy prazos_sel on prazos for select using ((org_id = auth_org_id() and has_module('prazos')) or is_platform_admin());
 create policy prazos_ins on prazos for insert with check (org_id = auth_org_id() and has_module('prazos'));
 create policy prazos_upd on prazos for update using (org_id = auth_org_id() and has_module('prazos')) with check (org_id = auth_org_id());
 create policy prazos_del on prazos for delete using (org_id = auth_org_id() and has_module('prazos'));
 
 alter table honorarios enable row level security;
 create trigger trg_set_org_id before insert on honorarios for each row execute function set_org_id();
-create policy honorarios_sel on honorarios for select using (org_id = auth_org_id() and has_module('financeiro'));
+create policy honorarios_sel on honorarios for select using ((org_id = auth_org_id() and has_module('financeiro')) or is_platform_admin());
 create policy honorarios_ins on honorarios for insert with check (org_id = auth_org_id() and has_module('financeiro'));
 create policy honorarios_upd on honorarios for update using (org_id = auth_org_id() and has_module('financeiro')) with check (org_id = auth_org_id());
 create policy honorarios_del on honorarios for delete using (org_id = auth_org_id() and has_module('financeiro'));
-
--- ── Admin da plataforma (dono do mysaldo) ───────────────────────────────
--- Separado do admin de cada empresa: só enxerga métricas agregadas por empresa
--- (quantos colaboradores/clientes/processos), nunca os dados internos de cada uma
--- (nomes de clientes, financeiro, membros da equipe). Ver PlatformAdminPanel.jsx.
-
-create table platform_admins (
-  user_id uuid primary key references auth.users(id) on delete cascade
-);
-alter table platform_admins enable row level security;
--- só o próprio platform admin lê essa tabela (pra saber que é um) — sem policy de insert,
--- entra só via SQL/Studio direto, é bootstrap raro.
-create policy platform_admins_select on platform_admins for select using (user_id = auth.uid());
-
-create or replace function is_platform_admin() returns boolean
-  language sql stable security definer set search_path = public
-  as $$ select exists (select 1 from platform_admins where user_id = auth.uid()) $$;
 
 -- security definer: ignora RLS de propósito, é o único jeito de agregar contagem
 -- cross-tenant. Só devolve algo se quem chama for platform admin; senão, vazio.
 create or replace function platform_org_metrics()
 returns table (
   org_id uuid, nome text, cnpj text, created_at timestamptz,
-  colaboradores bigint, clientes bigint, processos bigint
+  colaboradores bigint, clientes bigint, processos bigint,
+  plano text, valor_mensal numeric, status_pagamento text
 )
 language sql stable security definer set search_path = public
 as $$
   select o.id, o.nome, o.cnpj, o.created_at,
     (select count(*) from profiles p where p.org_id = o.id) as colaboradores,
     (select count(*) from clientes c where c.org_id = o.id) as clientes,
-    (select count(*) from processos pr where pr.org_id = o.id) as processos
+    (select count(*) from processos pr where pr.org_id = o.id) as processos,
+    o.plano, o.valor_mensal, o.status_pagamento
   from organizations o
   where is_platform_admin()
   order by o.created_at desc

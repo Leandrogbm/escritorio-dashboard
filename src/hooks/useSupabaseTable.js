@@ -4,18 +4,23 @@ import { supabase } from "../lib/supabaseClient.js";
 // CRUD genérico reaproveitado por toda aba: useSupabaseTable("clientes") →
 // { data, loading, error, insert, update, remove, refresh }.
 // `select` deixa customizar joins (ex.: "*, cliente:clientes(nome)"); `orderBy` define ordenação.
-export function useSupabaseTable(table, { select = "*", orderBy = "created_at", ascending = false } = {}) {
+// `eq`: [coluna, valor] opcional — usado pelo inspetor de suporte do platform admin, que
+// não tem org_id próprio (RLS libera todas as orgs pra ele) e precisa filtrar manualmente
+// pra uma empresa por vez.
+export function useSupabaseTable(table, { select = "*", orderBy = "created_at", ascending = false, eq } = {}) {
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
   const refresh = useCallback(async () => {
     setLoading(true);
-    const { data: rows, error: err } = await supabase.from(table).select(select).order(orderBy, { ascending });
+    let query = supabase.from(table).select(select).order(orderBy, { ascending });
+    if (eq) query = query.eq(eq[0], eq[1]);
+    const { data: rows, error: err } = await query;
     setData(rows ?? []);
     setError(err?.message ?? null);
     setLoading(false);
-  }, [table, select, orderBy, ascending]);
+  }, [table, select, orderBy, ascending, eq?.[0], eq?.[1]]);
 
   useEffect(() => { refresh(); }, [refresh]);
 
