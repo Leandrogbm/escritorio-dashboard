@@ -118,7 +118,7 @@ export default function FinanceiroTab() {
         onClose={() => setEditing(null)}
         onSubmit={({ parcelas, ...values }) => {
           if (editing?.id) return update(editing.id, values);
-          const n = Math.max(1, parseInt(parcelas, 10) || 1);
+          const n = Math.min(120, Math.max(1, parseInt(parcelas, 10) || 1)); // teto de 10 anos, evita gerar milhares de linhas com um número digitado errado
           if (n === 1) return insert(values);
           const linhas = Array.from({ length: n }, (_, i) => ({ ...values, vencimento: addMonths(values.vencimento, i) }));
           return insert(linhas);

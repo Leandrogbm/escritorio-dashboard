@@ -1,5 +1,10 @@
 -- Escritório Dashboard — schema Supabase (multi-tenant)
 -- Como aplicar: copiar este arquivo inteiro e colar no SQL Editor do projeto Supabase, rodar uma vez.
+--
+-- Configuração fora do SQL (Authentication → Settings no dashboard, ou API de management):
+--   disable_signup = true — o self-signup público (POST /auth/v1/signup) fica desligado.
+--   Cadastro de empresa só entra pela Edge Function signup-empresa (admin.createUser, service_role).
+--   Sem isso, qualquer um podia criar uma conta órfã direto pela API só com a anon key.
 
 -- ── Tabelas ────────────────────────────────────────────────────────────────
 
@@ -157,8 +162,12 @@ create policy profiles_update on profiles for update
 -- numa tacada, usando a service_role key.
 -- Sem policy de delete: remover colaborador é feito apagando o usuário no Auth, via a
 -- Edge Function admin-delete-user (admin ou sócio) — o cascade cuida do profile sozinho.
+-- org_id = auth_org_id() aqui é essencial, não só auth_role() = 'admin' — sem isso, um
+-- admin de QUALQUER empresa poderia inserir um profile com org_id de outra (plantando um
+-- admin lá) direto via API, sem passar pela Edge Function. O trigger trg_set_org_id já
+-- sobrescreve org_id de qualquer jeito, mas o check explícito é defesa em profundidade.
 create policy profiles_insert on profiles for insert
-  with check (auth_role() = 'admin');
+  with check (auth_role() = 'admin' and org_id = auth_org_id());
 
 alter table role_permissions enable row level security;
 create policy role_permissions_select on role_permissions for select using (org_id = auth_org_id());

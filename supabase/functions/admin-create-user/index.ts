@@ -19,7 +19,7 @@ function gerarSenhaTemporaria() {
   return crypto.randomUUID().replace(/-/g, "").slice(0, 12);
 }
 
-async function enviarSenhaPorEmail(email: string, nome: string, senha: string) {
+async function enviarSenhaPorEmail(email: string, nome: string, senha: string, orgNome: string) {
   const res = await fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: {
@@ -27,10 +27,10 @@ async function enviarSenhaPorEmail(email: string, nome: string, senha: string) {
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      from: "Gimenes & Pires <nao-responda@mysaldo.com.br>",
+      from: `${orgNome} <nao-responda@mysaldo.com.br>`,
       to: email,
-      subject: "Acesso ao Dashboard — Gimenes & Pires",
-      text: `Olá, ${nome}!\n\nSua conta foi criada. Login: ${email}\nSenha temporária: ${senha}\n\nTroque a senha no primeiro acesso.`,
+      subject: `Acesso ao Dashboard — ${orgNome}`,
+      text: `Olá, ${nome}!\n\nSua conta foi criada em ${orgNome}. Login: ${email}\nSenha temporária: ${senha}\n\nTroque a senha no primeiro acesso.`,
     }),
   });
   if (!res.ok) throw new Error(`Falha ao enviar email: ${await res.text()}`);
@@ -56,12 +56,13 @@ Deno.serve(async (req) => {
 
     const { data: callerProfile } = await admin
       .from("profiles")
-      .select("org_id, role")
+      .select("org_id, role, organizations(nome)")
       .eq("id", caller.id)
       .single();
     if (!callerProfile || callerProfile.role !== "admin") {
       return new Response(JSON.stringify({ error: "Só admin pode criar colaborador." }), { status: 403, headers: corsHeaders });
     }
+    const orgNome = callerProfile.organizations?.nome ?? "seu escritório";
 
     const { nome, email, role } = await req.json();
     const ALLOWED_ROLES = ["socio", "advogado", "financeiro", "recepcao", "admin"]; // espelha o check constraint de profiles.role
@@ -93,7 +94,7 @@ Deno.serve(async (req) => {
 
     let warning: string | undefined;
     try {
-      await enviarSenhaPorEmail(email, nome, senhaTemp);
+      await enviarSenhaPorEmail(email, nome, senhaTemp, orgNome);
     } catch (emailErr) {
       // usuário e profile já existem — não desfaz por causa do email, só avisa o admin
       // pra passar a senha manualmente.
