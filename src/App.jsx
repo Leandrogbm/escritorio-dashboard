@@ -5,6 +5,7 @@ import { useAuth } from "./hooks/useAuth.js";
 import { useRolePermissions } from "./hooks/useRolePermissions.js";
 import Login from "./components/Login.jsx";
 import ResetPassword from "./components/ResetPassword.jsx";
+import PlatformAdminPanel from "./components/PlatformAdminPanel.jsx";
 import Sidebar from "./components/Sidebar.jsx";
 import TopBar from "./components/TopBar.jsx";
 import EmptyState from "./components/EmptyState.jsx";
@@ -17,9 +18,10 @@ import ExecutivoTab from "./components/tabs/ExecutivoTab.jsx";
 import ConfigTab from "./components/tabs/ConfigTab.jsx";
 
 export default function App() {
-  const { session, profile, loading, recovery, clearRecovery, signOut } = useAuth();
+  const { session, profile, isPlatformAdmin, loading, recovery, clearRecovery, signOut } = useAuth();
   const { permissions, togglePermission } = useRolePermissions(profile?.org_id);
   const [activeTab, setActiveTab] = useState("prazos");
+  const [verEmpresa, setVerEmpresa] = useState(false); // platform admin que também é admin de uma org: alterna pra visão normal
 
   const currentRole = profile?.role;
   const allowedModules = useMemo(() => {
@@ -38,6 +40,15 @@ export default function App() {
   if (loading) return <FullScreenMessage>Carregando...</FullScreenMessage>;
   if (recovery) return <ResetPassword onDone={clearRecovery} />;
   if (!session) return <Login />;
+  if (isPlatformAdmin && !verEmpresa) {
+    return (
+      <PlatformAdminPanel
+        temPerfilProprio={profile !== null}
+        onEntrarNaEmpresa={() => setVerEmpresa(true)}
+        signOut={signOut}
+      />
+    );
+  }
   if (profile === null) {
     return (
       <FullScreenMessage>

@@ -173,6 +173,47 @@ create policy honorarios_ins on honorarios for insert with check (org_id = auth_
 create policy honorarios_upd on honorarios for update using (org_id = auth_org_id() and has_module('financeiro')) with check (org_id = auth_org_id());
 create policy honorarios_del on honorarios for delete using (org_id = auth_org_id() and has_module('financeiro'));
 
+-- ── Admin da plataforma (dono do mysaldo) ───────────────────────────────
+-- Separado do admin de cada empresa: só enxerga métricas agregadas por empresa
+-- (quantos colaboradores/clientes/processos), nunca os dados internos de cada uma
+-- (nomes de clientes, financeiro, membros da equipe). Ver PlatformAdminPanel.jsx.
+
+create table platform_admins (
+  user_id uuid primary key references auth.users(id) on delete cascade
+);
+alter table platform_admins enable row level security;
+-- só o próprio platform admin lê essa tabela (pra saber que é um) — sem policy de insert,
+-- entra só via SQL/Studio direto, é bootstrap raro.
+create policy platform_admins_select on platform_admins for select using (user_id = auth.uid());
+
+create or replace function is_platform_admin() returns boolean
+  language sql stable security definer set search_path = public
+  as $$ select exists (select 1 from platform_admins where user_id = auth.uid()) $$;
+
+-- security definer: ignora RLS de propósito, é o único jeito de agregar contagem
+-- cross-tenant. Só devolve algo se quem chama for platform admin; senão, vazio.
+create or replace function platform_org_metrics()
+returns table (
+  org_id uuid, nome text, cnpj text, created_at timestamptz,
+  colaboradores bigint, clientes bigint, processos bigint
+)
+language sql stable security definer set search_path = public
+as $$
+  select o.id, o.nome, o.cnpj, o.created_at,
+    (select count(*) from profiles p where p.org_id = o.id) as colaboradores,
+    (select count(*) from clientes c where c.org_id = o.id) as clientes,
+    (select count(*) from processos pr where pr.org_id = o.id) as processos
+  from organizations o
+  where is_platform_admin()
+  order by o.created_at desc
+$$;
+
+grant execute on function is_platform_admin() to authenticated;
+grant execute on function platform_org_metrics() to authenticated;
+
+-- primeiro platform admin — trocar pelo UUID do seu próprio usuário (Studio → Authentication)
+insert into platform_admins (user_id) values ('<uuid-do-dono-da-plataforma>');
+
 -- ── Seed: Gimenes & Pires ────────────────────────────────────────────────
 
 insert into organizations (nome, slug) values ('Gimenes & Pires', 'gimenes-pires');

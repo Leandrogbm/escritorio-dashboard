@@ -7,6 +7,8 @@ import { supabase } from "../lib/supabaseClient.js";
 export function useAuth() {
   const [session, setSession] = useState(undefined);
   const [profile, setProfile] = useState(undefined);
+  const [isPlatformAdmin, setIsPlatformAdmin] = useState(false);
+  const [platformAdminChecked, setPlatformAdminChecked] = useState(false);
   // true depois de abrir o link do email de "redefinir senha" — supabase-js já cria uma
   // sessão nesse momento, então precisamos distinguir isso de um login normal.
   const [recovery, setRecovery] = useState(false);
@@ -36,20 +38,25 @@ export function useAuth() {
 
   useEffect(() => {
     if (session === undefined) return;
-    if (!session) { setProfile(null); return; }
+    if (!session) { setProfile(null); setIsPlatformAdmin(false); setPlatformAdminChecked(true); return; }
     setProfile(undefined);
+    setPlatformAdminChecked(false);
     supabase
       .from("profiles")
       .select("*, organizations(nome)")
       .eq("id", session.user.id)
       .maybeSingle()
       .then(({ data }) => setProfile(data));
+    // platform_org_metrics é security definer e checa isso por dentro — não vaza nada,
+    // mas ainda perguntamos explicitamente pra decidir qual painel mostrar no client.
+    supabase.rpc("is_platform_admin").then(({ data }) => { setIsPlatformAdmin(!!data); setPlatformAdminChecked(true); });
   }, [session]);
 
   return {
     session,
     profile,
-    loading: session === undefined || (session && profile === undefined),
+    isPlatformAdmin,
+    loading: session === undefined || (session && (profile === undefined || !platformAdminChecked)),
     recovery,
     clearRecovery: () => setRecovery(false),
     signOut: () => supabase.auth.signOut(),
