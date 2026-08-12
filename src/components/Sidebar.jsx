@@ -11,11 +11,11 @@ export default function Sidebar({ allowedModules, activeTab, setActiveTab, curre
           className="w-11 h-11 rounded-full flex items-center justify-center shrink-0"
           style={{ border: `2px solid ${COLORS.brass}`, boxShadow: `inset 0 0 0 2px ${COLORS.ink}, inset 0 0 0 3px ${COLORS.brass}` }}
         >
-          <span style={{ fontFamily: "'Source Serif 4', serif", color: COLORS.brass, fontWeight: 700, fontSize: 14 }}>A&T</span>
+          <span style={{ fontFamily: "'Source Serif 4', serif", color: COLORS.brass, fontWeight: 700, fontSize: 14 }}>G&amp;P</span>
         </div>
         <div>
           <p style={{ fontFamily: "'Source Serif 4', serif", color: "#fff", fontWeight: 600, fontSize: 15, lineHeight: 1.15 }}>
-            Almeida, Rocha &amp; Tavares
+            Gimenes &amp; Pires
           </p>
           <p className="text-[11px] tracking-wide" style={{ color: "rgba(255,255,255,0.5)" }}>ADVOCACIA</p>
         </div>

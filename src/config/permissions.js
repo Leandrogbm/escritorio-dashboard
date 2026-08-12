@@ -17,12 +17,6 @@ export const MODULES = [
   { key: "executivo", label: "Visão Executiva", icon: TrendingUp },
 ];
 
-// Defina aqui quais abas cada perfil enxerga por padrão.
-// O admin pode ajustar isso em tempo real pela aba "Configurações".
-export const DEFAULT_PERMISSIONS = {
-  socio: ["prazos", "processos", "financeiro", "clientes", "equipe", "executivo"],
-  advogado: ["prazos", "processos", "clientes"],
-  financeiro: ["financeiro", "clientes"],
-  recepcao: ["prazos", "clientes"],
-  admin: ["prazos", "processos", "financeiro", "clientes", "equipe", "executivo"],
-};
+// A matriz de permissões (quais abas cada perfil enxerga) agora vive na tabela
+// role_permissions do Supabase — ver supabase/schema.sql e src/hooks/useRolePermissions.js.
+// O seed inicial ali é uma cópia 1:1 do que era este DEFAULT_PERMISSIONS.
