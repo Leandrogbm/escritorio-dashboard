@@ -13,6 +13,12 @@ create table organizations (
   nome text not null,
   slug text unique not null,
   cnpj text unique, -- cadastro self-service (signup-empresa) usa os dígitos do CNPJ como slug
+  -- billing que a empresa paga PRA plataforma (mysaldo) — não confundir com honorarios,
+  -- que é o financeiro interno dela. Só o platform admin edita (organizations_billing_upd).
+  plano text,
+  valor_mensal numeric(10,2),
+  status_pagamento text check (status_pagamento in ('pago','pendente','atrasado')) not null default 'pendente',
+  suspenso boolean not null default false, -- bloqueia login de toda a empresa (App.jsx), sem apagar nada
   created_at timestamptz not null default now()
 );
 
@@ -212,7 +218,7 @@ create or replace function platform_org_metrics()
 returns table (
   org_id uuid, nome text, cnpj text, created_at timestamptz,
   colaboradores bigint, clientes bigint, processos bigint,
-  plano text, valor_mensal numeric, status_pagamento text
+  plano text, valor_mensal numeric, status_pagamento text, suspenso boolean
 )
 language sql stable security definer set search_path = public
 as $$
@@ -220,7 +226,7 @@ as $$
     (select count(*) from profiles p where p.org_id = o.id) as colaboradores,
     (select count(*) from clientes c where c.org_id = o.id) as clientes,
     (select count(*) from processos pr where pr.org_id = o.id) as processos,
-    o.plano, o.valor_mensal, o.status_pagamento
+    o.plano, o.valor_mensal, o.status_pagamento, o.suspenso
   from organizations o
   where is_platform_admin()
   order by o.created_at desc
@@ -228,6 +234,10 @@ $$;
 
 grant execute on function is_platform_admin() to authenticated;
 grant execute on function platform_org_metrics() to authenticated;
+
+-- Excluir empresa por completo (colaboradores, clientes, processos, financeiro, a org em si)
+-- é a Edge Function platform-delete-org — precisa apagar cada Auth user via Admin API,
+-- então não dá pra fazer só com RLS/policy; fica de fora do SQL puro.
 
 -- primeiro platform admin — trocar pelo UUID do seu próprio usuário (Studio → Authentication)
 insert into platform_admins (user_id) values ('<uuid-do-dono-da-plataforma>');

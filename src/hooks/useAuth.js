@@ -43,7 +43,7 @@ export function useAuth() {
     setPlatformAdminChecked(false);
     supabase
       .from("profiles")
-      .select("*, organizations(nome)")
+      .select("*, organizations(nome, suspenso)")
       .eq("id", session.user.id)
       .maybeSingle()
       .then(({ data }) => setProfile(data));

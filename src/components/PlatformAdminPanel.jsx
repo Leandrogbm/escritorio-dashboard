@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Building2, LogOut, LayoutGrid, Eye } from "lucide-react";
+import { Building2, LogOut, LayoutGrid, Eye, Ban, PlayCircle, Trash2, Settings2 } from "lucide-react";
 import Card from "./Card.jsx";
 import RecordFormModal from "./RecordFormModal.jsx";
 import EmpresaInspector from "./EmpresaInspector.jsx";
@@ -8,10 +8,12 @@ import { BRL } from "../data/mockData.js";
 import { supabase } from "../lib/supabaseClient.js";
 
 const STATUS_TONE = { pago: COLORS.success, pendente: COLORS.brass, atrasado: COLORS.wine };
-const BILLING_FIELDS = [
+const CONFIG_FIELDS = [
+  { key: "nome", label: "Nome da empresa" },
+  { key: "cnpj", label: "CNPJ", optional: true },
   { key: "plano", label: "Plano", optional: true },
   { key: "valor_mensal", label: "Valor mensal (R$)", type: "number", optional: true },
-  { key: "status_pagamento", label: "Situação", type: "select", options: [
+  { key: "status_pagamento", label: "Situação de pagamento", type: "select", options: [
     { value: "pago", label: "Pago" }, { value: "pendente", label: "Pendente" }, { value: "atrasado", label: "Atrasado" },
   ] },
 ];
@@ -21,15 +23,36 @@ const BILLING_FIELDS = [
 // (diferente do financeiro interno dela). "Inspecionar" abre acesso de suporte somente-leitura.
 export default function PlatformAdminPanel({ temPerfilProprio, onEntrarNaEmpresa, signOut }) {
   const [empresas, setEmpresas] = useState(null);
-  const [editingBilling, setEditingBilling] = useState(null); // {...} = editando billing de uma empresa
+  const [editingConfig, setEditingConfig] = useState(null); // {...} = configurando uma empresa
   const [inspecting, setInspecting] = useState(null); // {org_id, nome} = inspetor aberto
 
   const carregar = () => supabase.rpc("platform_org_metrics").then(({ data }) => setEmpresas(data ?? []));
   useEffect(() => { carregar(); }, []);
 
-  const salvarBilling = async (values) => {
-    const { error } = await supabase.from("organizations").update(values).eq("id", editingBilling.org_id);
+  const salvarConfig = async (values) => {
+    const { error } = await supabase.from("organizations").update(values).eq("id", editingConfig.org_id);
     if (error) throw error;
+    await carregar();
+  };
+
+  const alternarSuspensao = async (empresa) => {
+    const acao = empresa.suspenso ? "reativar" : "suspender";
+    if (!confirm(`Confirma ${acao} o acesso de "${empresa.nome}"?`)) return;
+    const { error } = await supabase.from("organizations").update({ suspenso: !empresa.suspenso }).eq("id", empresa.org_id);
+    if (error) return alert(error.message);
+    await carregar();
+  };
+
+  const excluirEmpresa = async (empresa) => {
+    const digitado = prompt(`Isso apaga TUDO de "${empresa.nome}" (colaboradores, clientes, processos, financeiro) sem volta.\n\nDigite o nome exato da empresa pra confirmar:`);
+    if (digitado === null) return;
+    if (digitado !== empresa.nome) return alert("Nome não confere — nada foi excluído.");
+    const { error } = await supabase.functions.invoke("platform-delete-org", { body: { orgId: empresa.org_id, confirmarNome: digitado } });
+    if (error) {
+      const body = await error.context?.json?.().catch(() => null);
+      alert(body?.error ?? error.message);
+      return;
+    }
     await carregar();
   };
 
@@ -102,12 +125,21 @@ export default function PlatformAdminPanel({ temPerfilProprio, onEntrarNaEmpresa
                   <td className="px-4 py-3" style={{ color: COLORS.ink }}>{e.valor_mensal ? BRL(e.valor_mensal) : "—"}</td>
                   <td className="px-4 py-3">
                     <span className="text-xs font-semibold uppercase" style={{ color: STATUS_TONE[e.status_pagamento] }}>{e.status_pagamento}</span>
+                    {e.suspenso && <span className="ml-2 text-xs font-semibold uppercase" style={{ color: COLORS.wine }}>· suspensa</span>}
                   </td>
                   <td className="px-4 py-3 flex items-center gap-2">
                     <button onClick={() => setInspecting(e)} aria-label="Inspecionar" className="p-1.5 rounded hover:opacity-70" style={{ color: COLORS.slate }}>
                       <Eye size={14} />
                     </button>
-                    <button onClick={() => setEditingBilling(e)} className="text-xs underline" style={{ color: COLORS.slate }}>billing</button>
+                    <button onClick={() => setEditingConfig(e)} aria-label="Configurar" className="p-1.5 rounded hover:opacity-70" style={{ color: COLORS.slate }}>
+                      <Settings2 size={14} />
+                    </button>
+                    <button onClick={() => alternarSuspensao(e)} aria-label={e.suspenso ? "Reativar" : "Suspender"} className="p-1.5 rounded hover:opacity-70" style={{ color: e.suspenso ? COLORS.success : COLORS.brass }}>
+                      {e.suspenso ? <PlayCircle size={14} /> : <Ban size={14} />}
+                    </button>
+                    <button onClick={() => excluirEmpresa(e)} aria-label="Excluir empresa" className="p-1.5 rounded hover:opacity-70" style={{ color: COLORS.wine }}>
+                      <Trash2 size={14} />
+                    </button>
                   </td>
                 </tr>
               ))}
@@ -117,12 +149,12 @@ export default function PlatformAdminPanel({ temPerfilProprio, onEntrarNaEmpresa
       </main>
 
       <RecordFormModal
-        open={editingBilling !== null}
-        title={`Billing — ${editingBilling?.nome ?? ""}`}
-        fields={BILLING_FIELDS}
-        initialValues={editingBilling}
-        onClose={() => setEditingBilling(null)}
-        onSubmit={salvarBilling}
+        open={editingConfig !== null}
+        title={`Configurar — ${editingConfig?.nome ?? ""}`}
+        fields={CONFIG_FIELDS}
+        initialValues={editingConfig}
+        onClose={() => setEditingConfig(null)}
+        onSubmit={salvarConfig}
       />
 
       {inspecting && (

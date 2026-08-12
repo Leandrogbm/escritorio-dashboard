@@ -57,6 +57,14 @@ export default function App() {
       </FullScreenMessage>
     );
   }
+  if (profile.organizations?.suspenso) {
+    return (
+      <FullScreenMessage>
+        O acesso da sua empresa está suspenso no momento. Fale com o suporte pra regularizar.
+        <button onClick={signOut} className="block mx-auto mt-4 text-sm underline" style={{ color: COLORS.brass }}>Sair</button>
+      </FullScreenMessage>
+    );
+  }
   if (!permissions) return <FullScreenMessage>Carregando...</FullScreenMessage>;
 
   const renderTab = () => {
