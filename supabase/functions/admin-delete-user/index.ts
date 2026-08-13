@@ -33,8 +33,11 @@ Deno.serve(async (req) => {
       .select("org_id, role")
       .eq("id", caller.id)
       .single();
-    if (!callerProfile || !["admin", "socio"].includes(callerProfile.role)) {
-      return new Response(JSON.stringify({ error: "Só admin ou sócio podem excluir colaborador." }), { status: 403, headers: corsHeaders });
+    const { data: platformAdminRow } = await admin.from("platform_admins").select("user_id").eq("user_id", caller.id).maybeSingle();
+    const ehPlatformAdmin = !!platformAdminRow;
+    const ehAdminOuSocioDaOrg = callerProfile && ["admin", "socio"].includes(callerProfile.role);
+    if (!ehPlatformAdmin && !ehAdminOuSocioDaOrg) {
+      return new Response(JSON.stringify({ error: "Só admin, sócio ou o admin da plataforma podem excluir colaborador." }), { status: 403, headers: corsHeaders });
     }
 
     const { userId } = await req.json();
@@ -45,11 +48,13 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ error: "Você não pode excluir sua própria conta por aqui." }), { status: 400, headers: corsHeaders });
     }
 
-    // confirma que o alvo é da mesma org antes de apagar — não dá pra um admin de uma
-    // empresa excluir colaborador de outra só adivinhando o id.
-    const { data: targetProfile } = await admin.from("profiles").select("org_id").eq("id", userId).single();
-    if (!targetProfile || targetProfile.org_id !== callerProfile.org_id) {
-      return new Response(JSON.stringify({ error: "Colaborador não encontrado." }), { status: 404, headers: corsHeaders });
+    // admin/sócio só excluem dentro da própria org — platform admin pula essa checagem,
+    // pode mirar qualquer colaborador de qualquer empresa.
+    if (!ehPlatformAdmin) {
+      const { data: targetProfile } = await admin.from("profiles").select("org_id").eq("id", userId).single();
+      if (!targetProfile || targetProfile.org_id !== callerProfile.org_id) {
+        return new Response(JSON.stringify({ error: "Colaborador não encontrado." }), { status: 404, headers: corsHeaders });
+      }
     }
 
     const { error: deleteErr } = await admin.auth.admin.deleteUser(userId);

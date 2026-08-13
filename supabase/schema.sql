@@ -188,7 +188,8 @@ create policy profiles_update on profiles for update
 -- que cria o Auth user com senha temporária (mandada por email) e insere o profile
 -- numa tacada, usando a service_role key.
 -- Sem policy de delete: remover colaborador é feito apagando o usuário no Auth, via a
--- Edge Function admin-delete-user (admin ou sócio) — o cascade cuida do profile sozinho.
+-- Edge Function admin-delete-user (admin/sócio da própria org, OU o platform admin
+-- mirando qualquer empresa) — o cascade cuida do profile sozinho.
 -- org_id = auth_org_id() aqui é essencial, não só auth_role() = 'admin' — sem isso, um
 -- admin de QUALQUER empresa poderia inserir um profile com org_id de outra (plantando um
 -- admin lá) direto via API, sem passar pela Edge Function. Como não tem trigger aqui (ver
@@ -209,8 +210,11 @@ create trigger trg_set_org_id before insert on clientes for each row execute fun
 create policy clientes_sel on clientes for select using ((org_id = auth_org_id() and has_module('clientes')) or is_platform_admin());
 create policy clientes_ins on clientes for insert with check (org_id = auth_org_id() and has_module('clientes'));
 create policy clientes_upd on clientes for update using (org_id = auth_org_id() and has_module('clientes')) with check (org_id = auth_org_id());
--- só admin/sócio excluem cliente (diferente das outras policies, que valem pra quem tem o módulo)
-create policy clientes_del on clientes for delete using (org_id = auth_org_id() and has_module('clientes') and auth_role() in ('admin','socio'));
+-- só admin/sócio excluem cliente (diferente das outras policies, que valem pra quem tem o
+-- módulo) — ou o platform admin, mirando qualquer empresa (pedido explícito do dono).
+create policy clientes_del on clientes for delete using (
+  (org_id = auth_org_id() and has_module('clientes') and auth_role() in ('admin','socio')) or is_platform_admin()
+);
 
 alter table processos enable row level security;
 create trigger trg_set_org_id before insert on processos for each row execute function set_org_id();

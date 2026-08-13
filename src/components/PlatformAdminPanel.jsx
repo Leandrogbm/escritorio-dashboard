@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Building2, LogOut, LayoutGrid, Eye, Ban, PlayCircle, Trash2, Settings2 } from "lucide-react";
+import { Building2, LogOut, LayoutGrid, Eye, Ban, PlayCircle, Trash2, Settings2, XCircle } from "lucide-react";
 import Card from "./Card.jsx";
 import RecordFormModal from "./RecordFormModal.jsx";
 import EmpresaInspector from "./EmpresaInspector.jsx";
@@ -50,6 +50,14 @@ export default function PlatformAdminPanel({ temPerfilProprio, onEntrarNaEmpresa
     const acao = empresa.suspenso ? "reativar" : "suspender";
     if (!confirm(`Confirma ${acao} o acesso de "${empresa.nome}"?`)) return;
     const { error } = await supabase.from("organizations").update({ suspenso: !empresa.suspenso }).eq("id", empresa.org_id);
+    if (error) return alert(error.message);
+    await carregar();
+  };
+
+  const cancelarPlano = async (empresa) => {
+    if (!empresa.plano) return;
+    if (!confirm(`Cancelar o plano de "${empresa.nome}"? Ela fica sem plano (não é o mesmo que suspender o acesso).`)) return;
+    const { error } = await supabase.from("organizations").update({ plano: null }).eq("id", empresa.org_id);
     if (error) return alert(error.message);
     await carregar();
   };
@@ -148,6 +156,11 @@ export default function PlatformAdminPanel({ temPerfilProprio, onEntrarNaEmpresa
                     <button onClick={() => alternarSuspensao(e)} aria-label={e.suspenso ? "Reativar" : "Suspender"} className="p-1.5 rounded hover:opacity-70" style={{ color: e.suspenso ? COLORS.success : COLORS.brass }}>
                       {e.suspenso ? <PlayCircle size={14} /> : <Ban size={14} />}
                     </button>
+                    {e.plano && (
+                      <button onClick={() => cancelarPlano(e)} aria-label="Cancelar plano" className="p-1.5 rounded hover:opacity-70" style={{ color: COLORS.wine }}>
+                        <XCircle size={14} />
+                      </button>
+                    )}
                     <button onClick={() => excluirEmpresa(e)} aria-label="Excluir empresa" className="p-1.5 rounded hover:opacity-70" style={{ color: COLORS.wine }}>
                       <Trash2 size={14} />
                     </button>
