@@ -2,7 +2,9 @@ import React, { useEffect, useRef, useState } from "react";
 import { COLORS } from "../lib/theme.js";
 
 // Modal de criar/editar reaproveitado por Clientes/Processos/Prazos/Honorários.
-// `fields`: [{ key, label, type: "text"|"number"|"date"|"select", options?: [{value,label}] }]
+// `fields`: [{ key, label, type: "text"|"number"|"date"|"select", options?: [{value,label}],
+//   onSelect?: (value) => ({ outroCampo: valor }) — só pra "select", preenche outro campo
+//   de brinde quando essa opção muda (ex.: plano → valor mensal padrão) }]
 export default function RecordFormModal({ open, title, fields, initialValues, onSubmit, onClose }) {
   const dialogRef = useRef(null);
   const [values, setValues] = useState({});
@@ -59,7 +61,7 @@ export default function RecordFormModal({ open, title, fields, initialValues, on
               <select
                 required={!f.optional}
                 value={values[f.key] ?? ""}
-                onChange={(e) => setValues((v) => ({ ...v, [f.key]: e.target.value }))}
+                onChange={(e) => setValues((v) => ({ ...v, [f.key]: e.target.value, ...f.onSelect?.(e.target.value) }))}
                 className="px-3 py-2 rounded-md text-sm"
                 style={{ border: `1px solid ${COLORS.line}`, color: COLORS.ink }}
               >

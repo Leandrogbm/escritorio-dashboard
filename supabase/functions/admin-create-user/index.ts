@@ -70,6 +70,22 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ error: "Nome, email e cargo válido são obrigatórios." }), { status: 400, headers: corsHeaders });
     }
 
+    // limite de usuários do plano — checa antes de criar pra não gerar Auth user à toa.
+    // org sem plano definido (plano null, ex.: seed antigo) fica sem limite.
+    const { data: org } = await admin.from("organizations").select("plano").eq("id", callerProfile.org_id).single();
+    if (org?.plano) {
+      const { data: limite } = await admin.from("plan_limits").select("limite_usuarios").eq("plano", org.plano).single();
+      if (limite?.limite_usuarios != null) {
+        const { count } = await admin.from("profiles").select("id", { count: "exact", head: true }).eq("org_id", callerProfile.org_id);
+        if ((count ?? 0) >= limite.limite_usuarios) {
+          return new Response(
+            JSON.stringify({ error: `Limite de ${limite.limite_usuarios} usuários do plano ${org.plano} atingido. Fale com o suporte pra fazer upgrade.` }),
+            { status: 400, headers: corsHeaders }
+          );
+        }
+      }
+    }
+
     const senhaTemp = gerarSenhaTemporaria();
     const { data: created, error: createErr } = await admin.auth.admin.createUser({
       email,

@@ -8,10 +8,21 @@ import { BRL } from "../data/mockData.js";
 import { supabase } from "../lib/supabaseClient.js";
 
 const STATUS_TONE = { pago: COLORS.success, pendente: COLORS.brass, atrasado: COLORS.wine };
+// Espelha a tabela plan_limits — só pra UX (auto-preencher valor_mensal e mostrar o preço
+// na lista). O limite de verdade é aplicado no banco (RLS de processos, Edge Function de
+// criar colaborador), não aqui; mudar aqui sem mudar lá só desalinha o texto da tela.
+const PLANOS = [
+  { value: "basic", label: "Basic — R$100/mês (5 usuários, 50 processos)", valor: 100 },
+  { value: "intermediario", label: "Intermediário — R$300/mês (15 usuários, 200 processos)", valor: 300 },
+  { value: "plus", label: "Plus — R$500/mês (ilimitado)", valor: 500 },
+];
 const CONFIG_FIELDS = [
   { key: "nome", label: "Nome da empresa" },
   { key: "cnpj", label: "CNPJ", optional: true },
-  { key: "plano", label: "Plano", optional: true },
+  {
+    key: "plano", label: "Plano", type: "select", optional: true, options: PLANOS,
+    onSelect: (value) => ({ valor_mensal: PLANOS.find((p) => p.value === value)?.valor }),
+  },
   { key: "valor_mensal", label: "Valor mensal (R$)", type: "number", optional: true },
   { key: "status_pagamento", label: "Situação de pagamento", type: "select", options: [
     { value: "pago", label: "Pago" }, { value: "pendente", label: "Pendente" }, { value: "atrasado", label: "Atrasado" },
@@ -121,7 +132,7 @@ export default function PlatformAdminPanel({ temPerfilProprio, onEntrarNaEmpresa
                   <td className="px-4 py-3" style={{ color: COLORS.ink }}>{e.colaboradores}</td>
                   <td className="px-4 py-3" style={{ color: COLORS.ink }}>{e.clientes}</td>
                   <td className="px-4 py-3" style={{ color: COLORS.ink }}>{e.processos}</td>
-                  <td className="px-4 py-3" style={{ color: COLORS.slate }}>{e.plano || "—"}</td>
+                  <td className="px-4 py-3" style={{ color: COLORS.slate }}>{PLANOS.find((p) => p.value === e.plano)?.label.split(" —")[0] ?? e.plano ?? "—"}</td>
                   <td className="px-4 py-3" style={{ color: COLORS.ink }}>{e.valor_mensal ? BRL(e.valor_mensal) : "—"}</td>
                   <td className="px-4 py-3">
                     <span className="text-xs font-semibold uppercase" style={{ color: STATUS_TONE[e.status_pagamento] }}>{e.status_pagamento}</span>

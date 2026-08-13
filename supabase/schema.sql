@@ -88,6 +88,24 @@ create table honorarios (
 );
 create index honorarios_org_id_idx on honorarios (org_id);
 
+-- Os 3 planos e seus limites — fonte única de verdade (Edge Function admin-create-user e
+-- a policy processos_ins leem daqui). limite_usuarios/limite_processos null = sem limite.
+create table plan_limits (
+  plano text primary key,
+  valor_mensal numeric(10,2) not null,
+  limite_usuarios int,
+  limite_processos int
+);
+insert into plan_limits (plano, valor_mensal, limite_usuarios, limite_processos) values
+  ('basic', 100.00, 5, 50),
+  ('intermediario', 300.00, 15, 200),
+  ('plus', 500.00, null, null);
+alter table plan_limits enable row level security;
+-- todo mundo autenticado lê (é a lista de preços, não é segredo)
+create policy plan_limits_select on plan_limits for select using (true);
+grant select on plan_limits to authenticated;
+alter table organizations add constraint organizations_plano_fkey foreign key (plano) references plan_limits(plano);
+
 -- Aba "Equipe": deriva de profiles + contagem de processos ativos, sem tabela própria.
 -- security_invoker = true é obrigatório aqui — sem isso a view roda com o privilégio de quem
 -- criou (o dono do banco) e ignora RLS, vazando dados de outros tenants.
@@ -158,7 +176,10 @@ create policy organizations_billing_upd on organizations for update
   using (is_platform_admin()) with check (is_platform_admin());
 
 alter table profiles enable row level security;
-create trigger trg_set_org_id before insert on profiles for each row execute function set_org_id();
+-- SEM trg_set_org_id aqui de propósito (diferente de clientes/processos/prazos/honorarios):
+-- profiles só é inserido pelas Edge Functions (service_role, sem sessão de usuário), que já
+-- passam o org_id certo explicitamente. Um trigger "auth_org_id() sobrescreve sempre" quebraria
+-- esse insert, porque auth_org_id() resolve null sem sessão — já aconteceu, foi revertido.
 create policy profiles_select on profiles for select using (org_id = auth_org_id() or is_platform_admin());
 create policy profiles_update on profiles for update
   using (org_id = auth_org_id() and (id = auth.uid() or auth_role() = 'admin'))
@@ -170,8 +191,8 @@ create policy profiles_update on profiles for update
 -- Edge Function admin-delete-user (admin ou sócio) — o cascade cuida do profile sozinho.
 -- org_id = auth_org_id() aqui é essencial, não só auth_role() = 'admin' — sem isso, um
 -- admin de QUALQUER empresa poderia inserir um profile com org_id de outra (plantando um
--- admin lá) direto via API, sem passar pela Edge Function. O trigger trg_set_org_id já
--- sobrescreve org_id de qualquer jeito, mas o check explícito é defesa em profundidade.
+-- admin lá) direto via API, sem passar pela Edge Function. Como não tem trigger aqui (ver
+-- acima), esse check explícito é a ÚNICA proteção, não é só defesa em profundidade.
 create policy profiles_insert on profiles for insert
   with check (auth_role() = 'admin' and org_id = auth_org_id());
 
@@ -193,10 +214,27 @@ create policy clientes_del on clientes for delete using (org_id = auth_org_id() 
 
 alter table processos enable row level security;
 create trigger trg_set_org_id before insert on processos for each row execute function set_org_id();
-create policy processos_sel on processos for select using ((org_id = auth_org_id() and has_module('processos')) or is_platform_admin());
-create policy processos_ins on processos for insert with check (org_id = auth_org_id() and has_module('processos'));
-create policy processos_upd on processos for update using (org_id = auth_org_id() and has_module('processos')) with check (org_id = auth_org_id());
-create policy processos_del on processos for delete using (org_id = auth_org_id() and has_module('processos'));
+-- advogado só vê/edita/exclui processos onde é o responsável designado (pelo sócio/admin,
+-- via o campo "Responsável" do form) — sócio/admin/financeiro/recepção continuam vendo
+-- todos os processos da org (só precisam do módulo liberado em role_permissions).
+create policy processos_sel on processos for select using (
+  (org_id = auth_org_id() and has_module('processos') and (auth_role() <> 'advogado' or responsavel_id = auth.uid()))
+  or is_platform_admin()
+);
+-- limite de processos do plano entra aqui — org sem plano (plano null) fica sem limite.
+create policy processos_ins on processos for insert with check (
+  org_id = auth_org_id() and has_module('processos') and (
+    (select limite_processos from plan_limits pl join organizations o on o.plano = pl.plano where o.id = auth_org_id()) is null
+    or (select count(*) from processos p2 where p2.org_id = auth_org_id())
+       < (select limite_processos from plan_limits pl join organizations o on o.plano = pl.plano where o.id = auth_org_id())
+  )
+);
+create policy processos_upd on processos for update
+  using (org_id = auth_org_id() and has_module('processos') and (auth_role() <> 'advogado' or responsavel_id = auth.uid()))
+  with check (org_id = auth_org_id());
+create policy processos_del on processos for delete using (
+  org_id = auth_org_id() and has_module('processos') and (auth_role() <> 'advogado' or responsavel_id = auth.uid())
+);
 
 alter table prazos enable row level security;
 create trigger trg_set_org_id before insert on prazos for each row execute function set_org_id();
