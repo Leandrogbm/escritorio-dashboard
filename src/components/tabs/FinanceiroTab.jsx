@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from "react";
-import { DollarSign, Plus } from "lucide-react";
+import { DollarSign, Plus, X } from "lucide-react";
 import Card from "../Card.jsx";
 import SectionTitle from "../SectionTitle.jsx";
 import Stamp from "../Stamp.jsx";
@@ -24,105 +24,186 @@ function addMonths(dateStr, n) {
   return d.toISOString().slice(0, 10);
 }
 
+const hojeStr = new Date().toISOString().slice(0, 10);
+const mesAtual = hojeStr.slice(0, 7);
+const estaAtrasado = (h) => h.status === "Vencido" || (h.status === "Em aberto" && h.vencimento < hojeStr);
+
 export default function FinanceiroTab() {
   const { data: honorarios, loading, insert, update, remove } = useSupabaseTable("honorarios", {
-    select: "*, cliente:clientes(id,nome)",
+    select: "*, cliente:clientes(id,nome,tipo)",
   });
-  const { data: clientes } = useSupabaseTable("clientes", { select: "id,nome", orderBy: "nome", ascending: true });
-  const [editing, setEditing] = useState(null);
+  const { data: clientes } = useSupabaseTable("clientes", { select: "id,nome,tipo", orderBy: "nome", ascending: true });
+  const [editing, setEditing] = useState(null); // {} = novo (do topo), {cliente_id} = novo já com cliente, {...} = editando
+  const [selecionado, setSelecionado] = useState(null); // cliente_id aberto no painel de detalhe
 
-  // Não existe conceito de "parcela"/"mensalidade" no banco — cada cobrança é uma linha
-  // solta em honorarios. Pra parcelamento ou cliente PJ mensal, "parcelas" só controla
-  // quantas linhas gerar de uma vez, uma por mês a partir do vencimento informado.
+  // Resumo por cliente — PF mostra como "parcelas", PJ como "mensalidade", mas o dado é o
+  // mesmo (uma linha em honorarios por cobrança); só muda o texto na hora de criar/exibir.
+  const porCliente = useMemo(() => {
+    const map = new Map(clientes.map((c) => [c.id, { ...c, total: 0, recebido: 0, pendente: 0, atrasado: 0, itens: [] }]));
+    for (const h of honorarios) {
+      const c = map.get(h.cliente?.id);
+      if (!c) continue;
+      c.total += h.valor;
+      c.itens.push(h);
+      if (h.status === "Pago") c.recebido += h.valor;
+      else if (estaAtrasado(h)) c.atrasado += h.valor;
+      else c.pendente += h.valor;
+    }
+    return [...map.values()];
+  }, [clientes, honorarios]);
+
+  const clienteAberto = porCliente.find((c) => c.id === selecionado) ?? null;
+
+  const faturamentoMes = honorarios.filter((h) => h.vencimento?.slice(0, 7) === mesAtual).reduce((s, h) => s + h.valor, 0);
+  const recebidoMes = honorarios.filter((h) => h.vencimento?.slice(0, 7) === mesAtual && h.status === "Pago").reduce((s, h) => s + h.valor, 0);
+  const pendenteMes = honorarios.filter((h) => h.vencimento?.slice(0, 7) === mesAtual && h.status === "Em aberto").reduce((s, h) => s + h.valor, 0);
+  const atrasadosTodos = honorarios.filter(estaAtrasado);
+  const totalAtrasado = atrasadosTodos.reduce((s, h) => s + h.valor, 0);
+
+  const clienteParaForm = editing?.cliente_id ? clientes.find((c) => c.id === editing.cliente_id) : null;
+  const ehPJ = clienteParaForm?.tipo === "PJ";
+
   const fields = useMemo(() => {
     const base = [
-      { key: "cliente_id", label: "Cliente", type: "select", options: clientes.map((c) => ({ value: c.id, label: c.nome })) },
-      { key: "valor", label: editing?.id ? "Valor (R$)" : "Valor de cada parcela (R$)", type: "number" },
-      { key: "vencimento", label: editing?.id ? "Vencimento" : "Vencimento da 1ª parcela", type: "date" },
+      { key: "cliente_id", label: "Cliente", type: "select", options: clientes.map((c) => ({ value: c.id, label: `${c.nome} (${c.tipo})` })) },
+      { key: "valor", label: editing?.id ? "Valor (R$)" : ehPJ ? "Valor da mensalidade (R$)" : "Valor de cada parcela (R$)", type: "number" },
+      { key: "vencimento", label: editing?.id ? "Vencimento" : "Vencimento da 1ª cobrança", type: "date" },
     ];
     if (!editing?.id) {
-      base.push({ key: "parcelas", label: "Repetir mensalmente por quantas parcelas? (1 = cobrança única)", type: "number", optional: true });
+      base.push({
+        key: "parcelas",
+        label: ehPJ ? "Gerar quantos meses de mensalidade de uma vez?" : "Repetir mensalmente por quantas parcelas? (1 = cobrança única)",
+        type: "number", optional: true,
+      });
     }
     base.push({ key: "status", label: "Situação", type: "select", options: STATUS_OPTIONS });
     return base;
-  }, [clientes, editing]);
+  }, [clientes, editing, ehPJ]);
 
-  const abertos = honorarios.filter((h) => h.status === "Em aberto").reduce((s, h) => s + h.valor, 0);
-  const vencidos = honorarios.filter((h) => h.status === "Vencido");
-  const inadimplencia = vencidos.reduce((s, h) => s + h.valor, 0);
-  const recebido = honorarios.filter((h) => h.status === "Pago").reduce((s, h) => s + h.valor, 0);
+  const salvar = ({ parcelas, ...values }) => {
+    if (editing?.id) return update(editing.id, values);
+    const n = Math.min(120, Math.max(1, parseInt(parcelas, 10) || 1)); // teto de 10 anos
+    const linhas = n === 1 ? values : Array.from({ length: n }, (_, i) => ({ ...values, vencimento: addMonths(values.vencimento, i) }));
+    return insert(linhas).then(() => setSelecionado((s) => s ?? values.cliente_id));
+  };
 
   return (
     <div>
       <SectionTitle
         icon={DollarSign}
         title="Financeiro"
-        subtitle="Honorários a receber, vencidos e recebidos"
+        subtitle="Faturamento por cliente — parcelas (PF) e mensalidades (PJ)"
         action={
           <button onClick={() => setEditing({})} className="flex items-center gap-1.5 px-3 py-2 rounded-md text-sm font-semibold" style={{ background: COLORS.ink, color: "#fff" }}>
             <Plus size={14} /> Novo
           </button>
         }
       />
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
         <Card>
-          <p className="text-xs uppercase tracking-wide" style={{ color: COLORS.slate }}>Em aberto</p>
-          <p className="text-2xl mt-1" style={{ fontFamily: "'Source Serif 4', serif", fontWeight: 700, color: COLORS.ink }}>{BRL(abertos)}</p>
+          <p className="text-xs uppercase tracking-wide" style={{ color: COLORS.slate }}>Faturamento do mês</p>
+          <p className="text-2xl mt-1" style={{ fontFamily: "'Source Serif 4', serif", fontWeight: 700, color: COLORS.ink }}>{BRL(faturamentoMes)}</p>
         </Card>
         <Card>
-          <p className="text-xs uppercase tracking-wide" style={{ color: COLORS.slate }}>Inadimplência</p>
-          <p className="text-2xl mt-1" style={{ fontFamily: "'Source Serif 4', serif", fontWeight: 700, color: COLORS.wine }}>{BRL(inadimplencia)}</p>
-          <p className="text-xs mt-1.5" style={{ color: COLORS.slate }}>{vencidos.length} honorário(s) vencido(s)</p>
+          <p className="text-xs uppercase tracking-wide" style={{ color: COLORS.slate }}>Recebido no mês</p>
+          <p className="text-2xl mt-1" style={{ fontFamily: "'Source Serif 4', serif", fontWeight: 700, color: COLORS.success }}>{BRL(recebidoMes)}</p>
         </Card>
         <Card>
-          <p className="text-xs uppercase tracking-wide" style={{ color: COLORS.slate }}>Recebido</p>
-          <p className="text-2xl mt-1" style={{ fontFamily: "'Source Serif 4', serif", fontWeight: 700, color: COLORS.success }}>{BRL(recebido)}</p>
+          <p className="text-xs uppercase tracking-wide" style={{ color: COLORS.slate }}>Pendente no mês</p>
+          <p className="text-2xl mt-1" style={{ fontFamily: "'Source Serif 4', serif", fontWeight: 700, color: COLORS.brass }}>{BRL(pendenteMes)}</p>
+        </Card>
+        <Card>
+          <p className="text-xs uppercase tracking-wide" style={{ color: COLORS.slate }}>Em atraso (total)</p>
+          <p className="text-2xl mt-1" style={{ fontFamily: "'Source Serif 4', serif", fontWeight: 700, color: COLORS.wine }}>{BRL(totalAtrasado)}</p>
+          <p className="text-xs mt-1.5" style={{ color: COLORS.slate }}>{atrasadosTodos.length} cobrança(s) atrasada(s)</p>
         </Card>
       </div>
+
       <Card className="overflow-hidden !p-0">
         <table className="w-full text-sm">
           <thead>
             <tr style={{ background: COLORS.ink }}>
-              {["Cliente", "Valor", "Vencimento", "Situação", ""].map((h) => (
+              {["Cliente", "Tipo", "Total", "Recebido", "Pendente", "Atrasado"].map((h) => (
                 <th key={h} className="text-left px-4 py-3 font-semibold" style={{ color: COLORS.paper, fontSize: 11 }}>{h.toUpperCase()}</th>
               ))}
             </tr>
           </thead>
           <tbody>
-            {!loading && honorarios.length === 0 && (
-              <tr><td colSpan={5} className="px-4 py-6 text-center text-sm" style={{ color: COLORS.slate }}>Nenhum honorário cadastrado ainda.</td></tr>
+            {!loading && porCliente.length === 0 && (
+              <tr><td colSpan={6} className="px-4 py-6 text-center text-sm" style={{ color: COLORS.slate }}>Nenhum cliente cadastrado ainda.</td></tr>
             )}
-            {honorarios.map((h, i) => (
-              <tr key={h.id} style={{ borderTop: `1px solid ${COLORS.line}`, background: i % 2 ? "#FAF9F5" : COLORS.paperRaised }}>
-                <td className="px-4 py-3" style={{ color: COLORS.ink }}>{h.cliente?.nome ?? "—"}</td>
-                <td className="px-4 py-3 font-semibold" style={{ color: COLORS.ink }}>{BRL(h.valor)}</td>
-                <td className="px-4 py-3" style={{ color: COLORS.slate }}>{new Date(`${h.vencimento}T00:00:00`).toLocaleDateString("pt-BR")}</td>
-                <td className="px-4 py-3"><Stamp tone={h.status === "Vencido" ? "urgent" : h.status === "Pago" ? "ok" : "warn"}>{h.status}</Stamp></td>
-                <td className="px-4 py-3">
-                  <RowActions
-                    onEdit={() => setEditing({ ...h, cliente_id: h.cliente?.id })}
-                    onDelete={() => remove(h.id)}
-                  />
-                </td>
+            {porCliente.map((c, i) => (
+              <tr key={c.id} onClick={() => setSelecionado(c.id)} className="cursor-pointer"
+                style={{ borderTop: `1px solid ${COLORS.line}`, background: i % 2 ? "#FAF9F5" : COLORS.paperRaised }}>
+                <td className="px-4 py-3" style={{ color: COLORS.ink, fontWeight: 600 }}>{c.nome}</td>
+                <td className="px-4 py-3" style={{ color: COLORS.slate }}>{c.tipo}</td>
+                <td className="px-4 py-3" style={{ color: COLORS.ink }}>{BRL(c.total)}</td>
+                <td className="px-4 py-3" style={{ color: COLORS.success }}>{BRL(c.recebido)}</td>
+                <td className="px-4 py-3" style={{ color: COLORS.brass }}>{BRL(c.pendente)}</td>
+                <td className="px-4 py-3" style={{ color: c.atrasado ? COLORS.wine : COLORS.slate }}>{BRL(c.atrasado)}</td>
               </tr>
             ))}
           </tbody>
         </table>
       </Card>
 
+      {clienteAberto && (
+        <div className="fixed inset-0 z-50 flex justify-end" style={{ background: "rgba(0,0,0,0.4)" }} onClick={() => setSelecionado(null)}>
+          <div className="w-full max-w-lg h-full overflow-y-auto p-6" style={{ background: COLORS.paper }} onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-5">
+              <div>
+                <p style={{ fontFamily: "'Source Serif 4', serif", fontWeight: 700, fontSize: 18, color: COLORS.ink }}>{clienteAberto.nome}</p>
+                <p className="text-xs" style={{ color: COLORS.slate }}>{clienteAberto.tipo === "PJ" ? "Mensalidade fixa" : "Parcelas"}</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <button onClick={() => setEditing({ cliente_id: clienteAberto.id })} className="flex items-center gap-1.5 px-3 py-2 rounded-md text-sm font-semibold" style={{ background: COLORS.ink, color: "#fff" }}>
+                  <Plus size={14} /> {clienteAberto.tipo === "PJ" ? "Mensalidade" : "Parcela"}
+                </button>
+                <button onClick={() => setSelecionado(null)} className="p-2 rounded hover:opacity-70" style={{ color: COLORS.slate }}><X size={18} /></button>
+              </div>
+            </div>
+
+            <Card className="overflow-hidden !p-0">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr><th className="text-left px-4 py-2 font-medium" style={{ color: COLORS.slate, fontSize: 11 }}>VALOR</th>
+                    <th className="text-left px-4 py-2 font-medium" style={{ color: COLORS.slate, fontSize: 11 }}>VENCIMENTO</th>
+                    <th className="text-left px-4 py-2 font-medium" style={{ color: COLORS.slate, fontSize: 11 }}>SITUAÇÃO</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {clienteAberto.itens.length === 0 && (
+                    <tr><td colSpan={4} className="px-4 py-4 text-center" style={{ color: COLORS.slate }}>Nenhuma cobrança ainda.</td></tr>
+                  )}
+                  {[...clienteAberto.itens].sort((a, b) => a.vencimento.localeCompare(b.vencimento)).map((h) => (
+                    <tr key={h.id} style={{ borderTop: `1px solid ${COLORS.line}` }}>
+                      <td className="px-4 py-2 font-semibold" style={{ color: COLORS.ink }}>{BRL(h.valor)}</td>
+                      <td className="px-4 py-2" style={{ color: COLORS.slate }}>{new Date(`${h.vencimento}T00:00:00`).toLocaleDateString("pt-BR")}</td>
+                      <td className="px-4 py-2"><Stamp tone={estaAtrasado(h) ? "urgent" : h.status === "Pago" ? "ok" : "warn"}>{h.status}</Stamp></td>
+                      <td className="px-2 py-2">
+                        <RowActions
+                          onEdit={() => setEditing({ ...h, cliente_id: h.cliente?.id })}
+                          onDelete={() => remove(h.id)}
+                        />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </Card>
+          </div>
+        </div>
+      )}
+
       <RecordFormModal
         open={editing !== null}
-        title={editing?.id ? "Editar honorário" : "Novo honorário"}
+        title={editing?.id ? "Editar cobrança" : "Nova cobrança"}
         fields={fields}
         initialValues={editing}
         onClose={() => setEditing(null)}
-        onSubmit={({ parcelas, ...values }) => {
-          if (editing?.id) return update(editing.id, values);
-          const n = Math.min(120, Math.max(1, parseInt(parcelas, 10) || 1)); // teto de 10 anos, evita gerar milhares de linhas com um número digitado errado
-          if (n === 1) return insert(values);
-          const linhas = Array.from({ length: n }, (_, i) => ({ ...values, vencimento: addMonths(values.vencimento, i) }));
-          return insert(linhas);
-        }}
+        onSubmit={salvar}
       />
     </div>
   );
