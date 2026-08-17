@@ -2,6 +2,7 @@ import React from "react";
 import { Scale, LogOut } from "lucide-react";
 import { COLORS } from "../lib/theme.js";
 import { ROLES } from "../config/permissions.js";
+import NotificacoesBell from "./NotificacoesBell.jsx";
 
 export default function TopBar({ profile, signOut }) {
   const roleLabel = ROLES.find((r) => r.key === profile.role)?.label;
@@ -17,6 +18,7 @@ export default function TopBar({ profile, signOut }) {
       </div>
 
       <div className="flex items-center gap-3">
+        <NotificacoesBell />
         <div className="text-right">
           <p className="text-sm font-semibold" style={{ color: COLORS.ink }}>{profile.nome}</p>
           <p className="text-xs" style={{ color: COLORS.slate }}>{roleLabel}</p>

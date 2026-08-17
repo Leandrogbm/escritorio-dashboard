@@ -18,10 +18,18 @@ export default function PrazosTab() {
   const { data: equipe } = useSupabaseTable("profiles", { select: "id,nome", orderBy: "nome", ascending: true });
   const [editing, setEditing] = useState(null);
 
+  // "Data" pode ser digitada direto (prazo simples) OU calculada a partir de início +
+  // quantidade de dias (dias_uteis pula sábado/domingo/feriado nacional) — se início e
+  // quantidade vierem preenchidos, o banco recalcula "data" sozinho (trigger set_prazo_data),
+  // ignorando o que foi digitado direto nela.
   const fields = useMemo(() => [
     { key: "processo_id", label: "Processo", type: "select", options: processos.map((p) => ({ value: p.id, label: p.numero })) },
     { key: "tipo", label: "Tipo de prazo" },
-    { key: "data", label: "Data", type: "date" },
+    { key: "data", label: "Data (ou preencha início+quantidade abaixo pra calcular)", type: "date", optional: true },
+    { key: "data_inicio", label: "— OU: início da contagem", type: "date", optional: true },
+    { key: "dias_uteis", label: "Contagem", type: "select", optional: true, options: [{ value: "true", label: "Dias úteis" }, { value: "false", label: "Dias corridos" }] },
+    { key: "quantidade_dias", label: "Quantidade de dias", type: "number", optional: true },
+    { key: "alerta_dias_antes", label: "Avisar quantos dias úteis antes de vencer", type: "number", optional: true },
     { key: "responsavel_id", label: "Responsável", type: "select", options: equipe.map((e) => ({ value: e.id, label: e.nome })), optional: true },
   ], [processos, equipe]);
 
@@ -84,7 +92,15 @@ export default function PrazosTab() {
         fields={fields}
         initialValues={editing}
         onClose={() => setEditing(null)}
-        onSubmit={(values) => (editing?.id ? update(editing.id, values) : insert(values))}
+        onSubmit={({ dias_uteis, quantidade_dias, alerta_dias_antes, ...values }) => {
+          const payload = {
+            ...values,
+            ...(dias_uteis !== null && { dias_uteis: dias_uteis === "true" }),
+            ...(quantidade_dias !== null && { quantidade_dias: parseInt(quantidade_dias, 10) }),
+            ...(alerta_dias_antes !== null && { alerta_dias_antes: parseInt(alerta_dias_antes, 10) }),
+          };
+          return editing?.id ? update(editing.id, payload) : insert(payload);
+        }}
       />
     </div>
   );

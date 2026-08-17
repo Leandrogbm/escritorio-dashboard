@@ -1,0 +1,64 @@
+import React from "react";
+import { X, AlertTriangle, Clock } from "lucide-react";
+import Card from "./Card.jsx";
+import { COLORS } from "../lib/theme.js";
+import { useSupabaseTable } from "../hooks/useSupabaseTable.js";
+
+// Andamentos trazidos do DataJud pro processo. Só leitura (vem da fonte oficial) — a ação
+// que o advogado tem aqui é registrar um prazo a partir de uma movimentação relevante,
+// já que o DataJud não traz o prazo pronto (só avisa que algo aconteceu no processo).
+export default function MovimentacoesPanel({ processo, onClose, onRegistrarPrazo }) {
+  const { data: movimentacoes, loading } = useSupabaseTable("movimentacoes_processo", {
+    select: "*", orderBy: "data_hora", ascending: false, eq: ["processo_id", processo.id],
+  });
+
+  return (
+    <div className="fixed inset-0 z-50 flex justify-end" style={{ background: "rgba(0,0,0,0.4)" }} onClick={onClose}>
+      <div className="w-full max-w-lg h-full overflow-y-auto p-6" style={{ background: COLORS.paper }} onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between mb-2">
+          <div>
+            <p style={{ fontFamily: "'Source Serif 4', serif", fontWeight: 700, fontSize: 18, color: COLORS.ink }}>{processo.numero}</p>
+            <p className="text-xs" style={{ color: COLORS.slate }}>Andamentos (DataJud)</p>
+          </div>
+          <button onClick={onClose} className="p-2 rounded hover:opacity-70" style={{ color: COLORS.slate }}><X size={18} /></button>
+        </div>
+
+        {processo.ultima_verificacao_datajud && (
+          <p className="text-xs mb-4" style={{ color: COLORS.slate }}>
+            Última verificação: {new Date(processo.ultima_verificacao_datajud).toLocaleString("pt-BR")}
+            {processo.datajud_status === "erro" && <span style={{ color: COLORS.wine }}> — falhou: {processo.datajud_erro}</span>}
+            {processo.datajud_status === "nao_suportado" && <span style={{ color: COLORS.wine }}> — {processo.datajud_erro}</span>}
+          </p>
+        )}
+
+        <div className="flex flex-col gap-3">
+          {!loading && movimentacoes.length === 0 && (
+            <p className="text-sm text-center py-6" style={{ color: COLORS.slate }}>Nenhum andamento sincronizado ainda.</p>
+          )}
+          {movimentacoes.map((m) => (
+            <Card key={m.id} style={m.requer_atencao ? { borderLeft: `4px solid ${COLORS.wine}` } : undefined}>
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex items-start gap-2">
+                  {m.requer_atencao ? <AlertTriangle size={14} color={COLORS.wine} className="mt-0.5 shrink-0" /> : <Clock size={14} color={COLORS.slate} className="mt-0.5 shrink-0" />}
+                  <div>
+                    <p className="text-sm" style={{ color: COLORS.ink, fontWeight: 600 }}>{m.nome}</p>
+                    <p className="text-xs mt-0.5" style={{ color: COLORS.slate }}>{new Date(m.data_hora).toLocaleString("pt-BR")}</p>
+                  </div>
+                </div>
+                {m.requer_atencao && (
+                  <button
+                    onClick={() => onRegistrarPrazo(m)}
+                    className="text-xs underline shrink-0"
+                    style={{ color: COLORS.brass }}
+                  >
+                    Registrar prazo
+                  </button>
+                )}
+              </div>
+            </Card>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}

@@ -284,6 +284,202 @@ grant execute on function platform_org_metrics() to authenticated;
 -- primeiro platform admin — trocar pelo UUID do seu próprio usuário (Studio → Authentication)
 insert into platform_admins (user_id) values ('<uuid-do-dono-da-plataforma>');
 
+-- ── Integração DataJud (CNJ) — andamentos processuais e prazos ─────────────
+-- Edge Function datajud-sync consulta a API pública do DataJud (1x/dia via cron, ou sob
+-- demanda pelo botão "Sincronizar" em ProcessosTab), grava andamento novo em
+-- movimentacoes_processo e gera notificacoes. O DataJud não traz o prazo pronto — só avisa
+-- que o processo teve andamento — por isso o cálculo de prazo é uma camada própria,
+-- acionada manualmente pelo advogado a partir de uma movimentação "requer atenção".
+
+alter table processos add column if not exists tribunal_alias text; -- ex: 'tjsp', extraído do número CNJ
+alter table processos add column if not exists ultima_verificacao_datajud timestamptz;
+alter table processos add column if not exists datajud_status text check (datajud_status in ('ok','erro','nao_suportado'));
+alter table processos add column if not exists datajud_erro text;
+
+create table movimentacoes_processo (
+  id uuid primary key default gen_random_uuid(),
+  org_id uuid not null references organizations(id),
+  processo_id uuid not null references processos(id) on delete cascade,
+  nome text not null,
+  data_hora timestamptz not null,
+  complemento jsonb,
+  requer_atencao boolean not null default false,
+  dedup_key text not null, -- hash(nome+data_hora) — evita duplicar o mesmo andamento a cada sync
+  created_at timestamptz not null default now(),
+  unique (processo_id, dedup_key)
+);
+create index movimentacoes_processo_org_id_idx on movimentacoes_processo (org_id);
+create index movimentacoes_processo_processo_id_idx on movimentacoes_processo (processo_id);
+
+create table notificacoes (
+  id uuid primary key default gen_random_uuid(),
+  org_id uuid not null references organizations(id),
+  processo_id uuid references processos(id) on delete cascade,
+  movimentacao_id uuid references movimentacoes_processo(id) on delete cascade,
+  prazo_id uuid references prazos(id) on delete cascade,
+  tipo text not null check (tipo in ('movimentacao','prazo')) default 'movimentacao',
+  titulo text not null,
+  texto text,
+  requer_atencao boolean not null default false,
+  lida boolean not null default false,
+  created_at timestamptz not null default now()
+);
+create index notificacoes_org_id_idx on notificacoes (org_id);
+create index notificacoes_lida_idx on notificacoes (org_id, lida);
+
+-- Termos que marcam uma movimentação como "requer atenção" (intimação/prazo/etc.) —
+-- configurável, não fixo no código. Global (vocabulário jurídico comum, não específico de
+-- uma firma): qualquer autenticado lê; só admin edita.
+create table termos_atencao (termo text primary key);
+alter table termos_atencao enable row level security;
+create policy termos_atencao_select on termos_atencao for select using (true);
+create policy termos_atencao_write on termos_atencao for all
+  using (auth_role() = 'admin') with check (auth_role() = 'admin');
+grant select on termos_atencao to authenticated;
+
+insert into termos_atencao (termo) values
+  ('intimação'), ('intimacao'), ('publicação'), ('publicacao'), ('decisão'), ('decisao'),
+  ('sentença'), ('sentenca'), ('despacho'), ('prazo'), ('citação'), ('citacao'),
+  ('audiência'), ('audiencia'), ('recurso'), ('embargos'), ('acórdão'), ('acordao')
+on conflict (termo) do nothing;
+
+alter table movimentacoes_processo enable row level security;
+create policy movimentacoes_sel on movimentacoes_processo for select using
+  ((org_id = auth_org_id() and has_module('processos')) or is_platform_admin());
+-- sem policy de insert/update: só a Edge Function datajud-sync (service_role) escreve aqui —
+-- ninguém edita andamento processual na mão, ele vem da fonte oficial.
+
+alter table notificacoes enable row level security;
+create policy notificacoes_sel on notificacoes for select using (org_id = auth_org_id());
+create policy notificacoes_upd on notificacoes for update
+  using (org_id = auth_org_id()) with check (org_id = auth_org_id()); -- só marcar como lida
+
+-- Feriados nacionais (fixos + móveis via algoritmo de Páscoa) pro cálculo de prazo em dias
+-- úteis. Feriado forense local (estadual/municipal) fica de fora por decisão consciente —
+-- sem fonte confiável validada, prefiro contar dia útil a mais do que inventar feriado errado.
+create table feriados_nacionais (data date primary key, nome text not null);
+alter table feriados_nacionais enable row level security;
+create policy feriados_nacionais_select on feriados_nacionais for select using (true);
+grant select on feriados_nacionais to authenticated;
+
+create or replace function pascoa(ano int) returns date
+  language plpgsql immutable set search_path = public as $$
+declare
+  a int; b int; c int; d int; e int; f int; g int; h int; i int; k int; l int; m int; mes int; dia int;
+begin
+  a := ano % 19; b := ano / 100; c := ano % 100; d := b / 4; e := b % 4;
+  f := (b + 8) / 25; g := (b - f + 1) / 3; h := (19*a + b - d - g + 15) % 30;
+  i := c / 4; k := c % 4; l := (32 + 2*e + 2*i - h - k) % 7; m := (a + 11*h + 22*l) / 451;
+  mes := (h + l - 7*m + 114) / 31; dia := ((h + l - 7*m + 114) % 31) + 1;
+  return make_date(ano, mes, dia);
+end;
+$$;
+
+create or replace function seed_feriados_nacionais(ano int) returns void
+  language plpgsql set search_path = public as $$
+declare p date := pascoa(ano);
+begin
+  insert into feriados_nacionais (data, nome) values
+    (make_date(ano,1,1), 'Confraternização Universal'),
+    (p - 47, 'Carnaval (segunda)'), (p - 46, 'Carnaval (terça)'),
+    (p - 2, 'Sexta-feira Santa'), (p + 60, 'Corpus Christi'),
+    (make_date(ano,4,21), 'Tiradentes'), (make_date(ano,5,1), 'Dia do Trabalho'),
+    (make_date(ano,9,7), 'Independência do Brasil'), (make_date(ano,10,12), 'Nossa Senhora Aparecida'),
+    (make_date(ano,11,2), 'Finados'), (make_date(ano,11,15), 'Proclamação da República'),
+    (make_date(ano,11,20), 'Consciência Negra'), (make_date(ano,12,25), 'Natal')
+  on conflict (data) do nothing;
+end;
+$$;
+
+do $$ begin for ano in 2024..2029 loop perform seed_feriados_nacionais(ano); end loop; end; $$;
+-- rodar seed_feriados_nacionais(ano) de novo quando os anos acabarem (2030+)
+
+-- Conta dias úteis pra frente a partir de data_inicio — pula sábado/domingo/feriado nacional.
+create or replace function calcula_prazo_util(data_inicio date, dias int) returns date
+  language plpgsql immutable set search_path = public as $$
+declare d date := data_inicio; restantes int := dias;
+begin
+  while restantes > 0 loop
+    d := d + 1;
+    if extract(dow from d) not in (0,6) and not exists (select 1 from feriados_nacionais where data = d) then
+      restantes := restantes - 1;
+    end if;
+  end loop;
+  return d;
+end;
+$$;
+
+create or replace function calcula_prazo(data_inicio date, dias int, uteis boolean) returns date
+  language sql immutable set search_path = public as $$
+  select case when uteis then calcula_prazo_util(data_inicio, dias) else data_inicio + dias end
+$$;
+
+-- Extensão de prazos: guarda a origem do cálculo (início + quantidade) além da data final,
+-- pra reexibir/auditar como chegou nela; "data" continua a fonte de verdade pra exibição.
+alter table prazos add column if not exists data_inicio date;
+alter table prazos add column if not exists dias_uteis boolean not null default true;
+alter table prazos add column if not exists quantidade_dias int;
+alter table prazos add column if not exists alerta_dias_antes int not null default 3;
+alter table prazos add column if not exists alerta_gerado boolean not null default false; -- evita notificar 2x
+alter table prazos add column if not exists movimentacao_origem_id uuid references movimentacoes_processo(id);
+
+-- Se data_inicio/quantidade_dias vierem preenchidos, "data" é sempre recalculada a partir
+-- deles — evita UI e banco divergirem sobre qual é a data real do prazo.
+create or replace function set_prazo_data() returns trigger
+  language plpgsql set search_path = public as $$
+begin
+  if new.data_inicio is not null and new.quantidade_dias is not null then
+    new.data := calcula_prazo(new.data_inicio, new.quantidade_dias, new.dias_uteis);
+  end if;
+  return new;
+end;
+$$;
+create trigger trg_set_prazo_data before insert or update on prazos
+  for each row execute function set_prazo_data();
+
+-- Gera notificação quando faltam <= alerta_dias_antes dias úteis pro vencimento (ou já
+-- venceu) e ainda não foi alertado. Agendada 1x/dia via cron abaixo.
+create or replace function gerar_alertas_prazos() returns void
+  language plpgsql set search_path = public as $$
+declare r record;
+begin
+  for r in
+    select p.*, pr.numero as processo_numero
+    from prazos p join processos pr on pr.id = p.processo_id
+    where p.alerta_gerado = false and p.data is not null
+      and calcula_prazo_util(current_date, p.alerta_dias_antes) >= p.data
+  loop
+    insert into notificacoes (org_id, processo_id, prazo_id, tipo, titulo, texto, requer_atencao)
+    values (
+      r.org_id, r.processo_id, r.id, 'prazo',
+      case when r.data < current_date then format('Prazo VENCIDO — processo %s', r.processo_numero)
+        else format('Prazo vence em breve — processo %s', r.processo_numero) end,
+      format('%s — vencimento %s', r.tipo, to_char(r.data, 'DD/MM/YYYY')),
+      true
+    );
+    update prazos set alerta_gerado = true where id = r.id;
+  end loop;
+end;
+$$;
+
+-- Agendamento (precisa de pg_cron + pg_net habilitados, e o segredo salvo no Vault:
+-- select vault.create_secret('<valor-aleatorio-seu>', 'datajud_cron_secret', '...');
+-- — o mesmo valor vai como secret DATAJUD_CRON_SECRET da Edge Function datajud-sync).
+create extension if not exists pg_cron;
+create extension if not exists pg_net;
+
+select cron.schedule('datajud-sync-diario', '0 9 * * *', $$
+  select net.http_post(
+    url := 'https://vclylstjbpsxikmnpguk.supabase.co/functions/v1/datajud-sync',
+    headers := jsonb_build_object(
+      'Content-Type', 'application/json',
+      'x-cron-secret', (select decrypted_secret from vault.decrypted_secrets where name = 'datajud_cron_secret')
+    ),
+    body := '{}'::jsonb
+  );
+$$);
+select cron.schedule('prazos-alertas-diario', '0 8 * * *', $$ select gerar_alertas_prazos(); $$);
+
 -- ── Seed: Gimenes & Pires ────────────────────────────────────────────────
 
 insert into organizations (nome, slug) values ('Gimenes & Pires', 'gimenes-pires');
