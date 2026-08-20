@@ -4,7 +4,9 @@ import { COLORS } from "../lib/theme.js";
 // Modal de criar/editar reaproveitado por Clientes/Processos/Prazos/Honorários.
 // `fields`: [{ key, label, type: "text"|"number"|"date"|"select", options?: [{value,label}],
 //   onSelect?: (value) => ({ outroCampo: valor }) — só pra "select", preenche outro campo
-//   de brinde quando essa opção muda (ex.: plano → valor mensal padrão) }]
+//   de brinde quando essa opção muda (ex.: plano → valor mensal padrão)
+//   onBlur?: async (value) => ({ outroCampo: valor }) | null — pra text/number, dispara ao
+//   sair do campo (ex.: CEP → busca endereço) }]
 export default function RecordFormModal({ open, title, fields, initialValues, onSubmit, onClose }) {
   const dialogRef = useRef(null);
   const [values, setValues] = useState({});
@@ -75,6 +77,10 @@ export default function RecordFormModal({ open, title, fields, initialValues, on
                 step={f.type === "number" ? "0.01" : undefined}
                 value={values[f.key] ?? ""}
                 onChange={(e) => setValues((v) => ({ ...v, [f.key]: e.target.value }))}
+                onBlur={f.onBlur ? async (e) => {
+                  const patch = await f.onBlur(e.target.value);
+                  if (patch) setValues((v) => ({ ...v, ...patch }));
+                } : undefined}
                 className="px-3 py-2 rounded-md text-sm"
                 style={{ border: `1px solid ${COLORS.line}`, color: COLORS.ink }}
               />

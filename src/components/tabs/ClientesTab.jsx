@@ -8,9 +8,34 @@ import SearchInput from "../SearchInput.jsx";
 import { COLORS } from "../../lib/theme.js";
 import { useSupabaseTable } from "../../hooks/useSupabaseTable.js";
 
+// ViaCEP: API pública gratuita do próprio governo/comunidade, sem chave — busca direto do
+// browser. Só preenche o que ela devolve; número e complemento continuam manuais (o CEP
+// não sabe disso).
+async function buscarEnderecoPorCep(cepDigitado) {
+  const cep = (cepDigitado || "").replace(/\D/g, "");
+  if (cep.length !== 8) return null;
+  try {
+    const res = await fetch(`https://viacep.com.br/ws/${cep}/json/`);
+    const data = await res.json();
+    if (data.erro) return null;
+    return { logradouro: data.logradouro, bairro: data.bairro, cidade: data.localidade, uf: data.uf };
+  } catch {
+    return null; // sem internet ou ViaCEP fora do ar — usuário preenche na mão, sem travar o form
+  }
+}
+
 const FIELDS = [
   { key: "nome", label: "Nome / Razão social" },
   { key: "tipo", label: "Tipo", type: "select", options: [{ value: "PF", label: "Pessoa Física" }, { value: "PJ", label: "Pessoa Jurídica" }] },
+  { key: "celular", label: "Celular", optional: true },
+  { key: "email", label: "Email", type: "email", optional: true },
+  { key: "cep", label: "CEP", optional: true, onBlur: buscarEnderecoPorCep },
+  { key: "logradouro", label: "Endereço", optional: true },
+  { key: "numero", label: "Número", optional: true },
+  { key: "complemento", label: "Complemento", optional: true },
+  { key: "bairro", label: "Bairro", optional: true },
+  { key: "cidade", label: "Cidade", optional: true },
+  { key: "uf", label: "UF", optional: true },
   { key: "origem", label: "Origem", optional: true },
   { key: "contrato_renovacao", label: "Renovação de contrato", type: "date", optional: true },
 ];
@@ -24,7 +49,10 @@ export default function ClientesTab({ currentRole }) {
   const filtrados = clientes.filter((c) => {
     const q = busca.trim().toLowerCase();
     if (!q) return true;
-    return c.nome.toLowerCase().includes(q) || (c.origem || "").toLowerCase().includes(q);
+    return c.nome.toLowerCase().includes(q)
+      || (c.origem || "").toLowerCase().includes(q)
+      || (c.celular || "").toLowerCase().includes(q)
+      || (c.email || "").toLowerCase().includes(q);
   });
 
   return (
@@ -51,19 +79,20 @@ export default function ClientesTab({ currentRole }) {
         <table className="w-full text-sm">
           <thead>
             <tr style={{ background: COLORS.ink }}>
-              {["Cliente", "Tipo", "Origem", "Renovação de contrato", ""].map((h) => (
+              {["Cliente", "Tipo", "Celular", "Origem", "Renovação de contrato", ""].map((h) => (
                 <th key={h} className="text-left px-4 py-3 font-semibold" style={{ color: COLORS.paper, fontSize: 11 }}>{h.toUpperCase()}</th>
               ))}
             </tr>
           </thead>
           <tbody>
             {!loading && filtrados.length === 0 && (
-              <tr><td colSpan={5} className="px-4 py-6 text-center text-sm" style={{ color: COLORS.slate }}>{busca ? "Nenhum cliente encontrado." : "Nenhum cliente cadastrado ainda."}</td></tr>
+              <tr><td colSpan={6} className="px-4 py-6 text-center text-sm" style={{ color: COLORS.slate }}>{busca ? "Nenhum cliente encontrado." : "Nenhum cliente cadastrado ainda."}</td></tr>
             )}
             {filtrados.map((c, i) => (
               <tr key={c.id} style={{ borderTop: `1px solid ${COLORS.line}`, background: i % 2 ? "#FAF9F5" : COLORS.paperRaised }}>
                 <td className="px-4 py-3" style={{ color: COLORS.ink }}>{c.nome}</td>
                 <td className="px-4 py-3" style={{ color: COLORS.slate }}>{c.tipo}</td>
+                <td className="px-4 py-3" style={{ color: COLORS.slate }}>{c.celular || "—"}</td>
                 <td className="px-4 py-3" style={{ color: COLORS.slate }}>{c.origem || "—"}</td>
                 <td className="px-4 py-3" style={{ color: COLORS.slate }}>{c.contrato_renovacao || "—"}</td>
                 <td className="px-4 py-3"><RowActions onEdit={() => setEditing(c)} onDelete={podeExcluir ? () => remove(c.id) : undefined} /></td>
