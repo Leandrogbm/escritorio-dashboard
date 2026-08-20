@@ -87,7 +87,11 @@ export default function App() {
   }
   if (!permissions) return <FullScreenMessage>Carregando...</FullScreenMessage>;
 
-  const orgId = emSuporte ? orgOverride.org_id : undefined; // undefined = usa auth_org_id() normal (não-platform-admin)
+  // Sempre um valor concreto (nunca undefined pra quem é platform admin): is_platform_admin()
+  // libera a RLS de select pra QUALQUER org, então sem esse filtro explícito o próprio
+  // platform admin vendo a própria empresa (fora do modo suporte) veria clientes/processos
+  // de todas as empresas misturados — o filtro é o que mantém isso restrito a uma org por vez.
+  const orgId = emSuporte ? orgOverride.org_id : profile?.org_id;
 
   const renderTab = () => {
     if (activeTab === "config") return <ConfigTab permissions={permissions} togglePermission={togglePermission} />;

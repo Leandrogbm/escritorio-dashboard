@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from "react";
-import { DollarSign, Plus, X, Upload } from "lucide-react";
+import { DollarSign, Plus, X, Upload, Receipt, CheckCircle2 } from "lucide-react";
 import Card from "../Card.jsx";
 import SectionTitle from "../SectionTitle.jsx";
 import Stamp from "../Stamp.jsx";
@@ -7,6 +7,7 @@ import RowActions from "../RowActions.jsx";
 import RecordFormModal from "../RecordFormModal.jsx";
 import SearchInput from "../SearchInput.jsx";
 import ImportarExtratoModal from "./ImportarExtratoModal.jsx";
+import GerarNotaModal from "./GerarNotaModal.jsx";
 import { COLORS } from "../../lib/theme.js";
 import { BRL } from "../../data/mockData.js";
 import { useSupabaseTable } from "../../hooks/useSupabaseTable.js";
@@ -37,10 +38,15 @@ export default function FinanceiroTab({ orgId } = {}) {
     select: "*, cliente:clientes(id,nome,tipo)", eq: orgEq,
   });
   const { data: clientes } = useSupabaseTable("clientes", { select: "id,nome,tipo", orderBy: "nome", ascending: true, eq: orgEq });
+  const { data: orgRows } = useSupabaseTable("organizations", { select: "inscricao_municipal", eq: orgId ? ["id", orgId] : undefined });
+  const org = orgRows[0];
+  const { data: notasFiscais, refresh: refreshNotas } = useSupabaseTable("notas_fiscais", { select: "honorario_id, status", eq: orgEq });
+  const notaPorHonorario = useMemo(() => new Map(notasFiscais.map((n) => [n.honorario_id, n])), [notasFiscais]);
   const [editing, setEditing] = useState(null); // {} = novo (do topo), {cliente_id} = novo já com cliente, {...} = editando
   const [selecionado, setSelecionado] = useState(null); // cliente_id aberto no painel de detalhe
   const [busca, setBusca] = useState("");
   const [importando, setImportando] = useState(false); // abre o modal de importar extrato
+  const [gerandoNotaPara, setGerandoNotaPara] = useState(null); // honorario aberto no modal de gerar nota
 
   const confirmarPagamentos = async (ids) => {
     const { error } = await supabase.from("honorarios").update({ status: "Pago" }).in("id", ids);
@@ -205,10 +211,21 @@ export default function FinanceiroTab({ orgId } = {}) {
                       <td className="px-4 py-2" style={{ color: COLORS.slate }}>{new Date(`${h.vencimento}T00:00:00`).toLocaleDateString("pt-BR")}</td>
                       <td className="px-4 py-2"><Stamp tone={estaAtrasado(h) ? "urgent" : h.status === "Pago" ? "ok" : "warn"}>{h.status}</Stamp></td>
                       <td className="px-2 py-2">
-                        <RowActions
-                          onEdit={() => setEditing({ ...h, cliente_id: h.cliente?.id })}
-                          onDelete={() => remove(h.id)}
-                        />
+                        <div className="flex items-center gap-1">
+                          {h.status === "Pago" && (
+                            notaPorHonorario.has(h.id) ? (
+                              <span title="Nota já gerada" className="p-1.5" style={{ color: COLORS.success }}><CheckCircle2 size={14} /></span>
+                            ) : (
+                              <button onClick={() => setGerandoNotaPara(h)} aria-label="Gerar nota fiscal" title="Gerar nota fiscal" className="p-1.5 rounded hover:opacity-70" style={{ color: COLORS.brass }}>
+                                <Receipt size={14} />
+                              </button>
+                            )
+                          )}
+                          <RowActions
+                            onEdit={() => setEditing({ ...h, cliente_id: h.cliente?.id })}
+                            onDelete={() => remove(h.id)}
+                          />
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -231,6 +248,15 @@ export default function FinanceiroTab({ orgId } = {}) {
 
       {importando && (
         <ImportarExtratoModal honorarios={honorarios} onConfirmar={confirmarPagamentos} onClose={() => setImportando(false)} />
+      )}
+
+      {gerandoNotaPara && (
+        <GerarNotaModal
+          honorario={gerandoNotaPara}
+          org={org}
+          onGerada={refreshNotas}
+          onClose={() => setGerandoNotaPara(null)}
+        />
       )}
     </div>
   );

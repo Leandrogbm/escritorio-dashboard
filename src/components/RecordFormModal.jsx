@@ -2,7 +2,9 @@ import React, { useEffect, useRef, useState } from "react";
 import { COLORS } from "../lib/theme.js";
 
 // Modal de criar/editar reaproveitado por Clientes/Processos/Prazos/Honorários.
-// `fields`: [{ key, label, type: "text"|"number"|"date"|"select", options?: [{value,label}],
+// `fields`: [{ key, label, type: "text"|"number"|"date"|"select"|"datalist", options?: [{value,label}],
+//   "datalist": input de texto livre com sugestões (<datalist> nativo) — digitar algo fora
+//   da lista funciona igual, não trava em opção fechada (ex.: área do direito).
 //   onSelect?: (value) => ({ outroCampo: valor }) — só pra "select", preenche outro campo
 //   de brinde quando essa opção muda (ex.: plano → valor mensal padrão)
 //   onBlur?: async (value) => ({ outroCampo: valor }) | null — pra text/number, dispara ao
@@ -74,23 +76,31 @@ export default function RecordFormModal({ open, title, fields, initialValues, on
                 {f.options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
               </select>
             ) : (
-              <input
-                required={!f.optional}
-                type={f.type ?? "text"}
-                step={f.type === "number" ? "0.01" : undefined}
-                value={values[f.key] ?? ""}
-                placeholder={f.placeholder}
-                // off: navegador não deve autopreencher email/senha de outra conta salva aqui —
-                // esses campos são dados de terceiros (cliente/colaborador), não do próprio usuário.
-                autoComplete="off"
-                onChange={(e) => setValues((v) => ({ ...v, [f.key]: f.mask ? f.mask(e.target.value, v) : e.target.value }))}
-                onBlur={f.onBlur ? async (e) => {
-                  const patch = await f.onBlur(e.target.value);
-                  if (patch) setValues((v) => ({ ...v, ...patch }));
-                } : undefined}
-                className="px-3 py-2 rounded-md text-sm"
-                style={{ border: `1px solid ${COLORS.line}`, color: COLORS.ink }}
-              />
+              <>
+                <input
+                  required={!f.optional}
+                  type={f.type === "datalist" ? "text" : (f.type ?? "text")}
+                  step={f.type === "number" ? "0.01" : undefined}
+                  list={f.type === "datalist" ? `${f.key}-lista` : undefined}
+                  value={values[f.key] ?? ""}
+                  placeholder={f.placeholder}
+                  // off: navegador não deve autopreencher email/senha de outra conta salva aqui —
+                  // esses campos são dados de terceiros (cliente/colaborador), não do próprio usuário.
+                  autoComplete="off"
+                  onChange={(e) => setValues((v) => ({ ...v, [f.key]: f.mask ? f.mask(e.target.value, v) : e.target.value }))}
+                  onBlur={f.onBlur ? async (e) => {
+                    const patch = await f.onBlur(e.target.value);
+                    if (patch) setValues((v) => ({ ...v, ...patch }));
+                  } : undefined}
+                  className="px-3 py-2 rounded-md text-sm"
+                  style={{ border: `1px solid ${COLORS.line}`, color: COLORS.ink }}
+                />
+                {f.type === "datalist" && (
+                  <datalist id={`${f.key}-lista`}>
+                    {f.options.map((o) => <option key={o.value} value={o.value} />)}
+                  </datalist>
+                )}
+              </>
             )}
           </label>
         ))}

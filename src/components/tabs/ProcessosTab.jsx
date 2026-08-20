@@ -10,6 +10,7 @@ import SearchInput from "../SearchInput.jsx";
 import { COLORS } from "../../lib/theme.js";
 import { useSupabaseTable } from "../../hooks/useSupabaseTable.js";
 import { supabase } from "../../lib/supabaseClient.js";
+import { AREAS_DIREITO_COMUNS } from "../../config/areasDireito.js";
 
 const STATUS_TONE = { "Em andamento": "ok", "Aguardando decisão": "warn", "Suspenso": "neutral", "Encerrado": "neutral" };
 const STATUS_OPTIONS = Object.keys(STATUS_TONE).map((s) => ({ value: s, label: s }));
@@ -64,7 +65,7 @@ export default function ProcessosTab({ currentRole, orgId }) {
   const fields = useMemo(() => [
     { key: "numero", label: "Número do processo (formato CNJ p/ sincronizar com o DataJud)" },
     { key: "cliente_id", label: "Cliente", type: "select", options: clientes.map((c) => ({ value: c.id, label: c.nome })) },
-    { key: "area", label: "Área do direito" },
+    { key: "area", label: "Área do direito", type: "datalist", options: AREAS_DIREITO_COMUNS.map((a) => ({ value: a })) },
     { key: "status", label: "Situação", type: "select", options: STATUS_OPTIONS },
     { key: "valor", label: "Valor da causa (R$)", type: "number", optional: true },
     { key: "responsavel_id", label: "Responsável", type: "select", options: equipe.map((e) => ({ value: e.id, label: e.nome })), optional: true },

@@ -34,7 +34,10 @@ create table organizations (
   complemento text,
   bairro text,
   cidade text,
-  uf text
+  uf text,
+  -- dados fiscais pra emissão de nota (aba Minha Empresa + Financeiro → gerar nota).
+  inscricao_municipal text,
+  aliquota_iss numeric(5,2)
 );
 
 create table profiles (
@@ -62,6 +65,7 @@ create table clientes (
   nome text not null,
   tipo text not null check (tipo in ('PF','PJ')),
   documento text, -- CPF (PF) ou CNPJ (PJ), sem validação de dígito verificador de propósito
+  inscricao_municipal text, -- só relevante se PJ e a prefeitura do tomador pedir, pra nota
   origem text,
   contrato_renovacao date,
   created_at timestamptz not null default now()
@@ -100,9 +104,31 @@ create table honorarios (
   valor numeric(14,2) not null,
   vencimento date not null,
   status text not null check (status in ('Em aberto','Vencido','Pago')) default 'Em aberto',
-  created_at timestamptz not null default now()
+  created_at timestamptz not null default now(),
+  descricao_servico text -- preenchido/confirmado na hora de gerar a nota (Financeiro)
 );
 create index honorarios_org_id_idx on honorarios (org_id);
+
+-- Registro da nota "pronta pra emitir": junta os dados no momento do clique (valor, cliente,
+-- descrição). status fica 'pendente' até ligar um provedor de emissão de verdade (Focus
+-- NFe/eNotas/PlugNotas + certificado digital A1) — nesse dia, provedor_resposta recebe o
+-- retorno de lá e status vira 'emitida'/'erro'. Sem isso hoje, é só organização dos dados,
+-- não transmite nada pra prefeitura.
+create table notas_fiscais (
+  id uuid primary key default gen_random_uuid(),
+  org_id uuid not null references organizations(id),
+  honorario_id uuid not null references honorarios(id),
+  cliente_id uuid not null references clientes(id),
+  valor numeric(14,2) not null,
+  descricao_servico text not null,
+  status text not null check (status in ('pendente','emitida','erro')) default 'pendente',
+  numero text,
+  provedor_resposta jsonb,
+  created_at timestamptz not null default now(),
+  emitida_em timestamptz,
+  unique (honorario_id) -- 1 nota por cobrança, evita gerar duplicada clicando 2x
+);
+create index notas_fiscais_org_id_idx on notas_fiscais (org_id);
 
 -- Os 3 planos e seus limites — fonte única de verdade (Edge Function admin-create-user e
 -- a policy processos_ins leem daqui). limite_usuarios/limite_processos null = sem limite.
@@ -388,6 +414,13 @@ create trigger trg_audit_processos after insert or update or delete on processos
 create trigger trg_audit_prazos after insert or update or delete on prazos for each row execute function log_platform_admin_write();
 create trigger trg_audit_honorarios after insert or update or delete on honorarios for each row execute function log_platform_admin_write();
 create trigger trg_audit_profiles after insert or update or delete on profiles for each row execute function log_platform_admin_write();
+
+alter table notas_fiscais enable row level security;
+create trigger trg_set_org_id before insert on notas_fiscais for each row execute function set_org_id();
+create policy notas_fiscais_sel on notas_fiscais for select using ((org_id = auth_org_id() and has_module('financeiro')) or is_platform_admin());
+create policy notas_fiscais_ins on notas_fiscais for insert with check ((org_id = auth_org_id() and has_module('financeiro')) or is_platform_admin());
+create policy notas_fiscais_del on notas_fiscais for delete using ((org_id = auth_org_id() and has_module('financeiro')) or is_platform_admin());
+create trigger trg_audit_notas_fiscais after insert or update or delete on notas_fiscais for each row execute function log_platform_admin_write();
 
 -- Excluir empresa por completo (colaboradores, clientes, processos, financeiro, a org em si)
 -- é a Edge Function platform-delete-org — precisa apagar cada Auth user via Admin API,
