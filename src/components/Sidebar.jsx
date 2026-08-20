@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Settings, ChevronsLeft, ChevronsRight, X } from "lucide-react";
+import { Settings, Home, ChevronsLeft, ChevronsRight, X } from "lucide-react";
 import { COLORS } from "../lib/theme.js";
 import { MODULES } from "../config/permissions.js";
 
@@ -94,6 +94,25 @@ export default function Sidebar({ allowedModules, activeTab, setActiveTab, curre
               </button>
             );
           })}
+
+          {(currentRole === "admin" || currentRole === "socio") && (
+            <>
+              <div className="pt-3 mt-3" style={{ borderTop: "1px solid rgba(255,255,255,0.1)" }} />
+              <button
+                onClick={() => escolher("empresa")}
+                title={recolhida ? "Minha Empresa" : undefined}
+                className={`w-full flex items-center gap-3 py-2.5 rounded-md text-sm ${recolhida ? "md:justify-center md:px-0" : ""} px-3`}
+                style={{
+                  background: activeTab === "empresa" ? "rgba(165,121,59,0.18)" : "transparent",
+                  color: activeTab === "empresa" ? COLORS.brass : "rgba(255,255,255,0.75)",
+                  fontWeight: activeTab === "empresa" ? 600 : 500,
+                }}
+              >
+                <Home size={17} className="shrink-0" />
+                <span className={recolhida ? "md:hidden" : ""}>Minha Empresa</span>
+              </button>
+            </>
+          )}
 
           {currentRole === "admin" && (
             <>

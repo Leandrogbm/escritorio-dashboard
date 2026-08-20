@@ -43,17 +43,21 @@ export function useAuth() {
   // toa — e por uma fração de segundo allowedModules ficava vazio lá em cima no App.jsx,
   // o que empurrava a aba ativa de volta pra a primeira da lista.
   const userId = session?.user?.id;
+
+  const carregarProfile = (uid) =>
+    supabase
+      .from("profiles")
+      .select("*, organizations(nome, suspenso, logo_url, cep, logradouro, numero, complemento, bairro, cidade, uf)")
+      .eq("id", uid)
+      .maybeSingle()
+      .then(({ data }) => setProfile(data));
+
   useEffect(() => {
     if (session === undefined) return;
     if (!session) { setProfile(null); setIsPlatformAdmin(false); setPlatformAdminChecked(true); return; }
     setProfile(undefined);
     setPlatformAdminChecked(false);
-    supabase
-      .from("profiles")
-      .select("*, organizations(nome, suspenso)")
-      .eq("id", session.user.id)
-      .maybeSingle()
-      .then(({ data }) => setProfile(data));
+    carregarProfile(session.user.id);
     // platform_org_metrics é security definer e checa isso por dentro — não vaza nada,
     // mas ainda perguntamos explicitamente pra decidir qual painel mostrar no client.
     supabase.rpc("is_platform_admin").then(({ data }) => { setIsPlatformAdmin(!!data); setPlatformAdminChecked(true); });
@@ -68,5 +72,8 @@ export function useAuth() {
     recovery,
     clearRecovery: () => setRecovery(false),
     signOut: () => supabase.auth.signOut(),
+    // pra MinhaEmpresaTab recarregar o profile (nome/logo/endereço) depois de salvar,
+    // sem precisar de reload da página.
+    refreshProfile: () => userId && carregarProfile(userId),
   };
 }

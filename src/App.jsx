@@ -16,9 +16,10 @@ import ClientesTab from "./components/tabs/ClientesTab.jsx";
 import EquipeTab from "./components/tabs/EquipeTab.jsx";
 import ExecutivoTab from "./components/tabs/ExecutivoTab.jsx";
 import ConfigTab from "./components/tabs/ConfigTab.jsx";
+import MinhaEmpresaTab from "./components/tabs/MinhaEmpresaTab.jsx";
 
 export default function App() {
-  const { session, profile, isPlatformAdmin, loading, recovery, clearRecovery, signOut } = useAuth();
+  const { session, profile, isPlatformAdmin, loading, recovery, clearRecovery, signOut, refreshProfile } = useAuth();
   const { permissions, togglePermission } = useRolePermissions(profile?.org_id);
   // Persiste a aba ativa: navegador às vezes descarta/recarrega uma aba parada por um
   // tempo (economia de memória, comum em celular) — sem isso, o reload sempre caía de
@@ -80,6 +81,7 @@ export default function App() {
 
   const renderTab = () => {
     if (activeTab === "config") return <ConfigTab permissions={permissions} togglePermission={togglePermission} />;
+    if (activeTab === "empresa") return <MinhaEmpresaTab profile={profile} onAtualizado={refreshProfile} />;
     if (!activeTab) return <EmptyState />;
     switch (activeTab) {
       case "prazos": return <PrazosTab />;

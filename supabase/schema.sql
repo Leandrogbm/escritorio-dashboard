@@ -19,7 +19,17 @@ create table organizations (
   valor_mensal numeric(10,2),
   status_pagamento text check (status_pagamento in ('pago','pendente','atrasado')) not null default 'pendente',
   suspenso boolean not null default false, -- bloqueia login de toda a empresa (App.jsx), sem apagar nada
-  created_at timestamptz not null default now()
+  created_at timestamptz not null default now(),
+  -- perfil da própria empresa (aba "Minha Empresa") — editável por admin/sócio,
+  -- ver organizations_self_upd + trg_guard_organizations_protected_cols.
+  logo_url text,
+  cep text,
+  logradouro text,
+  numero text,
+  complemento text,
+  bairro text,
+  cidade text,
+  uf text
 );
 
 create table profiles (
@@ -109,15 +119,14 @@ alter table organizations add constraint organizations_plano_fkey foreign key (p
 -- Aba "Equipe": deriva de profiles + contagem de processos ativos, sem tabela própria.
 -- security_invoker = true é obrigatório aqui — sem isso a view roda com o privilégio de quem
 -- criou (o dono do banco) e ignora RLS, vazando dados de outros tenants.
--- role <> 'admin': admin administra a conta, não é fee-earner — não faz sentido aparecer
--- com métricas de horas faturáveis. Ele continua com acesso a todas as abas normalmente,
--- só não lista a própria linha aqui.
+-- Admin também aparece na lista (pedido do usuário) — role vem junto pra UI montar o
+-- dropdown de cargo. p.role tem que ficar no fim do SELECT: CREATE OR REPLACE VIEW não
+-- deixa reordenar/renomear colunas existentes, só apendar.
 create view equipe_view with (security_invoker = true) as
   select p.id, p.org_id, p.nome, p.cargo, p.horas_mes as horas, p.meta_horas as meta,
-         count(pr.id) filter (where pr.status <> 'Encerrado') as ativos
+         count(pr.id) filter (where pr.status <> 'Encerrado') as ativos, p.role
   from profiles p
   left join processos pr on pr.responsavel_id = p.id
-  where p.role <> 'admin'
   group by p.id;
 
 -- ── Funções helper (fonte única de verdade pra RLS e client) ────────────────
@@ -174,6 +183,39 @@ create policy org_select on organizations for select using (id = auth_org_id() o
 -- não faz sentido a própria empresa mexer no que ela paga pra plataforma.
 create policy organizations_billing_upd on organizations for update
   using (is_platform_admin()) with check (is_platform_admin());
+
+-- Além do billing, admin/sócio da própria empresa pode editar nome/logo/endereço
+-- (aba "Minha Empresa"). O trigger abaixo é a defesa de verdade contra mexer no
+-- billing/cnpj por essa via — não dá pra confiar só em esconder campo na UI.
+create policy organizations_self_upd on organizations for update
+  using (id = auth_org_id() and auth_role() in ('admin','socio'))
+  with check (id = auth_org_id());
+
+create or replace function guard_organizations_protected_cols() returns trigger
+  language plpgsql security definer set search_path = public as $$
+begin
+  if not is_platform_admin() then
+    new.plano := old.plano;
+    new.valor_mensal := old.valor_mensal;
+    new.status_pagamento := old.status_pagamento;
+    new.suspenso := old.suspenso;
+    new.cnpj := old.cnpj;
+  end if;
+  return new;
+end;
+$$;
+create trigger trg_guard_organizations_protected_cols before update on organizations
+  for each row execute function guard_organizations_protected_cols();
+
+-- Bucket de logos das empresas — path é "<org_id>/logo.<ext>", RLS por pasta.
+insert into storage.buckets (id, name, public) values ('org-logos', 'org-logos', true)
+  on conflict (id) do nothing;
+create policy org_logos_insert on storage.objects for insert
+  with check (bucket_id = 'org-logos' and (storage.foldername(name))[1] = auth_org_id()::text and auth_role() in ('admin','socio'));
+create policy org_logos_update on storage.objects for update
+  using (bucket_id = 'org-logos' and (storage.foldername(name))[1] = auth_org_id()::text and auth_role() in ('admin','socio'));
+create policy org_logos_delete on storage.objects for delete
+  using (bucket_id = 'org-logos' and (storage.foldername(name))[1] = auth_org_id()::text and auth_role() in ('admin','socio'));
 
 alter table profiles enable row level security;
 -- SEM trg_set_org_id aqui de propósito (diferente de clientes/processos/prazos/honorarios):

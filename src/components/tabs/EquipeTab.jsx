@@ -9,10 +9,14 @@ import { ROLES } from "../../config/permissions.js";
 import { useSupabaseTable } from "../../hooks/useSupabaseTable.js";
 import { supabase } from "../../lib/supabaseClient.js";
 
+// ponytail: horas faturáveis tiradas da tela por pedido — colunas continuam no banco
+// (profiles.horas_mes/meta_horas), só não aparecem/editam por aqui por enquanto.
+// "email" não vem pré-preenchido: mora em auth.users, não em profiles, e a view não
+// expõe isso — deixar em branco significa "não mudar", só troca se digitar um novo.
 const METRIC_FIELDS = [
-  { key: "cargo", label: "Cargo", optional: true },
-  { key: "horas_mes", label: "Horas faturáveis no mês", type: "number" },
-  { key: "meta_horas", label: "Meta de horas", type: "number" },
+  { key: "nome", label: "Nome" },
+  { key: "email", label: "Novo email (deixe em branco pra não alterar)", type: "email", optional: true },
+  { key: "role", label: "Cargo", type: "select", options: ROLES.map((r) => ({ value: r.key, label: r.label })) },
 ];
 
 // Criação do Auth user (com senha temporária mandada por email) roda na Edge Function
@@ -31,9 +35,19 @@ export default function EquipeTab({ currentRole }) {
   const [creating, setCreating] = useState(false); // novo colaborador
   const podeExcluir = currentRole === "admin" || currentRole === "socio";
 
-  const salvarMetricas = async (values) => {
-    const { error } = await supabase.from("profiles").update(values).eq("id", editing.id);
+  const salvarMetricas = async ({ email, role, ...values }) => {
+    // "cargo" (texto livre exibido no card) segue o rótulo do perfil escolhido — mantém o
+    // card com algo legível sem precisar de mais um campo digitado à parte.
+    const payload = role ? { ...values, role, cargo: ROLES.find((r) => r.key === role)?.label ?? role } : values;
+    const { error } = await supabase.from("profiles").update(payload).eq("id", editing.id);
     if (error) throw error;
+
+    if (email) {
+      // login (auth.users) é separado de profiles — precisa de service_role, vai pela Edge Function.
+      const { error: emailErr } = await supabase.functions.invoke("admin-update-email", { body: { userId: editing.id, email } });
+      if (emailErr) throw new Error((await emailErr.context?.json?.().catch(() => null))?.error ?? emailErr.message);
+    }
+
     await refresh();
   };
 
@@ -61,7 +75,7 @@ export default function EquipeTab({ currentRole }) {
       <SectionTitle
         icon={Building2}
         title="Equipe"
-        subtitle="Carga de trabalho e horas faturáveis"
+        subtitle="Colaboradores do escritório"
         action={
           currentRole === "admin" && (
             <button
@@ -78,41 +92,29 @@ export default function EquipeTab({ currentRole }) {
         <p className="text-sm" style={{ color: COLORS.slate }}>Nenhum membro da equipe cadastrado ainda.</p>
       )}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {equipe.map((e) => {
-          const pct = e.meta ? Math.round((e.horas / e.meta) * 100) : 0;
-          return (
-            <Card key={e.id} className="cursor-pointer">
-              <div onClick={() => setEditing(e)} className="flex items-center justify-between">
-                <div>
-                  <p style={{ fontFamily: "'Source Serif 4', serif", fontWeight: 600, color: COLORS.ink }}>{e.nome}</p>
-                  <p className="text-xs" style={{ color: COLORS.brass, letterSpacing: "0.04em" }}>{(e.cargo || "—").toUpperCase()}</p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Stamp tone="neutral">{e.ativos} ativos</Stamp>
-                  {podeExcluir && (
-                    <button
-                      onClick={(ev) => { ev.stopPropagation(); excluirColaborador(e.id); }}
-                      aria-label="Excluir colaborador"
-                      className="p-1.5 rounded hover:opacity-70"
-                      style={{ color: COLORS.wine }}
-                    >
-                      <Trash2 size={14} />
-                    </button>
-                  )}
-                </div>
+        {equipe.map((e) => (
+          <Card key={e.id} className="cursor-pointer">
+            <div onClick={() => setEditing(e)} className="flex items-center justify-between">
+              <div>
+                <p style={{ fontFamily: "'Source Serif 4', serif", fontWeight: 600, color: COLORS.ink }}>{e.nome}</p>
+                <p className="text-xs" style={{ color: COLORS.brass, letterSpacing: "0.04em" }}>{(e.cargo || "—").toUpperCase()}</p>
               </div>
-              <div className="mt-4">
-                <div className="flex justify-between text-xs mb-1" style={{ color: COLORS.slate }}>
-                  <span>Horas faturáveis</span>
-                  <span>{e.horas}h / {e.meta}h</span>
-                </div>
-                <div className="h-2 rounded-full overflow-hidden" style={{ background: COLORS.line }}>
-                  <div className="h-full rounded-full" style={{ width: `${Math.min(pct, 100)}%`, background: pct >= 90 ? COLORS.success : COLORS.brass }} />
-                </div>
+              <div className="flex items-center gap-2">
+                <Stamp tone="neutral">{e.ativos} ativos</Stamp>
+                {podeExcluir && (
+                  <button
+                    onClick={(ev) => { ev.stopPropagation(); excluirColaborador(e.id); }}
+                    aria-label="Excluir colaborador"
+                    className="p-1.5 rounded hover:opacity-70"
+                    style={{ color: COLORS.wine }}
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                )}
               </div>
-            </Card>
-          );
-        })}
+            </div>
+          </Card>
+        ))}
       </div>
 
       <RecordFormModal

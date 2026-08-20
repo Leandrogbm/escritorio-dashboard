@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Users, Plus } from "lucide-react";
+import { Users, Plus, MessageCircle } from "lucide-react";
 import Card from "../Card.jsx";
 import SectionTitle from "../SectionTitle.jsx";
 import RowActions from "../RowActions.jsx";
@@ -7,21 +7,15 @@ import RecordFormModal from "../RecordFormModal.jsx";
 import SearchInput from "../SearchInput.jsx";
 import { COLORS } from "../../lib/theme.js";
 import { useSupabaseTable } from "../../hooks/useSupabaseTable.js";
+import { buscarEnderecoPorCep } from "../../lib/viaCep.js";
 
-// ViaCEP: API pública gratuita do próprio governo/comunidade, sem chave — busca direto do
-// browser. Só preenche o que ela devolve; número e complemento continuam manuais (o CEP
-// não sabe disso).
-async function buscarEnderecoPorCep(cepDigitado) {
-  const cep = (cepDigitado || "").replace(/\D/g, "");
-  if (cep.length !== 8) return null;
-  try {
-    const res = await fetch(`https://viacep.com.br/ws/${cep}/json/`);
-    const data = await res.json();
-    if (data.erro) return null;
-    return { logradouro: data.logradouro, bairro: data.bairro, cidade: data.localidade, uf: data.uf };
-  } catch {
-    return null; // sem internet ou ViaCEP fora do ar — usuário preenche na mão, sem travar o form
-  }
+// wa.me quer só dígitos com DDI — assume Brasil (55) quando o número não veio com DDI
+// (celular BR sempre tem 10 ou 11 dígitos com DDD; deixa passar como veio se já for maior).
+function linkWhatsApp(celular) {
+  const digitos = (celular || "").replace(/\D/g, "");
+  if (!digitos) return null;
+  const comDDI = digitos.length <= 11 ? `55${digitos}` : digitos;
+  return `https://wa.me/${comDDI}`;
 }
 
 const FIELDS = [
@@ -92,7 +86,25 @@ export default function ClientesTab({ currentRole }) {
               <tr key={c.id} style={{ borderTop: `1px solid ${COLORS.line}`, background: i % 2 ? "#FAF9F5" : COLORS.paperRaised }}>
                 <td className="px-4 py-3" style={{ color: COLORS.ink }}>{c.nome}</td>
                 <td className="px-4 py-3" style={{ color: COLORS.slate }}>{c.tipo}</td>
-                <td className="px-4 py-3" style={{ color: COLORS.slate }}>{c.celular || "—"}</td>
+                <td className="px-4 py-3" style={{ color: COLORS.slate }}>
+                  <div className="flex items-center gap-2">
+                    <span>{c.celular || "—"}</span>
+                    {linkWhatsApp(c.celular) && (
+                      <a
+                        href={linkWhatsApp(c.celular)}
+                        target="_blank"
+                        rel="noreferrer"
+                        onClick={(e) => e.stopPropagation()}
+                        aria-label="Abrir conversa no WhatsApp"
+                        title="Abrir conversa no WhatsApp"
+                        className="p-1 rounded hover:opacity-70"
+                        style={{ color: "#25D366" }}
+                      >
+                        <MessageCircle size={16} />
+                      </a>
+                    )}
+                  </div>
+                </td>
                 <td className="px-4 py-3" style={{ color: COLORS.slate }}>{c.origem || "—"}</td>
                 <td className="px-4 py-3" style={{ color: COLORS.slate }}>{c.contrato_renovacao || "—"}</td>
                 <td className="px-4 py-3"><RowActions onEdit={() => setEditing(c)} onDelete={podeExcluir ? () => remove(c.id) : undefined} /></td>
