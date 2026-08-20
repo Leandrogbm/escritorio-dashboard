@@ -23,7 +23,7 @@ export default function App() {
   // Persiste a aba ativa: navegador às vezes descarta/recarrega uma aba parada por um
   // tempo (economia de memória, comum em celular) — sem isso, o reload sempre caía de
   // volta em "Prazos" em vez de continuar onde a pessoa estava.
-  const [activeTab, setActiveTabState] = useState(() => localStorage.getItem("activeTab") || "prazos");
+  const [activeTab, setActiveTabState] = useState(() => localStorage.getItem("activeTab") || "clientes");
   const setActiveTab = (tab) => {
     setActiveTabState(tab);
     if (tab) localStorage.setItem("activeTab", tab); else localStorage.removeItem("activeTab");

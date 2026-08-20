@@ -9,10 +9,10 @@ export const ROLES = [
 ];
 
 export const MODULES = [
-  { key: "prazos", label: "Prazos", icon: Clock },
-  { key: "processos", label: "Processos", icon: Briefcase },
-  { key: "financeiro", label: "Financeiro", icon: DollarSign },
   { key: "clientes", label: "Clientes", icon: Users },
+  { key: "processos", label: "Processos", icon: Briefcase },
+  { key: "prazos", label: "Prazos", icon: Clock },
+  { key: "financeiro", label: "Financeiro", icon: DollarSign },
   { key: "equipe", label: "Equipe", icon: Building2 },
   { key: "executivo", label: "Visão Executiva", icon: TrendingUp },
 ];
