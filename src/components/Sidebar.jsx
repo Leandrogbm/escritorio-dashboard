@@ -114,7 +114,7 @@ export default function Sidebar({ allowedModules, activeTab, setActiveTab, curre
             </>
           )}
 
-          {currentRole === "admin" && (
+          {(currentRole === "admin" || currentRole === "socio") && (
             <>
               <div className="pt-3 mt-3" style={{ borderTop: "1px solid rgba(255,255,255,0.1)" }} />
               <button

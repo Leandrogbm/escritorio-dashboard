@@ -7,7 +7,9 @@ import { COLORS } from "../lib/theme.js";
 //   de brinde quando essa opção muda (ex.: plano → valor mensal padrão)
 //   onBlur?: async (value) => ({ outroCampo: valor }) | null — pra text/number, dispara ao
 //   sair do campo (ex.: CEP → busca endereço)
-//   mask?: (raw) => string — formata o valor a cada tecla (ex.: celular → "(11) 91234-5678") }]
+//   mask?: (raw, values) => string — formata o valor a cada tecla (ex.: celular →
+//   "(11) 91234-5678"); recebe o form inteiro pra quando a máscara depende de outro campo
+//   (ex.: CPF vs CNPJ conforme o tipo escolhido) }]
 export default function RecordFormModal({ open, title, fields, initialValues, onSubmit, onClose }) {
   const dialogRef = useRef(null);
   const [values, setValues] = useState({});
@@ -81,7 +83,7 @@ export default function RecordFormModal({ open, title, fields, initialValues, on
                 // off: navegador não deve autopreencher email/senha de outra conta salva aqui —
                 // esses campos são dados de terceiros (cliente/colaborador), não do próprio usuário.
                 autoComplete="off"
-                onChange={(e) => setValues((v) => ({ ...v, [f.key]: f.mask ? f.mask(e.target.value) : e.target.value }))}
+                onChange={(e) => setValues((v) => ({ ...v, [f.key]: f.mask ? f.mask(e.target.value, v) : e.target.value }))}
                 onBlur={f.onBlur ? async (e) => {
                   const patch = await f.onBlur(e.target.value);
                   if (patch) setValues((v) => ({ ...v, ...patch }));

@@ -13,18 +13,23 @@ import { supabase } from "../../lib/supabaseClient.js";
 // (profiles.horas_mes/meta_horas), só não aparecem/editam por aqui por enquanto.
 // "email" não vem pré-preenchido: mora em auth.users, não em profiles, e a view não
 // expõe isso — deixar em branco significa "não mudar", só troca se digitar um novo.
-const METRIC_FIELDS = [
+// Cargo "Administrador(a)" só aparece na lista pra quem já é admin — sócio não promove
+// (nem vê a opção de promover) ninguém a admin, mesma linha das outras restrições sócio×admin.
+const cargoOptions = (currentRole) =>
+  ROLES.filter((r) => r.key !== "admin" || currentRole === "admin").map((r) => ({ value: r.key, label: r.label }));
+
+const metricFields = (currentRole) => [
   { key: "nome", label: "Nome" },
   { key: "email", label: "Novo email (deixe em branco pra não alterar)", type: "email", optional: true },
-  { key: "role", label: "Cargo", type: "select", options: ROLES.map((r) => ({ value: r.key, label: r.label })) },
+  { key: "role", label: "Cargo", type: "select", options: cargoOptions(currentRole) },
 ];
 
 // Criação do Auth user (com senha temporária mandada por email) roda na Edge Function
 // admin-create-user, que usa a service_role key — não dá pra fazer isso do client com a anon key.
-const NEW_MEMBER_FIELDS = [
+const newMemberFields = (currentRole) => [
   { key: "nome", label: "Nome" },
   { key: "email", label: "Email", type: "email" },
-  { key: "role", label: "Cargo", type: "select", options: ROLES.map((r) => ({ value: r.key, label: r.label })) },
+  { key: "role", label: "Cargo", type: "select", options: cargoOptions(currentRole) },
 ];
 
 // Lê o motivo real dentro do corpo da resposta (FunctionsHttpError não traz isso em
@@ -164,7 +169,7 @@ export default function EquipeTab({ currentRole }) {
       <RecordFormModal
         open={editing !== null}
         title={`Editar métricas — ${editing?.nome ?? ""}`}
-        fields={METRIC_FIELDS}
+        fields={metricFields(currentRole)}
         initialValues={editing}
         onClose={() => setEditing(null)}
         onSubmit={salvarMetricas}
@@ -173,7 +178,7 @@ export default function EquipeTab({ currentRole }) {
       <RecordFormModal
         open={creating}
         title="Novo colaborador"
-        fields={NEW_MEMBER_FIELDS}
+        fields={newMemberFields(currentRole)}
         initialValues={{}}
         onClose={() => setCreating(false)}
         onSubmit={criarColaborador}

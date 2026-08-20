@@ -61,6 +61,7 @@ create table clientes (
   org_id uuid not null references organizations(id),
   nome text not null,
   tipo text not null check (tipo in ('PF','PJ')),
+  documento text, -- CPF (PF) ou CNPJ (PJ), sem validação de dígito verificador de propósito
   origem text,
   contrato_renovacao date,
   created_at timestamptz not null default now()
@@ -204,7 +205,7 @@ begin
     new.valor_mensal := old.valor_mensal;
     new.status_pagamento := old.status_pagamento;
     new.suspenso := old.suspenso;
-    new.cnpj := old.cnpj;
+    -- cnpj saiu da lista de protegidos: admin/sócio edita pela aba Minha Empresa.
   end if;
   return new;
 end;
@@ -228,8 +229,11 @@ alter table profiles enable row level security;
 -- passam o org_id certo explicitamente. Um trigger "auth_org_id() sobrescreve sempre" quebraria
 -- esse insert, porque auth_org_id() resolve null sem sessão — já aconteceu, foi revertido.
 create policy profiles_select on profiles for select using (org_id = auth_org_id() or is_platform_admin());
+-- sócio edita qualquer colega, menos o admin (role <> 'admin' olha a linha ANTES do update —
+-- sócio não consegue nem tocar num profile que já é admin, promover ninguém a admin também
+-- não rola por aqui: a lista de cargo na UI já nem mostra a opção pra quem não é admin).
 create policy profiles_update on profiles for update
-  using (org_id = auth_org_id() and (id = auth.uid() or auth_role() = 'admin'))
+  using (org_id = auth_org_id() and (id = auth.uid() or auth_role() = 'admin' or (auth_role() = 'socio' and role <> 'admin')))
   with check (org_id = auth_org_id());
 -- insert só o admin — feito pela Edge Function admin-create-user (supabase/functions/),
 -- que cria o Auth user com senha temporária (mandada por email) e insere o profile
@@ -246,9 +250,10 @@ create policy profiles_insert on profiles for insert
 
 alter table role_permissions enable row level security;
 create policy role_permissions_select on role_permissions for select using (org_id = auth_org_id());
+-- sócio também mexe em Configurações, não só admin (pedido do usuário).
 create policy role_permissions_write on role_permissions for all
-  using (org_id = auth_org_id() and auth_role() = 'admin')
-  with check (org_id = auth_org_id() and auth_role() = 'admin');
+  using (org_id = auth_org_id() and auth_role() in ('admin','socio'))
+  with check (org_id = auth_org_id() and auth_role() in ('admin','socio'));
 
 -- Tabelas de negócio: mesmo padrão de 4 policies, module key = chave em MODULES (src/config/permissions.js)
 

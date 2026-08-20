@@ -4,16 +4,18 @@ import Card from "../Card.jsx";
 import SectionTitle from "../SectionTitle.jsx";
 import { COLORS } from "../../lib/theme.js";
 import { buscarEnderecoPorCep } from "../../lib/viaCep.js";
+import { formatDocumento } from "../../lib/documento.js";
 import { supabase } from "../../lib/supabaseClient.js";
 
-// Perfil da própria empresa: nome e endereço — editável por admin/sócio DAQUELA
-// empresa (RLS organizations_self_upd). Plano/billing/CNPJ ficam de fora de propósito
-// (só o platform admin mexe nisso — inclusive um trigger no banco trava essas colunas
-// mesmo se alguém tentar mandar por fora da UI). Upload de logo tirado por pedido.
+// Perfil da própria empresa: nome, CNPJ e endereço — editável por admin/sócio DAQUELA
+// empresa (RLS organizations_self_upd). Plano/billing ficam de fora de propósito (só o
+// platform admin mexe nisso — trigger no banco trava essas colunas mesmo por fora da UI;
+// CNPJ não é mais protegido, dá pra empresa preencher o próprio). Upload de logo tirado por pedido.
 export default function MinhaEmpresaTab({ profile, onAtualizado }) {
   const org = profile.organizations ?? {};
   const [form, setForm] = useState({
     nome: org.nome ?? "",
+    cnpj: org.cnpj ?? "",
     cep: org.cep ?? "",
     logradouro: org.logradouro ?? "",
     numero: org.numero ?? "",
@@ -36,9 +38,11 @@ export default function MinhaEmpresaTab({ profile, onAtualizado }) {
     e.preventDefault();
     setSalvando(true);
     setMsg("");
-    const { error } = await supabase.from("organizations").update(form).eq("id", profile.org_id);
+    // cnpj é unique no banco — "" bateria com a "" de outra empresa que também deixou em
+    // branco (unique não trata duas strings vazias como diferente, só NULL é sempre diferente).
+    const { error } = await supabase.from("organizations").update({ ...form, cnpj: form.cnpj || null }).eq("id", profile.org_id);
     setSalvando(false);
-    if (error) return setMsg(error.message);
+    if (error) return setMsg(error.code === "23505" ? "Esse CNPJ já está cadastrado em outra empresa." : error.message);
     setMsg("Salvo.");
     onAtualizado?.();
   };
@@ -54,6 +58,16 @@ export default function MinhaEmpresaTab({ profile, onAtualizado }) {
           <label className="flex flex-col gap-1 text-xs" style={{ color: COLORS.slate }}>
             Nome da empresa
             <input required value={form.nome} onChange={(e) => campo("nome", { nome: e.target.value })} className="px-3 py-2 rounded-md text-sm" style={inputStyle} />
+          </label>
+
+          <label className="flex flex-col gap-1 text-xs" style={{ color: COLORS.slate }}>
+            CNPJ
+            <input
+              value={form.cnpj}
+              placeholder="00.000.000/0000-00"
+              onChange={(e) => campo("cnpj", { cnpj: formatDocumento("PJ", e.target.value) })}
+              className="px-3 py-2 rounded-md text-sm" style={inputStyle}
+            />
           </label>
 
           <div className="grid grid-cols-2 gap-3">

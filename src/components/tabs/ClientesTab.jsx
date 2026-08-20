@@ -9,6 +9,7 @@ import { COLORS } from "../../lib/theme.js";
 import { useSupabaseTable } from "../../hooks/useSupabaseTable.js";
 import { buscarEnderecoPorCep } from "../../lib/viaCep.js";
 import { formatCelular } from "../../lib/celular.js";
+import { formatDocumento } from "../../lib/documento.js";
 
 // wa.me quer só dígitos com DDI — assume Brasil (55) quando o número não veio com DDI
 // (celular BR sempre tem 10 ou 11 dígitos com DDD; deixa passar como veio se já for maior).
@@ -22,6 +23,11 @@ function linkWhatsApp(celular) {
 const FIELDS = [
   { key: "nome", label: "Nome / Razão social" },
   { key: "tipo", label: "Tipo", type: "select", options: [{ value: "PF", label: "Pessoa Física" }, { value: "PJ", label: "Pessoa Jurídica" }] },
+  {
+    key: "documento", label: "CPF/CNPJ", optional: true,
+    placeholder: "000.000.000-00",
+    mask: (raw, values) => formatDocumento(values?.tipo, raw),
+  },
   { key: "celular", label: "Celular", optional: true, placeholder: "(00) 00000-0000", mask: formatCelular },
   { key: "email", label: "Email", type: "email", optional: true },
   { key: "cep", label: "CEP", optional: true, onBlur: buscarEnderecoPorCep },
@@ -47,7 +53,8 @@ export default function ClientesTab({ currentRole }) {
     return c.nome.toLowerCase().includes(q)
       || (c.origem || "").toLowerCase().includes(q)
       || (c.celular || "").toLowerCase().includes(q)
-      || (c.email || "").toLowerCase().includes(q);
+      || (c.email || "").toLowerCase().includes(q)
+      || (c.documento || "").replace(/\D/g, "").includes(q.replace(/\D/g, ""));
   });
 
   return (
@@ -74,19 +81,20 @@ export default function ClientesTab({ currentRole }) {
         <table className="w-full text-sm">
           <thead>
             <tr style={{ background: COLORS.ink }}>
-              {["Cliente", "Tipo", "Celular", "Origem", "Início do contrato", ""].map((h) => (
+              {["Cliente", "Tipo", "CPF/CNPJ", "Celular", "Origem", "Início do contrato", ""].map((h) => (
                 <th key={h} className="text-left px-4 py-3 font-semibold" style={{ color: COLORS.paper, fontSize: 11 }}>{h.toUpperCase()}</th>
               ))}
             </tr>
           </thead>
           <tbody>
             {!loading && filtrados.length === 0 && (
-              <tr><td colSpan={6} className="px-4 py-6 text-center text-sm" style={{ color: COLORS.slate }}>{busca ? "Nenhum cliente encontrado." : "Nenhum cliente cadastrado ainda."}</td></tr>
+              <tr><td colSpan={7} className="px-4 py-6 text-center text-sm" style={{ color: COLORS.slate }}>{busca ? "Nenhum cliente encontrado." : "Nenhum cliente cadastrado ainda."}</td></tr>
             )}
             {filtrados.map((c, i) => (
               <tr key={c.id} style={{ borderTop: `1px solid ${COLORS.line}`, background: i % 2 ? "#FAF9F5" : COLORS.paperRaised }}>
                 <td className="px-4 py-3" style={{ color: COLORS.ink }}>{c.nome}</td>
                 <td className="px-4 py-3" style={{ color: COLORS.slate }}>{c.tipo}</td>
+                <td className="px-4 py-3" style={{ color: COLORS.slate }}>{c.documento ? formatDocumento(c.tipo, c.documento) : "—"}</td>
                 <td className="px-4 py-3" style={{ color: COLORS.slate }}>
                   <div className="flex items-center gap-2">
                     <span>{c.celular ? formatCelular(c.celular) : "—"}</span>
