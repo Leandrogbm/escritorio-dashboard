@@ -38,8 +38,11 @@ export default function App() {
   }, [currentRole, permissions]);
 
   useEffect(() => {
-    if (activeTab !== "config" && !allowedModules.includes(activeTab)) {
-      setActiveTab(allowedModules[0] || null);
+    // allowedModules.length > 0 evita resetar a aba durante um estado transitório de
+    // carregamento (permissions ainda null por uma fração de segundo) — só troca de aba
+    // de verdade quando já sabemos com certeza que ela não é permitida.
+    if (allowedModules.length > 0 && activeTab !== "config" && !allowedModules.includes(activeTab)) {
+      setActiveTab(allowedModules[0]);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentRole, allowedModules]);

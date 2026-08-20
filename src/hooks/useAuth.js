@@ -36,6 +36,13 @@ export function useAuth() {
     return () => sub.subscription.unsubscribe();
   }, []);
 
+  // Chave só no user id, não no objeto session inteiro — supabase-js renova o token
+  // sozinho toda vez que a aba volta a ficar visível (alt+tab, trocar de app), o que troca
+  // a referência de `session` sem trocar de usuário. Sem esse cuidado, cada renovação de
+  // token disparava um "profile = undefined" (tela de carregando piscando) e um refetch à
+  // toa — e por uma fração de segundo allowedModules ficava vazio lá em cima no App.jsx,
+  // o que empurrava a aba ativa de volta pra a primeira da lista.
+  const userId = session?.user?.id;
   useEffect(() => {
     if (session === undefined) return;
     if (!session) { setProfile(null); setIsPlatformAdmin(false); setPlatformAdminChecked(true); return; }
@@ -50,7 +57,8 @@ export function useAuth() {
     // platform_org_metrics é security definer e checa isso por dentro — não vaza nada,
     // mas ainda perguntamos explicitamente pra decidir qual painel mostrar no client.
     supabase.rpc("is_platform_admin").then(({ data }) => { setIsPlatformAdmin(!!data); setPlatformAdminChecked(true); });
-  }, [session]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId]);
 
   return {
     session,
