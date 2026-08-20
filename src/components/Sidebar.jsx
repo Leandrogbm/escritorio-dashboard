@@ -33,8 +33,8 @@ export default function Sidebar({ allowedModules, activeTab, setActiveTab, curre
         <div className="fixed inset-0 z-30 md:hidden" style={{ background: "rgba(0,0,0,0.4)" }} onClick={fecharMobile} />
       )}
       <aside
-        className={`shrink-0 flex flex-col relative transition-transform md:transition-all z-40
-          fixed inset-y-0 left-0 md:static w-64 ${recolhida ? "md:w-[72px]" : "md:w-64"}
+        className={`shrink-0 flex flex-col transition-transform md:transition-all z-40
+          fixed md:relative inset-y-0 left-0 w-64 ${recolhida ? "md:w-[72px]" : "md:w-64"}
           ${mobileAberto ? "translate-x-0" : "-translate-x-full"} md:translate-x-0`}
         style={{ background: COLORS.ink, minHeight: "100vh" }}
       >
