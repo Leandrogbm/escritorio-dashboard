@@ -51,8 +51,54 @@ function parseCsv(texto) {
   return out;
 }
 
-// Só entradas (créditos) interessam pra achar pagamento recebido — TRNAMT negativo é saída.
+// Extrato em PDF (o app do banco geralmente só oferece isso, mesmo quando o internet
+// banking no navegador tem OFX/CSV) — extrai o texto por linha (agrupando itens pela
+// posição Y) e procura "data ... um único valor em R$" por linha. Só aceita linha com
+// exatamente 1 valor monetário: statements costumam ter colunas "valor" E "saldo", as duas
+// no formato de dinheiro — se aparecem 2+ valores na linha não dá pra saber qual é qual
+// com segurança, então a linha é ignorada (fica de fora, não vira match errado).
+const DATA_RE = /(\d{2}\/\d{2}\/\d{4}|\d{4}-\d{2}-\d{2})/;
+const VALOR_RE = /R?\$?\s?-?\d{1,3}(?:\.\d{3})*,\d{2}/g;
+
+async function parsePdf(file) {
+  const pdfjs = await import("pdfjs-dist");
+  const workerUrl = (await import("pdfjs-dist/build/pdf.worker.min.mjs?url")).default;
+  pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
+
+  const buf = await file.arrayBuffer();
+  const doc = await pdfjs.getDocument({ data: buf }).promise;
+  const linhasTexto = [];
+  for (let p = 1; p <= doc.numPages; p++) {
+    const page = await doc.getPage(p);
+    const content = await page.getTextContent();
+    const porY = new Map();
+    for (const item of content.items) {
+      const y = Math.round(item.transform[5]);
+      if (!porY.has(y)) porY.set(y, []);
+      porY.get(y).push(item);
+    }
+    for (const itens of porY.values()) {
+      linhasTexto.push(itens.sort((a, b) => a.transform[4] - b.transform[4]).map((i) => i.str).join(" "));
+    }
+  }
+
+  const out = [];
+  for (const linha of linhasTexto) {
+    const dataMatch = linha.match(DATA_RE);
+    const valores = linha.match(VALOR_RE);
+    if (!dataMatch || !valores || valores.length !== 1) continue;
+    const data = normalizarData(dataMatch[1]);
+    const valor = normalizarValor(valores[0]);
+    if (data && valor != null) out.push({ data, valor, memo: linha.replace(DATA_RE, "").replace(VALOR_RE, "").trim() });
+  }
+  return out;
+}
+
+// Só entradas (créditos) interessam pra achar pagamento recebido — TRNAMT/valor negativo é saída.
 export async function parseExtrato(file) {
+  if (/\.pdf$/i.test(file.name) || file.type === "application/pdf") {
+    return (await parsePdf(file)).filter((l) => l.valor > 0);
+  }
   const texto = await file.text();
   const linhas = /<OFX>|<STMTTRN>/i.test(texto) ? parseOfx(texto) : parseCsv(texto);
   return linhas.filter((l) => l.valor > 0);
