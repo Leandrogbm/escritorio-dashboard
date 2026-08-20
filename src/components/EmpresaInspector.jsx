@@ -14,6 +14,7 @@ function Bloco({ titulo, cols, rows, render, onDelete }) {
   return (
     <Card className="overflow-hidden !p-0">
       <p className="px-4 py-3 text-xs font-semibold uppercase tracking-wide" style={{ color: COLORS.slate, borderBottom: `1px solid ${COLORS.line}` }}>{titulo}</p>
+      <div className="overflow-x-auto">
       <table className="w-full text-sm">
         <thead>
           <tr>
@@ -37,6 +38,7 @@ function Bloco({ titulo, cols, rows, render, onDelete }) {
           ))}
         </tbody>
       </table>
+      </div>
     </Card>
   );
 }

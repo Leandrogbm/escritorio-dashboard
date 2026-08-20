@@ -97,7 +97,7 @@ export default function FinanceiroTab() {
         title="Financeiro"
         subtitle="Faturamento por cliente — parcelas (PF) e mensalidades (PJ)"
         action={
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <SearchInput value={busca} onChange={setBusca} placeholder="Buscar cliente..." />
             <button onClick={() => setEditing({})} className="flex items-center gap-1.5 px-3 py-2 rounded-md text-sm font-semibold" style={{ background: COLORS.ink, color: "#fff" }}>
               <Plus size={14} /> Novo
@@ -127,6 +127,7 @@ export default function FinanceiroTab() {
       </div>
 
       <Card className="overflow-hidden !p-0">
+        <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
             <tr style={{ background: COLORS.ink }}>
@@ -152,6 +153,7 @@ export default function FinanceiroTab() {
             ))}
           </tbody>
         </table>
+        </div>
       </Card>
 
       {clienteAberto && (
@@ -171,6 +173,7 @@ export default function FinanceiroTab() {
             </div>
 
             <Card className="overflow-hidden !p-0">
+              <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr><th className="text-left px-4 py-2 font-medium" style={{ color: COLORS.slate, fontSize: 11 }}>VALOR</th>
@@ -198,6 +201,7 @@ export default function FinanceiroTab() {
                   ))}
                 </tbody>
               </table>
+              </div>
             </Card>
           </div>
         </div>

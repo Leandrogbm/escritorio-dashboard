@@ -80,7 +80,7 @@ export default function PlatformAdminPanel({ temPerfilProprio, onEntrarNaEmpresa
 
   return (
     <div className="min-h-screen w-full" style={{ background: COLORS.paper, fontFamily: "'Inter', sans-serif" }}>
-      <header className="flex items-center justify-between px-8 py-4" style={{ background: COLORS.paperRaised, borderBottom: `1px solid ${COLORS.line}` }}>
+      <header className="flex flex-wrap items-center justify-between gap-2 px-4 sm:px-8 py-4" style={{ background: COLORS.paperRaised, borderBottom: `1px solid ${COLORS.line}` }}>
         <div className="flex items-center gap-2" style={{ color: COLORS.slate }}>
           <LayoutGrid size={16} />
           <span className="text-sm">mysaldo — painel da plataforma</span>
@@ -97,7 +97,7 @@ export default function PlatformAdminPanel({ temPerfilProprio, onEntrarNaEmpresa
         </div>
       </header>
 
-      <main className="px-8 py-8">
+      <main className="px-4 sm:px-8 py-6 sm:py-8">
         <div className="flex items-center gap-2 mb-1">
           <Building2 size={20} color={COLORS.brass} />
           <p style={{ fontFamily: "'Source Serif 4', serif", fontWeight: 700, fontSize: 22, color: COLORS.ink }}>Empresas cadastradas</p>
@@ -120,6 +120,7 @@ export default function PlatformAdminPanel({ temPerfilProprio, onEntrarNaEmpresa
         </div>
 
         <Card className="overflow-hidden !p-0">
+          <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr style={{ background: COLORS.ink }}>
@@ -169,6 +170,7 @@ export default function PlatformAdminPanel({ temPerfilProprio, onEntrarNaEmpresa
               ))}
             </tbody>
           </table>
+          </div>
         </Card>
       </main>
 

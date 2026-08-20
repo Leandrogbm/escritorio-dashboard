@@ -10,6 +10,7 @@ export default function ConfigTab({ permissions, togglePermission }) {
     <div>
       <SectionTitle icon={Settings} title="Configurações" subtitle="Defina quais abas cada perfil enxerga no dashboard" />
       <Card className="overflow-hidden !p-0">
+        <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
             <tr style={{ background: COLORS.ink }}>
@@ -45,6 +46,7 @@ export default function ConfigTab({ permissions, togglePermission }) {
             ))}
           </tbody>
         </table>
+        </div>
       </Card>
       <p className="text-xs mt-3" style={{ color: COLORS.slate }}>
         O perfil Administrador(a) sempre enxerga todos os módulos e não pode ser restringido por aqui.

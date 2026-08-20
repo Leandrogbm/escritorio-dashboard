@@ -29,6 +29,7 @@ export default function App() {
     if (tab) localStorage.setItem("activeTab", tab); else localStorage.removeItem("activeTab");
   };
   const [verEmpresa, setVerEmpresa] = useState(false); // platform admin que também é admin de uma org: alterna pra visão normal
+  const [menuMobileAberto, setMenuMobileAberto] = useState(false); // sidebar vira gaveta em telas pequenas
 
   const currentRole = profile?.role;
   const allowedModules = useMemo(() => {
@@ -99,11 +100,13 @@ export default function App() {
         setActiveTab={setActiveTab}
         currentRole={currentRole}
         orgNome={profile.organizations?.nome}
+        mobileAberto={menuMobileAberto}
+        fecharMobile={() => setMenuMobileAberto(false)}
       />
 
       <div className="flex-1 flex flex-col min-w-0">
-        <TopBar profile={profile} signOut={signOut} />
-        <main className="flex-1 px-8 py-8 overflow-y-auto">
+        <TopBar profile={profile} signOut={signOut} onAbrirMenu={() => setMenuMobileAberto(true)} />
+        <main className="flex-1 px-4 sm:px-8 py-6 sm:py-8 overflow-y-auto overflow-x-hidden">
           {renderTab()}
         </main>
       </div>

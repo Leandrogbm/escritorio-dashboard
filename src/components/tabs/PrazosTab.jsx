@@ -159,7 +159,7 @@ export default function PrazosTab() {
         title="Prazos"
         subtitle="Próximos vencimentos, do mais urgente ao mais distante"
         action={
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <SearchInput value={busca} onChange={setBusca} placeholder="Buscar prazo, processo ou cliente..." />
             <div className="flex rounded-md overflow-hidden" style={{ border: `1px solid ${COLORS.line}` }}>
               <button onClick={() => setView("lista")} className="p-2" style={{ background: view === "lista" ? COLORS.ink : "transparent", color: view === "lista" ? "#fff" : COLORS.slate }} aria-label="Lista">
@@ -180,6 +180,7 @@ export default function PrazosTab() {
         <CalendarioPrazos prazos={prazosFiltrados} onEdit={abrirEdicao} onDelete={remove} />
       ) : (
         <Card className="overflow-hidden !p-0">
+          <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr style={{ background: COLORS.ink }}>
@@ -213,6 +214,7 @@ export default function PrazosTab() {
               })}
             </tbody>
           </table>
+          </div>
         </Card>
       )}
 

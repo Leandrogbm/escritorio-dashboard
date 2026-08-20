@@ -3,7 +3,7 @@ import { COLORS } from "../lib/theme.js";
 
 export default function SectionTitle({ icon: Icon, title, subtitle, action }) {
   return (
-    <div className="flex items-start justify-between gap-3 mb-6">
+    <div className="flex flex-wrap items-start justify-between gap-3 mb-6">
       <div className="flex items-start gap-3">
         <div
           className="flex items-center justify-center rounded-full p-2.5 shrink-0"

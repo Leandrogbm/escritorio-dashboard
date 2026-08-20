@@ -86,7 +86,7 @@ export default function ProcessosTab({ currentRole }) {
         title="Processos"
         subtitle="Casos ativos do escritório"
         action={
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <SearchInput value={busca} onChange={setBusca} placeholder="Buscar processo ou cliente..." />
             {podeSincronizar && (
               <button onClick={sincronizarDatajud} disabled={sincronizando} className="flex items-center gap-1.5 px-3 py-2 rounded-md text-sm font-semibold" style={{ border: `1px solid ${COLORS.line}`, color: COLORS.ink, opacity: sincronizando ? 0.6 : 1 }}>

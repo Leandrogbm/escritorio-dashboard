@@ -34,7 +34,7 @@ export default function ClientesTab({ currentRole }) {
         title="Clientes"
         subtitle="Base de clientes e contratos"
         action={
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <SearchInput value={busca} onChange={setBusca} placeholder="Buscar cliente..." />
             <button
               onClick={() => setEditing({})}
@@ -47,6 +47,7 @@ export default function ClientesTab({ currentRole }) {
         }
       />
       <Card className="overflow-hidden !p-0">
+        <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
             <tr style={{ background: COLORS.ink }}>
@@ -70,6 +71,7 @@ export default function ClientesTab({ currentRole }) {
             ))}
           </tbody>
         </table>
+        </div>
       </Card>
 
       <RecordFormModal
