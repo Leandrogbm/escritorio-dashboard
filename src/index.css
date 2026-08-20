@@ -4,6 +4,15 @@
 @tailwind components;
 @tailwind utilities;
 
-body {
+html, body {
   margin: 0;
+  /* Trava scroll horizontal da página inteira — qualquer elemento (mesmo fixed/transform)
+     que acabe um pixel mais largo que a tela nunca deve empurrar/deslocar o layout no
+     celular. Isso é rede de segurança; cada componente ainda deve caber sozinho. */
+  overflow-x: hidden;
+  max-width: 100vw;
+}
+
+#root {
+  overflow-x: hidden;
 }
