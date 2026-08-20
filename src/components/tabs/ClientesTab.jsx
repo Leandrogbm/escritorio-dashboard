@@ -8,6 +8,7 @@ import SearchInput from "../SearchInput.jsx";
 import { COLORS } from "../../lib/theme.js";
 import { useSupabaseTable } from "../../hooks/useSupabaseTable.js";
 import { buscarEnderecoPorCep } from "../../lib/viaCep.js";
+import { formatCelular } from "../../lib/celular.js";
 
 // wa.me quer só dígitos com DDI — assume Brasil (55) quando o número não veio com DDI
 // (celular BR sempre tem 10 ou 11 dígitos com DDD; deixa passar como veio se já for maior).
@@ -21,7 +22,7 @@ function linkWhatsApp(celular) {
 const FIELDS = [
   { key: "nome", label: "Nome / Razão social" },
   { key: "tipo", label: "Tipo", type: "select", options: [{ value: "PF", label: "Pessoa Física" }, { value: "PJ", label: "Pessoa Jurídica" }] },
-  { key: "celular", label: "Celular", optional: true },
+  { key: "celular", label: "Celular", optional: true, placeholder: "(00) 00000-0000", mask: formatCelular },
   { key: "email", label: "Email", type: "email", optional: true },
   { key: "cep", label: "CEP", optional: true, onBlur: buscarEnderecoPorCep },
   { key: "logradouro", label: "Endereço", optional: true },
@@ -88,7 +89,7 @@ export default function ClientesTab({ currentRole }) {
                 <td className="px-4 py-3" style={{ color: COLORS.slate }}>{c.tipo}</td>
                 <td className="px-4 py-3" style={{ color: COLORS.slate }}>
                   <div className="flex items-center gap-2">
-                    <span>{c.celular || "—"}</span>
+                    <span>{c.celular ? formatCelular(c.celular) : "—"}</span>
                     {linkWhatsApp(c.celular) && (
                       <a
                         href={linkWhatsApp(c.celular)}

@@ -6,7 +6,8 @@ import { COLORS } from "../lib/theme.js";
 //   onSelect?: (value) => ({ outroCampo: valor }) — só pra "select", preenche outro campo
 //   de brinde quando essa opção muda (ex.: plano → valor mensal padrão)
 //   onBlur?: async (value) => ({ outroCampo: valor }) | null — pra text/number, dispara ao
-//   sair do campo (ex.: CEP → busca endereço) }]
+//   sair do campo (ex.: CEP → busca endereço)
+//   mask?: (raw) => string — formata o valor a cada tecla (ex.: celular → "(11) 91234-5678") }]
 export default function RecordFormModal({ open, title, fields, initialValues, onSubmit, onClose }) {
   const dialogRef = useRef(null);
   const [values, setValues] = useState({});
@@ -76,7 +77,8 @@ export default function RecordFormModal({ open, title, fields, initialValues, on
                 type={f.type ?? "text"}
                 step={f.type === "number" ? "0.01" : undefined}
                 value={values[f.key] ?? ""}
-                onChange={(e) => setValues((v) => ({ ...v, [f.key]: e.target.value }))}
+                placeholder={f.placeholder}
+                onChange={(e) => setValues((v) => ({ ...v, [f.key]: f.mask ? f.mask(e.target.value) : e.target.value }))}
                 onBlur={f.onBlur ? async (e) => {
                   const patch = await f.onBlur(e.target.value);
                   if (patch) setValues((v) => ({ ...v, ...patch }));
