@@ -37,7 +37,7 @@ const FIELDS = [
   { key: "cidade", label: "Cidade", optional: true },
   { key: "uf", label: "UF", optional: true },
   { key: "origem", label: "Origem", optional: true },
-  { key: "contrato_renovacao", label: "Renovação de contrato", type: "date", optional: true },
+  { key: "contrato_renovacao", label: "Início do contrato", type: "date", optional: true },
 ];
 
 export default function ClientesTab({ currentRole }) {
@@ -79,7 +79,7 @@ export default function ClientesTab({ currentRole }) {
         <table className="w-full text-sm">
           <thead>
             <tr style={{ background: COLORS.ink }}>
-              {["Cliente", "Tipo", "Celular", "Origem", "Renovação de contrato", ""].map((h) => (
+              {["Cliente", "Tipo", "Celular", "Origem", "Início do contrato", ""].map((h) => (
                 <th key={h} className="text-left px-4 py-3 font-semibold" style={{ color: COLORS.paper, fontSize: 11 }}>{h.toUpperCase()}</th>
               ))}
             </tr>
