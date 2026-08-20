@@ -20,7 +20,14 @@ import ConfigTab from "./components/tabs/ConfigTab.jsx";
 export default function App() {
   const { session, profile, isPlatformAdmin, loading, recovery, clearRecovery, signOut } = useAuth();
   const { permissions, togglePermission } = useRolePermissions(profile?.org_id);
-  const [activeTab, setActiveTab] = useState("prazos");
+  // Persiste a aba ativa: navegador às vezes descarta/recarrega uma aba parada por um
+  // tempo (economia de memória, comum em celular) — sem isso, o reload sempre caía de
+  // volta em "Prazos" em vez de continuar onde a pessoa estava.
+  const [activeTab, setActiveTabState] = useState(() => localStorage.getItem("activeTab") || "prazos");
+  const setActiveTab = (tab) => {
+    setActiveTabState(tab);
+    if (tab) localStorage.setItem("activeTab", tab); else localStorage.removeItem("activeTab");
+  };
   const [verEmpresa, setVerEmpresa] = useState(false); // platform admin que também é admin de uma org: alterna pra visão normal
 
   const currentRole = profile?.role;
