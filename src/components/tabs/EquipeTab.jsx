@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Building2, Plus, Trash2 } from "lucide-react";
+import { Building2, Plus, Trash2, KeyRound } from "lucide-react";
 import Card from "../Card.jsx";
 import SectionTitle from "../SectionTitle.jsx";
 import Stamp from "../Stamp.jsx";
@@ -33,9 +33,10 @@ export default function EquipeTab({ currentRole }) {
   const { data: equipe, loading, refresh } = useSupabaseTable("equipe_view", { orderBy: "nome", ascending: true });
   const [editing, setEditing] = useState(null); // {...} = editar métricas de quem já existe
   const [creating, setCreating] = useState(false); // novo colaborador
-  // sócio exclui geral, menos o admin; admin exclui todo mundo — mesma regra da Edge
-  // Function admin-delete-user, aqui só esconde o botão (a de verdade é lá).
-  const podeExcluir = (alvo) => currentRole === "admin" || (currentRole === "socio" && alvo.role !== "admin");
+  // sócio mexe geral, menos no admin; admin mexe em todo mundo — mesma regra das Edge
+  // Functions admin-delete-user/admin-reset-password, aqui só esconde o botão (a de
+  // verdade é lá).
+  const podeGerenciar = (alvo) => currentRole === "admin" || (currentRole === "socio" && alvo.role !== "admin");
 
   const salvarMetricas = async ({ email, role, ...values }) => {
     // "cargo" (texto livre exibido no card) segue o rótulo do perfil escolhido — mantém o
@@ -72,6 +73,16 @@ export default function EquipeTab({ currentRole }) {
     await refresh();
   };
 
+  const redefinirSenha = async (colaborador) => {
+    if (!confirm(`Gerar uma nova senha temporária pra ${colaborador.nome} e mandar por email?`)) return;
+    const { data, error } = await supabase.functions.invoke("admin-reset-password", { body: { userId: colaborador.id } });
+    if (error) {
+      alert((await error.context?.json?.().catch(() => null))?.error ?? error.message);
+      return;
+    }
+    alert(data?.warning ?? "Senha redefinida — o novo acesso foi enviado por email.");
+  };
+
   return (
     <div>
       <SectionTitle
@@ -103,7 +114,18 @@ export default function EquipeTab({ currentRole }) {
               </div>
               <div className="flex items-center gap-2">
                 <Stamp tone="neutral">{e.ativos} ativos</Stamp>
-                {podeExcluir(e) && (
+                {podeGerenciar(e) && (
+                  <button
+                    onClick={(ev) => { ev.stopPropagation(); redefinirSenha(e); }}
+                    aria-label="Redefinir senha"
+                    title="Redefinir senha"
+                    className="p-1.5 rounded hover:opacity-70"
+                    style={{ color: COLORS.slate }}
+                  >
+                    <KeyRound size={14} />
+                  </button>
+                )}
+                {podeGerenciar(e) && (
                   <button
                     onClick={(ev) => { ev.stopPropagation(); excluirColaborador(e.id); }}
                     aria-label="Excluir colaborador"
