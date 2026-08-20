@@ -24,7 +24,17 @@ export default function Sidebar({ allowedModules, activeTab, setActiveTab, curre
   };
 
   return (
-    <aside className="shrink-0 flex flex-col transition-all" style={{ width: recolhida ? 72 : 256, background: COLORS.ink, minHeight: "100vh" }}>
+    <aside className="shrink-0 flex flex-col relative transition-all" style={{ width: recolhida ? 72 : 256, background: COLORS.ink, minHeight: "100vh" }}>
+      <button
+        onClick={alternar}
+        aria-label={recolhida ? "Expandir menu" : "Recolher menu"}
+        title={recolhida ? "Expandir menu" : "Recolher menu"}
+        className="absolute top-6 -right-3 z-10 w-6 h-6 rounded-full flex items-center justify-center hover:opacity-80"
+        style={{ background: COLORS.brass, color: COLORS.ink }}
+      >
+        {recolhida ? <ChevronsRight size={13} /> : <ChevronsLeft size={13} />}
+      </button>
+
       <div className={`pt-7 pb-6 flex items-center gap-3 ${recolhida ? "px-4 justify-center" : "px-6"}`} style={{ borderBottom: "1px solid rgba(255,255,255,0.1)" }}>
         <div
           className="w-11 h-11 rounded-full flex items-center justify-center shrink-0"
@@ -85,15 +95,6 @@ export default function Sidebar({ allowedModules, activeTab, setActiveTab, curre
           </>
         )}
       </nav>
-
-      <button
-        onClick={alternar}
-        aria-label={recolhida ? "Expandir menu" : "Recolher menu"}
-        className={`flex items-center gap-2 py-4 text-xs hover:opacity-80 ${recolhida ? "justify-center px-0" : "px-6"}`}
-        style={{ color: "rgba(255,255,255,0.5)", borderTop: "1px solid rgba(255,255,255,0.1)" }}
-      >
-        {recolhida ? <ChevronsRight size={16} /> : <><ChevronsLeft size={16} /> Recolher</>}
-      </button>
     </aside>
   );
 }
