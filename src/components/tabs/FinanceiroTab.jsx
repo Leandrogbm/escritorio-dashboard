@@ -1,14 +1,16 @@
 import React, { useMemo, useState } from "react";
-import { DollarSign, Plus, X } from "lucide-react";
+import { DollarSign, Plus, X, Upload } from "lucide-react";
 import Card from "../Card.jsx";
 import SectionTitle from "../SectionTitle.jsx";
 import Stamp from "../Stamp.jsx";
 import RowActions from "../RowActions.jsx";
 import RecordFormModal from "../RecordFormModal.jsx";
 import SearchInput from "../SearchInput.jsx";
+import ImportarExtratoModal from "./ImportarExtratoModal.jsx";
 import { COLORS } from "../../lib/theme.js";
 import { BRL } from "../../data/mockData.js";
 import { useSupabaseTable } from "../../hooks/useSupabaseTable.js";
+import { supabase } from "../../lib/supabaseClient.js";
 
 const STATUS_OPTIONS = [
   { value: "Em aberto", label: "Em aberto" },
@@ -30,13 +32,20 @@ const mesAtual = hojeStr.slice(0, 7);
 const estaAtrasado = (h) => h.status === "Vencido" || (h.status === "Em aberto" && h.vencimento < hojeStr);
 
 export default function FinanceiroTab() {
-  const { data: honorarios, loading, insert, update, remove } = useSupabaseTable("honorarios", {
+  const { data: honorarios, loading, insert, update, remove, refresh } = useSupabaseTable("honorarios", {
     select: "*, cliente:clientes(id,nome,tipo)",
   });
   const { data: clientes } = useSupabaseTable("clientes", { select: "id,nome,tipo", orderBy: "nome", ascending: true });
   const [editing, setEditing] = useState(null); // {} = novo (do topo), {cliente_id} = novo já com cliente, {...} = editando
   const [selecionado, setSelecionado] = useState(null); // cliente_id aberto no painel de detalhe
   const [busca, setBusca] = useState("");
+  const [importando, setImportando] = useState(false); // abre o modal de importar extrato
+
+  const confirmarPagamentos = async (ids) => {
+    const { error } = await supabase.from("honorarios").update({ status: "Pago" }).in("id", ids);
+    if (error) throw error;
+    await refresh();
+  };
 
   // Resumo por cliente — PF mostra como "parcelas", PJ como "mensalidade", mas o dado é o
   // mesmo (uma linha em honorarios por cobrança); só muda o texto na hora de criar/exibir.
@@ -99,6 +108,9 @@ export default function FinanceiroTab() {
         action={
           <div className="flex flex-wrap items-center gap-2">
             <SearchInput value={busca} onChange={setBusca} placeholder="Buscar cliente..." />
+            <button onClick={() => setImportando(true)} className="flex items-center gap-1.5 px-3 py-2 rounded-md text-sm font-semibold" style={{ border: `1px solid ${COLORS.line}`, color: COLORS.ink }}>
+              <Upload size={14} /> Importar extrato
+            </button>
             <button onClick={() => setEditing({})} className="flex items-center gap-1.5 px-3 py-2 rounded-md text-sm font-semibold" style={{ background: COLORS.ink, color: "#fff" }}>
               <Plus size={14} /> Novo
             </button>
@@ -215,6 +227,10 @@ export default function FinanceiroTab() {
         onClose={() => setEditing(null)}
         onSubmit={salvar}
       />
+
+      {importando && (
+        <ImportarExtratoModal honorarios={honorarios} onConfirmar={confirmarPagamentos} onClose={() => setImportando(false)} />
+      )}
     </div>
   );
 }
