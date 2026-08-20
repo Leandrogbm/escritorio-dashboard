@@ -22,16 +22,19 @@ const PRAZO_FIELDS = [
   { key: "alerta_dias_antes", label: "Avisar quantos dias úteis antes de vencer", type: "number", optional: true },
 ];
 
-export default function ProcessosTab({ currentRole }) {
+export default function ProcessosTab({ currentRole, orgId }) {
+  // orgId só vem preenchido quando o platform admin "entrou" numa empresa alheia — filtra
+  // explicitamente porque a RLS libera geral pra ele, não fica restrita a uma org só.
+  const orgEq = orgId ? ["org_id", orgId] : undefined;
   const { data: processos, loading, insert, update, remove } = useSupabaseTable("processos", {
-    select: "*, cliente:clientes(id,nome), responsavel:profiles(id,nome)",
+    select: "*, cliente:clientes(id,nome), responsavel:profiles(id,nome)", eq: orgEq,
   });
-  const { data: clientes } = useSupabaseTable("clientes", { select: "id,nome", orderBy: "nome", ascending: true });
-  const { data: equipe } = useSupabaseTable("profiles", { select: "id,nome", orderBy: "nome", ascending: true });
-  const { insert: insertPrazo } = useSupabaseTable("prazos");
+  const { data: clientes } = useSupabaseTable("clientes", { select: "id,nome", orderBy: "nome", ascending: true, eq: orgEq });
+  const { data: equipe } = useSupabaseTable("profiles", { select: "id,nome", orderBy: "nome", ascending: true, eq: orgEq });
+  const { insert: insertPrazo } = useSupabaseTable("prazos", { eq: orgEq });
   // Sem módulo financeiro liberado pro perfil, a RLS de honorarios devolve vazio — o aviso
   // só aparece pra quem já enxerga essa informação de qualquer forma.
-  const { data: honorarios } = useSupabaseTable("honorarios", { select: "cliente_id, status, vencimento" });
+  const { data: honorarios } = useSupabaseTable("honorarios", { select: "cliente_id, status, vencimento", eq: orgEq });
   const [editing, setEditing] = useState(null);
   const [vendoAndamentos, setVendoAndamentos] = useState(null); // processo aberto no painel de andamentos
   const [registrandoPrazo, setRegistrandoPrazo] = useState(null); // {processo_id, movimentacao_origem_id, data_inicio, tipo}

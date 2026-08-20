@@ -9,10 +9,11 @@ import { useSupabaseTable } from "../../hooks/useSupabaseTable.js";
 
 const MES_LABEL = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
 
-export default function ExecutivoTab() {
-  const { data: processos, loading } = useSupabaseTable("processos", { select: "area, valor, status" });
-  const { data: clientes } = useSupabaseTable("clientes", { select: "id" });
-  const { data: honorarios, loading: loadingFinanceiro } = useSupabaseTable("honorarios", { select: "valor, status, vencimento" });
+export default function ExecutivoTab({ orgId } = {}) {
+  const orgEq = orgId ? ["org_id", orgId] : undefined;
+  const { data: processos, loading } = useSupabaseTable("processos", { select: "area, valor, status", eq: orgEq });
+  const { data: clientes } = useSupabaseTable("clientes", { select: "id", eq: orgEq });
+  const { data: honorarios, loading: loadingFinanceiro } = useSupabaseTable("honorarios", { select: "valor, status, vencimento", eq: orgEq });
   const [periodo, setPeriodo] = useState("mes"); // "mes" | "ano" — agrupamento do gráfico financeiro
 
   const receitaPorArea = useMemo(() => {

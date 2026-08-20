@@ -41,8 +41,9 @@ const FIELDS = [
   { key: "contrato_renovacao", label: "Início do contrato", type: "date", optional: true },
 ];
 
-export default function ClientesTab({ currentRole }) {
-  const { data: clientes, loading, insert, update, remove } = useSupabaseTable("clientes", { orderBy: "nome", ascending: true });
+export default function ClientesTab({ currentRole, orgId }) {
+  const orgEq = orgId ? ["org_id", orgId] : undefined;
+  const { data: clientes, loading, insert, update, remove } = useSupabaseTable("clientes", { orderBy: "nome", ascending: true, eq: orgEq });
   const [editing, setEditing] = useState(null); // null = fechado, {} = novo, {...} = editando
   const [busca, setBusca] = useState("");
   const podeExcluir = currentRole === "admin" || currentRole === "socio"; // RLS (clientes_del) já barra no banco — isso só esconde o botão

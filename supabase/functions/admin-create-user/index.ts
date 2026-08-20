@@ -59,27 +59,40 @@ Deno.serve(async (req) => {
       .select("org_id, role, organizations(nome)")
       .eq("id", caller.id)
       .single();
-    if (!callerProfile || callerProfile.role !== "admin") {
+    const { data: platformAdminRow } = await admin.from("platform_admins").select("user_id").eq("user_id", caller.id).maybeSingle();
+    const ehPlatformAdmin = !!platformAdminRow;
+    if (!ehPlatformAdmin && (!callerProfile || callerProfile.role !== "admin")) {
       return new Response(JSON.stringify({ error: "Só admin pode criar colaborador." }), { status: 403, headers: corsHeaders });
     }
-    const orgNome = callerProfile.organizations?.nome ?? "seu escritório";
 
-    const { nome, email, role } = await req.json();
+    const { nome, email, role, orgId } = await req.json();
     const ALLOWED_ROLES = ["socio", "advogado", "financeiro", "recepcao", "admin"]; // espelha o check constraint de profiles.role
     if (!nome || !email || !ALLOWED_ROLES.includes(role)) {
       return new Response(JSON.stringify({ error: "Nome, email e cargo válido são obrigatórios." }), { status: 400, headers: corsHeaders });
     }
 
+    // platform admin manda o orgId explícito (empresa que "entrou"); admin normal sempre
+    // cria na própria org, mesmo se por algum motivo vier um orgId (ignorado nesse caso).
+    const targetOrgId = ehPlatformAdmin && orgId ? orgId : callerProfile?.org_id;
+    if (!targetOrgId) {
+      return new Response(JSON.stringify({ error: "Empresa alvo não identificada." }), { status: 400, headers: corsHeaders });
+    }
+    const { data: targetOrg } = await admin.from("organizations").select("nome, plano").eq("id", targetOrgId).single();
+    if (!targetOrg) {
+      return new Response(JSON.stringify({ error: "Empresa não encontrada." }), { status: 404, headers: corsHeaders });
+    }
+    const orgNome = targetOrg.nome ?? "seu escritório";
+
     // limite de usuários do plano — checa antes de criar pra não gerar Auth user à toa.
-    // org sem plano definido (plano null, ex.: seed antigo) fica sem limite.
-    const { data: org } = await admin.from("organizations").select("plano").eq("id", callerProfile.org_id).single();
-    if (org?.plano) {
-      const { data: limite } = await admin.from("plan_limits").select("limite_usuarios").eq("plano", org.plano).single();
+    // org sem plano definido (plano null, ex.: seed antigo) fica sem limite. Platform admin
+    // pula o limite (é suporte, não é o uso normal da empresa).
+    if (targetOrg.plano && !ehPlatformAdmin) {
+      const { data: limite } = await admin.from("plan_limits").select("limite_usuarios").eq("plano", targetOrg.plano).single();
       if (limite?.limite_usuarios != null) {
-        const { count } = await admin.from("profiles").select("id", { count: "exact", head: true }).eq("org_id", callerProfile.org_id);
+        const { count } = await admin.from("profiles").select("id", { count: "exact", head: true }).eq("org_id", targetOrgId);
         if ((count ?? 0) >= limite.limite_usuarios) {
           return new Response(
-            JSON.stringify({ error: `Limite de ${limite.limite_usuarios} usuários do plano ${org.plano} atingido. Fale com o suporte pra fazer upgrade.` }),
+            JSON.stringify({ error: `Limite de ${limite.limite_usuarios} usuários do plano ${targetOrg.plano} atingido. Fale com o suporte pra fazer upgrade.` }),
             { status: 400, headers: corsHeaders }
           );
         }
@@ -98,7 +111,7 @@ Deno.serve(async (req) => {
 
     const { error: insertErr } = await admin.from("profiles").insert({
       id: created.user.id,
-      org_id: callerProfile.org_id,
+      org_id: targetOrgId,
       nome,
       role,
     });

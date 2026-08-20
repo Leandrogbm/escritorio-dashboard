@@ -46,10 +46,11 @@ async function tratarErroFuncao(error) {
   return msg;
 }
 
-export default function EquipeTab({ currentRole }) {
+export default function EquipeTab({ currentRole, orgId }) {
+  const orgEq = orgId ? ["org_id", orgId] : undefined;
   // Lê de equipe_view (agregado, não editável diretamente — é view com group by).
   // Escreve na tabela profiles, que é a fonte real dessas colunas.
-  const { data: equipe, loading, refresh } = useSupabaseTable("equipe_view", { orderBy: "nome", ascending: true });
+  const { data: equipe, loading, refresh } = useSupabaseTable("equipe_view", { orderBy: "nome", ascending: true, eq: orgEq });
   const [editing, setEditing] = useState(null); // {...} = editar métricas de quem já existe
   const [creating, setCreating] = useState(false); // novo colaborador
   // sócio mexe geral, menos no admin; admin mexe em todo mundo — mesma regra das Edge
@@ -78,7 +79,9 @@ export default function EquipeTab({ currentRole }) {
   };
 
   const criarColaborador = async (values) => {
-    const { data, error } = await supabase.functions.invoke("admin-create-user", { body: values });
+    // orgId só vai quando é o platform admin criando colaborador dentro de outra empresa —
+    // um admin normal cria sempre na própria (a function ignora orgId nesse caso).
+    const { data, error } = await supabase.functions.invoke("admin-create-user", { body: { ...values, orgId } });
     // FunctionsHttpError não traz o corpo da resposta em error.message — busca ali o motivo real.
     if (error) throw new Error((await error.context?.json?.().catch(() => null))?.error ?? error.message);
     await refresh();

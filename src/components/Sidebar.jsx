@@ -17,7 +17,7 @@ function iniciais(nome) {
 // Desktop (md+): coluna fixa, com o botão de recolher/expandir pra ícone-só.
 // Mobile/tablet estreito: vira gaveta (drawer) sobre o conteúdo, aberta pelo hambúrguer
 // da TopBar — sem "recolher" aqui, é aberta (tela toda) ou fechada (fora da tela).
-export default function Sidebar({ allowedModules, activeTab, setActiveTab, currentRole, orgNome, mobileAberto, fecharMobile }) {
+export default function Sidebar({ allowedModules, activeTab, setActiveTab, currentRole, emSuporte, orgNome, mobileAberto, fecharMobile }) {
   const [recolhida, setRecolhida] = useState(() => localStorage.getItem("sidebarRecolhida") === "1");
   const alternar = () => {
     setRecolhida((v) => {
@@ -95,7 +95,7 @@ export default function Sidebar({ allowedModules, activeTab, setActiveTab, curre
             );
           })}
 
-          {(currentRole === "admin" || currentRole === "socio") && (
+          {!emSuporte && (currentRole === "admin" || currentRole === "socio") && (
             <>
               <div className="pt-3 mt-3" style={{ borderTop: "1px solid rgba(255,255,255,0.1)" }} />
               <button

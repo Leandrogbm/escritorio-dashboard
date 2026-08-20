@@ -31,11 +31,12 @@ const hojeStr = new Date().toISOString().slice(0, 10);
 const mesAtual = hojeStr.slice(0, 7);
 const estaAtrasado = (h) => h.status === "Vencido" || (h.status === "Em aberto" && h.vencimento < hojeStr);
 
-export default function FinanceiroTab() {
+export default function FinanceiroTab({ orgId } = {}) {
+  const orgEq = orgId ? ["org_id", orgId] : undefined;
   const { data: honorarios, loading, insert, update, remove, refresh } = useSupabaseTable("honorarios", {
-    select: "*, cliente:clientes(id,nome,tipo)",
+    select: "*, cliente:clientes(id,nome,tipo)", eq: orgEq,
   });
-  const { data: clientes } = useSupabaseTable("clientes", { select: "id,nome,tipo", orderBy: "nome", ascending: true });
+  const { data: clientes } = useSupabaseTable("clientes", { select: "id,nome,tipo", orderBy: "nome", ascending: true, eq: orgEq });
   const [editing, setEditing] = useState(null); // {} = novo (do topo), {cliente_id} = novo já com cliente, {...} = editando
   const [selecionado, setSelecionado] = useState(null); // cliente_id aberto no painel de detalhe
   const [busca, setBusca] = useState("");

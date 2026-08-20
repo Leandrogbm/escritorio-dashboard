@@ -20,7 +20,11 @@ import MinhaEmpresaTab from "./components/tabs/MinhaEmpresaTab.jsx";
 
 export default function App() {
   const { session, profile, isPlatformAdmin, loading, recovery, clearRecovery, signOut, refreshProfile } = useAuth();
-  const { permissions, togglePermission } = useRolePermissions(profile?.org_id);
+  // orgOverride: platform admin "entrou" como admin de uma empresa alheia (linha de
+  // platform_org_metrics, tem org_id/nome/suspenso etc.) — null no uso normal.
+  const [orgOverride, setOrgOverride] = useState(null);
+  const emSuporte = isPlatformAdmin && !!orgOverride;
+  const { permissions, togglePermission } = useRolePermissions(emSuporte ? orgOverride.org_id : profile?.org_id);
   // Persiste a aba ativa: navegador às vezes descarta/recarrega uma aba parada por um
   // tempo (economia de memória, comum em celular) — sem isso, o reload sempre caía de
   // volta em "Prazos" em vez de continuar onde a pessoa estava.
@@ -32,12 +36,15 @@ export default function App() {
   const [verEmpresa, setVerEmpresa] = useState(false); // platform admin que também é admin de uma org: alterna pra visão normal
   const [menuMobileAberto, setMenuMobileAberto] = useState(false); // sidebar vira gaveta em telas pequenas
 
-  const currentRole = profile?.role;
+  // Em modo suporte o platform admin opera como admin completo da empresa escolhida —
+  // vê e mexe em tudo, sem depender do role_permissions dela.
+  const currentRole = emSuporte ? "admin" : profile?.role;
   const allowedModules = useMemo(() => {
+    if (emSuporte) return MODULES.map((m) => m.key);
     if (!currentRole || !permissions) return [];
     if (currentRole === "admin") return MODULES.map((m) => m.key);
     return MODULES.filter((m) => permissions[currentRole]?.includes(m.key)).map((m) => m.key);
-  }, [currentRole, permissions]);
+  }, [currentRole, permissions, emSuporte]);
 
   useEffect(() => {
     // allowedModules.length > 0 evita resetar a aba durante um estado transitório de
@@ -52,16 +59,17 @@ export default function App() {
   if (loading) return <FullScreenMessage>Carregando...</FullScreenMessage>;
   if (recovery) return <ResetPassword onDone={clearRecovery} />;
   if (!session) return <Login />;
-  if (isPlatformAdmin && !verEmpresa) {
+  if (isPlatformAdmin && !verEmpresa && !orgOverride) {
     return (
       <PlatformAdminPanel
         temPerfilProprio={profile !== null}
         onEntrarNaEmpresa={() => setVerEmpresa(true)}
+        onEntrarComoAdmin={setOrgOverride}
         signOut={signOut}
       />
     );
   }
-  if (profile === null) {
+  if (!emSuporte && profile === null) {
     return (
       <FullScreenMessage>
         Sua conta ainda não tem acesso liberado. Fale com o administrador do escritório.
@@ -69,7 +77,7 @@ export default function App() {
       </FullScreenMessage>
     );
   }
-  if (profile.organizations?.suspenso) {
+  if (!emSuporte && profile.organizations?.suspenso) {
     return (
       <FullScreenMessage>
         O acesso da sua empresa está suspenso no momento. Fale com o suporte pra regularizar.
@@ -79,17 +87,22 @@ export default function App() {
   }
   if (!permissions) return <FullScreenMessage>Carregando...</FullScreenMessage>;
 
+  const orgId = emSuporte ? orgOverride.org_id : undefined; // undefined = usa auth_org_id() normal (não-platform-admin)
+
   const renderTab = () => {
     if (activeTab === "config") return <ConfigTab permissions={permissions} togglePermission={togglePermission} />;
-    if (activeTab === "empresa") return <MinhaEmpresaTab profile={profile} onAtualizado={refreshProfile} />;
+    // Minha Empresa fica de fora do modo suporte de propósito: ela lê/grava em
+    // profile.organizations/profile.org_id, que continuam sendo os do PRÓPRIO platform
+    // admin — misturar com orgOverride ali daria pra editar a empresa errada por engano.
+    if (activeTab === "empresa" && !emSuporte) return <MinhaEmpresaTab profile={profile} onAtualizado={refreshProfile} />;
     if (!activeTab) return <EmptyState />;
     switch (activeTab) {
-      case "prazos": return <PrazosTab />;
-      case "processos": return <ProcessosTab currentRole={currentRole} />;
-      case "financeiro": return <FinanceiroTab />;
-      case "clientes": return <ClientesTab currentRole={currentRole} />;
-      case "equipe": return <EquipeTab currentRole={currentRole} />;
-      case "executivo": return <ExecutivoTab />;
+      case "prazos": return <PrazosTab orgId={orgId} />;
+      case "processos": return <ProcessosTab currentRole={currentRole} orgId={orgId} />;
+      case "financeiro": return <FinanceiroTab orgId={orgId} />;
+      case "clientes": return <ClientesTab currentRole={currentRole} orgId={orgId} />;
+      case "equipe": return <EquipeTab currentRole={currentRole} orgId={orgId} />;
+      case "executivo": return <ExecutivoTab orgId={orgId} />;
       default: return <EmptyState />;
     }
   };
@@ -101,13 +114,20 @@ export default function App() {
         activeTab={activeTab}
         setActiveTab={setActiveTab}
         currentRole={currentRole}
-        orgNome={profile.organizations?.nome}
+        emSuporte={emSuporte}
+        orgNome={emSuporte ? orgOverride.nome : profile.organizations?.nome}
         mobileAberto={menuMobileAberto}
         fecharMobile={() => setMenuMobileAberto(false)}
       />
 
       <div className="flex-1 flex flex-col min-w-0">
-        <TopBar profile={profile} signOut={signOut} onAbrirMenu={() => setMenuMobileAberto(true)} />
+        <TopBar
+          profile={profile ?? { nome: "Platform admin", role: "admin", organizations: null }}
+          signOut={signOut}
+          onAbrirMenu={() => setMenuMobileAberto(true)}
+          suporte={emSuporte ? orgOverride.nome : null}
+          onSairSuporte={() => setOrgOverride(null)}
+        />
         <main className="flex-1 px-4 sm:px-8 py-6 sm:py-8 overflow-y-auto overflow-x-hidden">
           {renderTab()}
         </main>

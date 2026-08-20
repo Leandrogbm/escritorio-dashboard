@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Building2, LogOut, LayoutGrid, Eye, Ban, PlayCircle, Trash2, Settings2, XCircle } from "lucide-react";
+import { Building2, LogOut, LayoutGrid, Eye, Ban, PlayCircle, Trash2, Settings2, XCircle, ShieldAlert } from "lucide-react";
 import Card from "./Card.jsx";
 import RecordFormModal from "./RecordFormModal.jsx";
 import EmpresaInspector from "./EmpresaInspector.jsx";
@@ -32,7 +32,7 @@ const CONFIG_FIELDS = [
 // Painel do dono da plataforma (mysaldo) — métricas agregadas por empresa cliente (via RPC
 // platform_org_metrics, security definer) + billing que a empresa paga PRA plataforma
 // (diferente do financeiro interno dela). "Inspecionar" abre acesso de suporte somente-leitura.
-export default function PlatformAdminPanel({ temPerfilProprio, onEntrarNaEmpresa, signOut }) {
+export default function PlatformAdminPanel({ temPerfilProprio, onEntrarNaEmpresa, onEntrarComoAdmin, signOut }) {
   const [empresas, setEmpresas] = useState(null);
   const [editingConfig, setEditingConfig] = useState(null); // {...} = configurando uma empresa
   const [inspecting, setInspecting] = useState(null); // {org_id, nome} = inspetor aberto
@@ -148,7 +148,16 @@ export default function PlatformAdminPanel({ temPerfilProprio, onEntrarNaEmpresa
                     {e.suspenso && <span className="ml-2 text-xs font-semibold uppercase" style={{ color: COLORS.wine }}>· suspensa</span>}
                   </td>
                   <td className="px-4 py-3 flex items-center gap-2">
-                    <button onClick={() => setInspecting(e)} aria-label="Inspecionar" className="p-1.5 rounded hover:opacity-70" style={{ color: COLORS.slate }}>
+                    <button
+                      onClick={() => { if (confirm(`Entrar em "${e.nome}" como se fosse o admin de lá? Você vai poder criar/editar/excluir tudo — cliente, processo, financeiro, equipe. Fica registrado no log de auditoria.`)) onEntrarComoAdmin(e); }}
+                      aria-label="Entrar como admin"
+                      title="Entrar como admin"
+                      className="p-1.5 rounded hover:opacity-70"
+                      style={{ color: COLORS.wine }}
+                    >
+                      <ShieldAlert size={14} />
+                    </button>
+                    <button onClick={() => setInspecting(e)} aria-label="Inspecionar (somente leitura)" title="Inspecionar (somente leitura)" className="p-1.5 rounded hover:opacity-70" style={{ color: COLORS.slate }}>
                       <Eye size={14} />
                     </button>
                     <button onClick={() => setEditingConfig(e)} aria-label="Configurar" className="p-1.5 rounded hover:opacity-70" style={{ color: COLORS.slate }}>

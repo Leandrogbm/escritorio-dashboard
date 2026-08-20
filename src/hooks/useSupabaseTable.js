@@ -25,7 +25,14 @@ export function useSupabaseTable(table, { select = "*", orderBy = "created_at", 
   useEffect(() => { refresh(); }, [refresh]);
 
   const insert = async (values) => {
-    const { error: err } = await supabase.from(table).insert(values);
+    // eq=["org_id", X]: contexto de organização explícito (usado pelo platform admin
+    // operando em empresa alheia — set_org_id() só respeita org_id explícito vindo dele).
+    // Sem isso, um insert dentro do "Entrar" de outra empresa cairia na empresa do próprio
+    // platform admin.
+    const comOrg = eq?.[0] === "org_id"
+      ? (Array.isArray(values) ? values.map((v) => ({ ...v, org_id: eq[1] })) : { ...values, org_id: eq[1] })
+      : values;
+    const { error: err } = await supabase.from(table).insert(comOrg);
     if (err) throw err;
     await refresh();
   };

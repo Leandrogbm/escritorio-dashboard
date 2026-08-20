@@ -115,12 +115,13 @@ function CalendarioPrazos({ prazos, onEdit, onDelete }) {
   );
 }
 
-export default function PrazosTab() {
+export default function PrazosTab({ orgId } = {}) {
+  const orgEq = orgId ? ["org_id", orgId] : undefined;
   const { data: prazos, loading, insert, update, remove } = useSupabaseTable("prazos", {
-    select: "*, processo:processos(id,numero,cliente:clientes(nome)), responsavel:profiles(id,nome)",
+    select: "*, processo:processos(id,numero,cliente:clientes(nome)), responsavel:profiles(id,nome)", eq: orgEq,
   });
-  const { data: processos } = useSupabaseTable("processos", { select: "id,numero", orderBy: "numero", ascending: true });
-  const { data: equipe } = useSupabaseTable("profiles", { select: "id,nome", orderBy: "nome", ascending: true });
+  const { data: processos } = useSupabaseTable("processos", { select: "id,numero", orderBy: "numero", ascending: true, eq: orgEq });
+  const { data: equipe } = useSupabaseTable("profiles", { select: "id,nome", orderBy: "nome", ascending: true, eq: orgEq });
   const [editing, setEditing] = useState(null);
   const [view, setView] = useState("lista"); // "lista" | "calendario"
   const [busca, setBusca] = useState("");

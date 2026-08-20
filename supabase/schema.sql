@@ -128,11 +128,15 @@ alter table organizations add constraint organizations_plano_fkey foreign key (p
 -- Admin também aparece na lista (pedido do usuário) — role vem junto pra UI montar o
 -- dropdown de cargo. p.role tem que ficar no fim do SELECT: CREATE OR REPLACE VIEW não
 -- deixa reordenar/renomear colunas existentes, só apendar.
+-- Platform admin (usuário "master", acessa várias empresas) some da lista pra quem não é
+-- platform admin — continua se vendo e vendo outros platform admins, só fica invisível pro
+-- resto da equipe da empresa onde tem perfil.
 create view equipe_view with (security_invoker = true) as
   select p.id, p.org_id, p.nome, p.cargo, p.horas_mes as horas, p.meta_horas as meta,
          count(pr.id) filter (where pr.status <> 'Encerrado') as ativos, p.role
   from profiles p
   left join processos pr on pr.responsavel_id = p.id
+  where p.id not in (select user_id from platform_admins) or p.id = auth.uid() or is_platform_admin()
   group by p.id;
 
 -- ── Funções helper (fonte única de verdade pra RLS e client) ────────────────
@@ -155,16 +159,29 @@ create or replace function has_module(module_key text) returns boolean
       where org_id = auth_org_id() and role = auth_role() and module = module_key)
   $$;
 
+-- Usuário normal continua 100% travado no próprio org_id. Só quando quem chama é platform
+-- admin E já mandou um org_id explícito (operando "dentro" de outra empresa) é que
+-- respeitamos o valor enviado — sem isso, o INSERT cairia sempre na empresa do platform
+-- admin, nunca na empresa alvo que ele escolheu no seletor de empresas.
 create or replace function set_org_id() returns trigger
-  language plpgsql as $$ begin new.org_id := auth_org_id(); return new; end; $$;
+  language plpgsql security definer set search_path = public as $$
+begin
+  if is_platform_admin() and new.org_id is not null then
+    return new;
+  end if;
+  new.org_id := auth_org_id();
+  return new;
+end;
+$$;
 
 -- ── Admin da plataforma (dono do mysaldo) ───────────────────────────────
--- Separado do admin de cada empresa. Duas coisas: (1) painel de billing — plano/valor/
+-- Separado do admin de cada empresa. Três coisas: (1) painel de billing — plano/valor/
 -- status que cada empresa paga PRA plataforma, nada a ver com o financeiro interno dela
--- (honorarios); (2) acesso de SUPORTE somente-leitura a qualquer empresa (correção de bug/
--- reclamação) — por isso "or is_platform_admin()" aparece só nas policies de SELECT abaixo,
--- nunca em insert/update/delete: corrigir de verdade é código/banco, não editar pela UI
--- da empresa. Definido antes da seção de RLS porque as policies logo abaixo já usam.
+-- (honorarios); (2) "usuário master" — acesso leitura+escrita a qualquer empresa, como se
+-- fosse o admin de lá (seletor "Entrar" no PlatformAdminPanel), pra suporte técnico; toda
+-- escrita feita assim fica registrada em platform_admin_audit_log; (3) invisível na aba
+-- Equipe de qualquer empresa onde tenha perfil próprio (ver equipe_view). Definido antes da
+-- seção de RLS porque as policies logo abaixo já usam.
 
 create table platform_admins (
   user_id uuid primary key references auth.users(id) on delete cascade
@@ -232,9 +249,11 @@ create policy profiles_select on profiles for select using (org_id = auth_org_id
 -- sócio edita qualquer colega, menos o admin (role <> 'admin' olha a linha ANTES do update —
 -- sócio não consegue nem tocar num profile que já é admin, promover ninguém a admin também
 -- não rola por aqui: a lista de cargo na UI já nem mostra a opção pra quem não é admin).
+-- platform admin edita qualquer empresa (with check true: já não há org_id "certo" fixo
+-- quando quem grava é o platform admin operando em empresa alheia).
 create policy profiles_update on profiles for update
-  using (org_id = auth_org_id() and (id = auth.uid() or auth_role() = 'admin' or (auth_role() = 'socio' and role <> 'admin')))
-  with check (org_id = auth_org_id());
+  using (org_id = auth_org_id() and (id = auth.uid() or auth_role() = 'admin' or (auth_role() = 'socio' and role <> 'admin')) or is_platform_admin())
+  with check (true);
 -- insert só o admin — feito pela Edge Function admin-create-user (supabase/functions/),
 -- que cria o Auth user com senha temporária (mandada por email) e insere o profile
 -- numa tacada, usando a service_role key.
@@ -250,18 +269,19 @@ create policy profiles_insert on profiles for insert
 
 alter table role_permissions enable row level security;
 create policy role_permissions_select on role_permissions for select using (org_id = auth_org_id());
--- sócio também mexe em Configurações, não só admin (pedido do usuário).
+-- sócio também mexe em Configurações, não só admin; platform admin configura qualquer empresa.
 create policy role_permissions_write on role_permissions for all
-  using (org_id = auth_org_id() and auth_role() in ('admin','socio'))
-  with check (org_id = auth_org_id() and auth_role() in ('admin','socio'));
+  using ((org_id = auth_org_id() and auth_role() in ('admin','socio')) or is_platform_admin())
+  with check (true);
 
 -- Tabelas de negócio: mesmo padrão de 4 policies, module key = chave em MODULES (src/config/permissions.js)
 
 alter table clientes enable row level security;
 create trigger trg_set_org_id before insert on clientes for each row execute function set_org_id();
 create policy clientes_sel on clientes for select using ((org_id = auth_org_id() and has_module('clientes')) or is_platform_admin());
-create policy clientes_ins on clientes for insert with check (org_id = auth_org_id() and has_module('clientes'));
-create policy clientes_upd on clientes for update using (org_id = auth_org_id() and has_module('clientes')) with check (org_id = auth_org_id());
+create policy clientes_ins on clientes for insert with check ((org_id = auth_org_id() and has_module('clientes')) or is_platform_admin());
+create policy clientes_upd on clientes for update
+  using ((org_id = auth_org_id() and has_module('clientes')) or is_platform_admin()) with check (true);
 -- só admin/sócio excluem cliente (diferente das outras policies, que valem pra quem tem o
 -- módulo) — ou o platform admin, mirando qualquer empresa (pedido explícito do dono).
 create policy clientes_del on clientes for delete using (
@@ -278,33 +298,36 @@ create policy processos_sel on processos for select using (
   or is_platform_admin()
 );
 -- limite de processos do plano entra aqui — org sem plano (plano null) fica sem limite.
+-- platform admin pula o limite do plano (é suporte, não é o uso normal da empresa).
 create policy processos_ins on processos for insert with check (
-  org_id = auth_org_id() and has_module('processos') and (
+  is_platform_admin() or (org_id = auth_org_id() and has_module('processos') and (
     (select limite_processos from plan_limits pl join organizations o on o.plano = pl.plano where o.id = auth_org_id()) is null
     or (select count(*) from processos p2 where p2.org_id = auth_org_id())
        < (select limite_processos from plan_limits pl join organizations o on o.plano = pl.plano where o.id = auth_org_id())
-  )
+  ))
 );
 create policy processos_upd on processos for update
-  using (org_id = auth_org_id() and has_module('processos') and (auth_role() <> 'advogado' or responsavel_id = auth.uid()))
-  with check (org_id = auth_org_id());
+  using ((org_id = auth_org_id() and has_module('processos') and (auth_role() <> 'advogado' or responsavel_id = auth.uid())) or is_platform_admin())
+  with check (true);
 create policy processos_del on processos for delete using (
-  org_id = auth_org_id() and has_module('processos') and (auth_role() <> 'advogado' or responsavel_id = auth.uid())
+  (org_id = auth_org_id() and has_module('processos') and (auth_role() <> 'advogado' or responsavel_id = auth.uid())) or is_platform_admin()
 );
 
 alter table prazos enable row level security;
 create trigger trg_set_org_id before insert on prazos for each row execute function set_org_id();
 create policy prazos_sel on prazos for select using ((org_id = auth_org_id() and has_module('prazos')) or is_platform_admin());
-create policy prazos_ins on prazos for insert with check (org_id = auth_org_id() and has_module('prazos'));
-create policy prazos_upd on prazos for update using (org_id = auth_org_id() and has_module('prazos')) with check (org_id = auth_org_id());
-create policy prazos_del on prazos for delete using (org_id = auth_org_id() and has_module('prazos'));
+create policy prazos_ins on prazos for insert with check ((org_id = auth_org_id() and has_module('prazos')) or is_platform_admin());
+create policy prazos_upd on prazos for update
+  using ((org_id = auth_org_id() and has_module('prazos')) or is_platform_admin()) with check (true);
+create policy prazos_del on prazos for delete using ((org_id = auth_org_id() and has_module('prazos')) or is_platform_admin());
 
 alter table honorarios enable row level security;
 create trigger trg_set_org_id before insert on honorarios for each row execute function set_org_id();
 create policy honorarios_sel on honorarios for select using ((org_id = auth_org_id() and has_module('financeiro')) or is_platform_admin());
-create policy honorarios_ins on honorarios for insert with check (org_id = auth_org_id() and has_module('financeiro'));
-create policy honorarios_upd on honorarios for update using (org_id = auth_org_id() and has_module('financeiro')) with check (org_id = auth_org_id());
-create policy honorarios_del on honorarios for delete using (org_id = auth_org_id() and has_module('financeiro'));
+create policy honorarios_ins on honorarios for insert with check ((org_id = auth_org_id() and has_module('financeiro')) or is_platform_admin());
+create policy honorarios_upd on honorarios for update
+  using ((org_id = auth_org_id() and has_module('financeiro')) or is_platform_admin()) with check (true);
+create policy honorarios_del on honorarios for delete using ((org_id = auth_org_id() and has_module('financeiro')) or is_platform_admin());
 
 -- security definer: ignora RLS de propósito, é o único jeito de agregar contagem
 -- cross-tenant. Só devolve algo se quem chama for platform admin; senão, vazio.
@@ -328,6 +351,44 @@ $$;
 
 grant execute on function is_platform_admin() to authenticated;
 grant execute on function platform_org_metrics() to authenticated;
+
+-- Log de auditoria: só registra quando quem mexeu é platform admin — uso normal da própria
+-- empresa não gera log nenhum aqui, senão vira ruído.
+create table platform_admin_audit_log (
+  id uuid primary key default gen_random_uuid(),
+  actor_id uuid not null references auth.users(id),
+  org_id uuid,
+  tabela text not null,
+  operacao text not null check (operacao in ('INSERT','UPDATE','DELETE')),
+  row_id uuid,
+  dados_antes jsonb,
+  dados_depois jsonb,
+  created_at timestamptz not null default now()
+);
+create index platform_admin_audit_log_org_id_idx on platform_admin_audit_log (org_id);
+alter table platform_admin_audit_log enable row level security;
+create policy platform_admin_audit_log_select on platform_admin_audit_log for select using (is_platform_admin());
+
+create or replace function log_platform_admin_write() returns trigger
+  language plpgsql security definer set search_path = public as $$
+begin
+  if is_platform_admin() then
+    insert into platform_admin_audit_log (actor_id, org_id, tabela, operacao, row_id, dados_antes, dados_depois)
+    values (
+      auth.uid(), coalesce(new.org_id, old.org_id), TG_TABLE_NAME, TG_OP, coalesce(new.id, old.id),
+      case when TG_OP <> 'INSERT' then to_jsonb(old) else null end,
+      case when TG_OP <> 'DELETE' then to_jsonb(new) else null end
+    );
+  end if;
+  return coalesce(new, old);
+end;
+$$;
+
+create trigger trg_audit_clientes after insert or update or delete on clientes for each row execute function log_platform_admin_write();
+create trigger trg_audit_processos after insert or update or delete on processos for each row execute function log_platform_admin_write();
+create trigger trg_audit_prazos after insert or update or delete on prazos for each row execute function log_platform_admin_write();
+create trigger trg_audit_honorarios after insert or update or delete on honorarios for each row execute function log_platform_admin_write();
+create trigger trg_audit_profiles after insert or update or delete on profiles for each row execute function log_platform_admin_write();
 
 -- Excluir empresa por completo (colaboradores, clientes, processos, financeiro, a org em si)
 -- é a Edge Function platform-delete-org — precisa apagar cada Auth user via Admin API,
