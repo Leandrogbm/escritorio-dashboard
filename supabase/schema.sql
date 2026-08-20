@@ -128,15 +128,14 @@ alter table organizations add constraint organizations_plano_fkey foreign key (p
 -- Admin também aparece na lista (pedido do usuário) — role vem junto pra UI montar o
 -- dropdown de cargo. p.role tem que ficar no fim do SELECT: CREATE OR REPLACE VIEW não
 -- deixa reordenar/renomear colunas existentes, só apendar.
--- Platform admin (usuário "master", acessa várias empresas) some da lista pra quem não é
--- platform admin — continua se vendo e vendo outros platform admins, só fica invisível pro
--- resto da equipe da empresa onde tem perfil.
+-- Platform admin (usuário "master", acessa várias empresas) nunca aparece na lista de
+-- Equipe — nem pro resto da equipe, nem pra ele mesmo, sem exceção.
 create view equipe_view with (security_invoker = true) as
   select p.id, p.org_id, p.nome, p.cargo, p.horas_mes as horas, p.meta_horas as meta,
          count(pr.id) filter (where pr.status <> 'Encerrado') as ativos, p.role
   from profiles p
   left join processos pr on pr.responsavel_id = p.id
-  where p.id not in (select user_id from platform_admins) or p.id = auth.uid() or is_platform_admin()
+  where p.id not in (select user_id from platform_admins)
   group by p.id;
 
 -- ── Funções helper (fonte única de verdade pra RLS e client) ────────────────
