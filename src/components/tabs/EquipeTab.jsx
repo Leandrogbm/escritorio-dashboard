@@ -27,6 +27,20 @@ const NEW_MEMBER_FIELDS = [
   { key: "role", label: "Cargo", type: "select", options: ROLES.map((r) => ({ value: r.key, label: r.label })) },
 ];
 
+// Lê o motivo real dentro do corpo da resposta (FunctionsHttpError não traz isso em
+// error.message). Se for sessão morta (logout em outra aba, refresh token expirado etc.),
+// desloga e recarrega em vez de deixar o formulário travado com um erro sem explicação.
+async function tratarErroFuncao(error) {
+  const msg = (await error.context?.json?.().catch(() => null))?.error ?? error.message;
+  if (msg === "Não autenticado.") {
+    alert("Sua sessão expirou. Faça login novamente.");
+    await supabase.auth.signOut();
+    window.location.reload();
+    return null; // nunca chega a lançar — a página já está recarregando
+  }
+  return msg;
+}
+
 export default function EquipeTab({ currentRole }) {
   // Lê de equipe_view (agregado, não editável diretamente — é view com group by).
   // Escreve na tabela profiles, que é a fonte real dessas colunas.
@@ -48,7 +62,11 @@ export default function EquipeTab({ currentRole }) {
     if (email) {
       // login (auth.users) é separado de profiles — precisa de service_role, vai pela Edge Function.
       const { error: emailErr } = await supabase.functions.invoke("admin-update-email", { body: { userId: editing.id, email } });
-      if (emailErr) throw new Error((await emailErr.context?.json?.().catch(() => null))?.error ?? emailErr.message);
+      if (emailErr) {
+        const msg = await tratarErroFuncao(emailErr);
+        if (msg) throw new Error(msg);
+        return;
+      }
     }
 
     await refresh();
@@ -67,7 +85,8 @@ export default function EquipeTab({ currentRole }) {
     if (!confirm("Excluir este colaborador? A conta de login dele também é apagada.")) return;
     const { error } = await supabase.functions.invoke("admin-delete-user", { body: { userId: id } });
     if (error) {
-      alert((await error.context?.json?.().catch(() => null))?.error ?? error.message);
+      const msg = await tratarErroFuncao(error);
+      if (msg) alert(msg);
       return;
     }
     await refresh();
@@ -77,7 +96,8 @@ export default function EquipeTab({ currentRole }) {
     if (!confirm(`Gerar uma nova senha temporária pra ${colaborador.nome} e mandar por email?`)) return;
     const { data, error } = await supabase.functions.invoke("admin-reset-password", { body: { userId: colaborador.id } });
     if (error) {
-      alert((await error.context?.json?.().catch(() => null))?.error ?? error.message);
+      const msg = await tratarErroFuncao(error);
+      if (msg) alert(msg);
       return;
     }
     alert(data?.warning ?? "Senha redefinida — o novo acesso foi enviado por email.");
