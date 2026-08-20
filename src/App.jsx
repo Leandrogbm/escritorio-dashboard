@@ -102,6 +102,7 @@ export default function App() {
         setActiveTab={setActiveTab}
         currentRole={currentRole}
         orgNome={profile.organizations?.nome}
+        orgLogo={profile.organizations?.logo_url ? { url: profile.organizations.logo_url, zoom: profile.organizations.logo_zoom, x: profile.organizations.logo_pos_x, y: profile.organizations.logo_pos_y } : null}
         mobileAberto={menuMobileAberto}
         fecharMobile={() => setMenuMobileAberto(false)}
       />

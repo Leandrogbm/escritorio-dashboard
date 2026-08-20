@@ -47,7 +47,7 @@ export function useAuth() {
   const carregarProfile = (uid) =>
     supabase
       .from("profiles")
-      .select("*, organizations(nome, suspenso, logo_url, cep, logradouro, numero, complemento, bairro, cidade, uf)")
+      .select("*, organizations(nome, suspenso, logo_url, logo_zoom, logo_pos_x, logo_pos_y, cep, logradouro, numero, complemento, bairro, cidade, uf)")
       .eq("id", uid)
       .maybeSingle()
       .then(({ data }) => setProfile(data));

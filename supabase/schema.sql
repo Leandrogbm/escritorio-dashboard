@@ -23,6 +23,11 @@ create table organizations (
   -- perfil da própria empresa (aba "Minha Empresa") — editável por admin/sócio,
   -- ver organizations_self_upd + trg_guard_organizations_protected_cols.
   logo_url text,
+  -- enquadramento da logo exibida (Sidebar, Minha Empresa): zoom + posição em %,
+  -- só ajusta a exibição (object-position/transform no client), não recorta o arquivo.
+  logo_zoom numeric not null default 1,
+  logo_pos_x numeric not null default 50,
+  logo_pos_y numeric not null default 50,
   cep text,
   logradouro text,
   numero text,
