@@ -17,7 +17,7 @@ function iniciais(nome) {
 // Desktop (md+): coluna fixa, com o botão de recolher/expandir pra ícone-só.
 // Mobile/tablet estreito: vira gaveta (drawer) sobre o conteúdo, aberta pelo hambúrguer
 // da TopBar — sem "recolher" aqui, é aberta (tela toda) ou fechada (fora da tela).
-export default function Sidebar({ allowedModules, activeTab, setActiveTab, currentRole, orgNome, orgLogo, mobileAberto, fecharMobile }) {
+export default function Sidebar({ allowedModules, activeTab, setActiveTab, currentRole, orgNome, mobileAberto, fecharMobile }) {
   const [recolhida, setRecolhida] = useState(() => localStorage.getItem("sidebarRecolhida") === "1");
   const alternar = () => {
     setRecolhida((v) => {
@@ -58,19 +58,10 @@ export default function Sidebar({ allowedModules, activeTab, setActiveTab, curre
 
         <div className={`pt-7 pb-6 flex items-center gap-3 ${recolhida ? "md:px-4 md:justify-center" : ""} px-6`} style={{ borderBottom: "1px solid rgba(255,255,255,0.1)" }}>
           <div
-            className="w-11 h-11 rounded-full flex items-center justify-center shrink-0 overflow-hidden"
+            className="w-11 h-11 rounded-full flex items-center justify-center shrink-0"
             style={{ border: `2px solid ${COLORS.brass}`, boxShadow: `inset 0 0 0 2px ${COLORS.ink}, inset 0 0 0 3px ${COLORS.brass}` }}
           >
-            {orgLogo?.url ? (
-              <img
-                src={orgLogo.url}
-                alt="Logo"
-                className="w-full h-full object-cover"
-                style={{ objectPosition: `${orgLogo.x ?? 50}% ${orgLogo.y ?? 50}%`, transform: `scale(${orgLogo.zoom ?? 1})` }}
-              />
-            ) : (
-              <span style={{ fontFamily: "'Source Serif 4', serif", color: COLORS.brass, fontWeight: 700, fontSize: 14 }}>{iniciais(orgNome)}</span>
-            )}
+            <span style={{ fontFamily: "'Source Serif 4', serif", color: COLORS.brass, fontWeight: 700, fontSize: 14 }}>{iniciais(orgNome)}</span>
           </div>
           <div className={`min-w-0 ${recolhida ? "md:hidden" : ""}`}>
             <p className="truncate" style={{ fontFamily: "'Source Serif 4', serif", color: "#fff", fontWeight: 600, fontSize: 15, lineHeight: 1.15 }}>
