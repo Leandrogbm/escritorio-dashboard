@@ -5,6 +5,7 @@ import SectionTitle from "../SectionTitle.jsx";
 import Stamp from "../Stamp.jsx";
 import RowActions from "../RowActions.jsx";
 import RecordFormModal from "../RecordFormModal.jsx";
+import SearchInput from "../SearchInput.jsx";
 import { COLORS } from "../../lib/theme.js";
 import { BRL } from "../../data/mockData.js";
 import { useSupabaseTable } from "../../hooks/useSupabaseTable.js";
@@ -35,6 +36,7 @@ export default function FinanceiroTab() {
   const { data: clientes } = useSupabaseTable("clientes", { select: "id,nome,tipo", orderBy: "nome", ascending: true });
   const [editing, setEditing] = useState(null); // {} = novo (do topo), {cliente_id} = novo já com cliente, {...} = editando
   const [selecionado, setSelecionado] = useState(null); // cliente_id aberto no painel de detalhe
+  const [busca, setBusca] = useState("");
 
   // Resumo por cliente — PF mostra como "parcelas", PJ como "mensalidade", mas o dado é o
   // mesmo (uma linha em honorarios por cobrança); só muda o texto na hora de criar/exibir.
@@ -53,6 +55,7 @@ export default function FinanceiroTab() {
   }, [clientes, honorarios]);
 
   const clienteAberto = porCliente.find((c) => c.id === selecionado) ?? null;
+  const porClienteFiltrado = porCliente.filter((c) => c.nome.toLowerCase().includes(busca.trim().toLowerCase()));
 
   const faturamentoMes = honorarios.filter((h) => h.vencimento?.slice(0, 7) === mesAtual).reduce((s, h) => s + h.valor, 0);
   const recebidoMes = honorarios.filter((h) => h.vencimento?.slice(0, 7) === mesAtual && h.status === "Pago").reduce((s, h) => s + h.valor, 0);
@@ -94,9 +97,12 @@ export default function FinanceiroTab() {
         title="Financeiro"
         subtitle="Faturamento por cliente — parcelas (PF) e mensalidades (PJ)"
         action={
-          <button onClick={() => setEditing({})} className="flex items-center gap-1.5 px-3 py-2 rounded-md text-sm font-semibold" style={{ background: COLORS.ink, color: "#fff" }}>
-            <Plus size={14} /> Novo
-          </button>
+          <div className="flex items-center gap-2">
+            <SearchInput value={busca} onChange={setBusca} placeholder="Buscar cliente..." />
+            <button onClick={() => setEditing({})} className="flex items-center gap-1.5 px-3 py-2 rounded-md text-sm font-semibold" style={{ background: COLORS.ink, color: "#fff" }}>
+              <Plus size={14} /> Novo
+            </button>
+          </div>
         }
       />
 
@@ -130,10 +136,10 @@ export default function FinanceiroTab() {
             </tr>
           </thead>
           <tbody>
-            {!loading && porCliente.length === 0 && (
-              <tr><td colSpan={6} className="px-4 py-6 text-center text-sm" style={{ color: COLORS.slate }}>Nenhum cliente cadastrado ainda.</td></tr>
+            {!loading && porClienteFiltrado.length === 0 && (
+              <tr><td colSpan={6} className="px-4 py-6 text-center text-sm" style={{ color: COLORS.slate }}>{busca ? "Nenhum cliente encontrado." : "Nenhum cliente cadastrado ainda."}</td></tr>
             )}
-            {porCliente.map((c, i) => (
+            {porClienteFiltrado.map((c, i) => (
               <tr key={c.id} onClick={() => setSelecionado(c.id)} className="cursor-pointer"
                 style={{ borderTop: `1px solid ${COLORS.line}`, background: i % 2 ? "#FAF9F5" : COLORS.paperRaised }}>
                 <td className="px-4 py-3" style={{ color: COLORS.ink, fontWeight: 600 }}>{c.nome}</td>

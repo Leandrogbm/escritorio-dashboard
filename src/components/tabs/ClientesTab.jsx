@@ -4,6 +4,7 @@ import Card from "../Card.jsx";
 import SectionTitle from "../SectionTitle.jsx";
 import RowActions from "../RowActions.jsx";
 import RecordFormModal from "../RecordFormModal.jsx";
+import SearchInput from "../SearchInput.jsx";
 import { COLORS } from "../../lib/theme.js";
 import { useSupabaseTable } from "../../hooks/useSupabaseTable.js";
 
@@ -17,7 +18,14 @@ const FIELDS = [
 export default function ClientesTab({ currentRole }) {
   const { data: clientes, loading, insert, update, remove } = useSupabaseTable("clientes", { orderBy: "nome", ascending: true });
   const [editing, setEditing] = useState(null); // null = fechado, {} = novo, {...} = editando
+  const [busca, setBusca] = useState("");
   const podeExcluir = currentRole === "admin" || currentRole === "socio"; // RLS (clientes_del) já barra no banco — isso só esconde o botão
+
+  const filtrados = clientes.filter((c) => {
+    const q = busca.trim().toLowerCase();
+    if (!q) return true;
+    return c.nome.toLowerCase().includes(q) || (c.origem || "").toLowerCase().includes(q);
+  });
 
   return (
     <div>
@@ -26,13 +34,16 @@ export default function ClientesTab({ currentRole }) {
         title="Clientes"
         subtitle="Base de clientes e contratos"
         action={
-          <button
-            onClick={() => setEditing({})}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-md text-sm font-semibold"
-            style={{ background: COLORS.ink, color: "#fff" }}
-          >
-            <Plus size={14} /> Novo
-          </button>
+          <div className="flex items-center gap-2">
+            <SearchInput value={busca} onChange={setBusca} placeholder="Buscar cliente..." />
+            <button
+              onClick={() => setEditing({})}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-md text-sm font-semibold"
+              style={{ background: COLORS.ink, color: "#fff" }}
+            >
+              <Plus size={14} /> Novo
+            </button>
+          </div>
         }
       />
       <Card className="overflow-hidden !p-0">
@@ -45,10 +56,10 @@ export default function ClientesTab({ currentRole }) {
             </tr>
           </thead>
           <tbody>
-            {!loading && clientes.length === 0 && (
-              <tr><td colSpan={5} className="px-4 py-6 text-center text-sm" style={{ color: COLORS.slate }}>Nenhum cliente cadastrado ainda.</td></tr>
+            {!loading && filtrados.length === 0 && (
+              <tr><td colSpan={5} className="px-4 py-6 text-center text-sm" style={{ color: COLORS.slate }}>{busca ? "Nenhum cliente encontrado." : "Nenhum cliente cadastrado ainda."}</td></tr>
             )}
-            {clientes.map((c, i) => (
+            {filtrados.map((c, i) => (
               <tr key={c.id} style={{ borderTop: `1px solid ${COLORS.line}`, background: i % 2 ? "#FAF9F5" : COLORS.paperRaised }}>
                 <td className="px-4 py-3" style={{ color: COLORS.ink }}>{c.nome}</td>
                 <td className="px-4 py-3" style={{ color: COLORS.slate }}>{c.tipo}</td>

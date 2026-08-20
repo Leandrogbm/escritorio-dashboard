@@ -6,6 +6,7 @@ import Stamp from "../Stamp.jsx";
 import RowActions from "../RowActions.jsx";
 import RecordFormModal from "../RecordFormModal.jsx";
 import MovimentacoesPanel from "../MovimentacoesPanel.jsx";
+import SearchInput from "../SearchInput.jsx";
 import { COLORS } from "../../lib/theme.js";
 import { useSupabaseTable } from "../../hooks/useSupabaseTable.js";
 import { supabase } from "../../lib/supabaseClient.js";
@@ -35,8 +36,15 @@ export default function ProcessosTab({ currentRole }) {
   const [vendoAndamentos, setVendoAndamentos] = useState(null); // processo aberto no painel de andamentos
   const [registrandoPrazo, setRegistrandoPrazo] = useState(null); // {processo_id, movimentacao_origem_id, data_inicio, tipo}
   const [sincronizando, setSincronizando] = useState(false);
+  const [busca, setBusca] = useState("");
 
   const podeSincronizar = currentRole === "admin" || currentRole === "socio";
+
+  const processosFiltrados = processos.filter((p) => {
+    const q = busca.trim().toLowerCase();
+    if (!q) return true;
+    return p.numero.toLowerCase().includes(q) || (p.cliente?.nome || "").toLowerCase().includes(q) || p.area.toLowerCase().includes(q);
+  });
 
   // Inadimplente = tem honorário vencido, ou "em aberto" com vencimento já passado
   // (cobre o caso de ninguém ter marcado como "Vencido" manualmente ainda).
@@ -79,6 +87,7 @@ export default function ProcessosTab({ currentRole }) {
         subtitle="Casos ativos do escritório"
         action={
           <div className="flex items-center gap-2">
+            <SearchInput value={busca} onChange={setBusca} placeholder="Buscar processo ou cliente..." />
             {podeSincronizar && (
               <button onClick={sincronizarDatajud} disabled={sincronizando} className="flex items-center gap-1.5 px-3 py-2 rounded-md text-sm font-semibold" style={{ border: `1px solid ${COLORS.line}`, color: COLORS.ink, opacity: sincronizando ? 0.6 : 1 }}>
                 <RefreshCw size={14} className={sincronizando ? "animate-spin" : ""} /> {sincronizando ? "Sincronizando..." : "Sincronizar DataJud"}
@@ -90,11 +99,11 @@ export default function ProcessosTab({ currentRole }) {
           </div>
         }
       />
-      {!loading && processos.length === 0 && (
-        <p className="text-sm" style={{ color: COLORS.slate }}>Nenhum processo cadastrado ainda.</p>
+      {!loading && processosFiltrados.length === 0 && (
+        <p className="text-sm" style={{ color: COLORS.slate }}>{busca ? "Nenhum processo encontrado." : "Nenhum processo cadastrado ainda."}</p>
       )}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {processos.map((p) => {
+        {processosFiltrados.map((p) => {
           const atrasos = clientesInadimplentes.get(p.cliente?.id);
           return (
           <Card key={p.id}>

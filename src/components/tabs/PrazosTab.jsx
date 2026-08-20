@@ -5,6 +5,7 @@ import SectionTitle from "../SectionTitle.jsx";
 import Stamp, { urgencia } from "../Stamp.jsx";
 import RowActions from "../RowActions.jsx";
 import RecordFormModal from "../RecordFormModal.jsx";
+import SearchInput from "../SearchInput.jsx";
 import { COLORS } from "../../lib/theme.js";
 import { useSupabaseTable } from "../../hooks/useSupabaseTable.js";
 
@@ -122,6 +123,7 @@ export default function PrazosTab() {
   const { data: equipe } = useSupabaseTable("profiles", { select: "id,nome", orderBy: "nome", ascending: true });
   const [editing, setEditing] = useState(null);
   const [view, setView] = useState("lista"); // "lista" | "calendario"
+  const [busca, setBusca] = useState("");
 
   // "Data" pode ser digitada direto (prazo simples) OU calculada a partir de início +
   // quantidade de dias (dias_uteis pula sábado/domingo/feriado nacional) — se início e
@@ -139,7 +141,16 @@ export default function PrazosTab() {
   ], [processos, equipe]);
 
   const abrirEdicao = (p) => setEditing({ ...p, processo_id: p.processo?.id, responsavel_id: p.responsavel?.id });
-  const sorted = [...prazos].sort((a, b) => diasAte(a.data) - diasAte(b.data));
+
+  const prazosFiltrados = prazos.filter((p) => {
+    const q = busca.trim().toLowerCase();
+    if (!q) return true;
+    return p.tipo.toLowerCase().includes(q)
+      || (p.processo?.numero || "").toLowerCase().includes(q)
+      || (p.processo?.cliente?.nome || "").toLowerCase().includes(q)
+      || (p.responsavel?.nome || "").toLowerCase().includes(q);
+  });
+  const sorted = [...prazosFiltrados].sort((a, b) => diasAte(a.data) - diasAte(b.data));
 
   return (
     <div>
@@ -149,6 +160,7 @@ export default function PrazosTab() {
         subtitle="Próximos vencimentos, do mais urgente ao mais distante"
         action={
           <div className="flex items-center gap-2">
+            <SearchInput value={busca} onChange={setBusca} placeholder="Buscar prazo, processo ou cliente..." />
             <div className="flex rounded-md overflow-hidden" style={{ border: `1px solid ${COLORS.line}` }}>
               <button onClick={() => setView("lista")} className="p-2" style={{ background: view === "lista" ? COLORS.ink : "transparent", color: view === "lista" ? "#fff" : COLORS.slate }} aria-label="Lista">
                 <List size={14} />
@@ -165,7 +177,7 @@ export default function PrazosTab() {
       />
 
       {view === "calendario" ? (
-        <CalendarioPrazos prazos={prazos} onEdit={abrirEdicao} onDelete={remove} />
+        <CalendarioPrazos prazos={prazosFiltrados} onEdit={abrirEdicao} onDelete={remove} />
       ) : (
         <Card className="overflow-hidden !p-0">
           <table className="w-full text-sm">
@@ -180,7 +192,7 @@ export default function PrazosTab() {
             </thead>
             <tbody>
               {!loading && sorted.length === 0 && (
-                <tr><td colSpan={7} className="px-4 py-6 text-center text-sm" style={{ color: COLORS.slate }}>Nenhum prazo cadastrado ainda.</td></tr>
+                <tr><td colSpan={7} className="px-4 py-6 text-center text-sm" style={{ color: COLORS.slate }}>{busca ? "Nenhum prazo encontrado." : "Nenhum prazo cadastrado ainda."}</td></tr>
               )}
               {sorted.map((p, i) => {
                 const dias = diasAte(p.data);
