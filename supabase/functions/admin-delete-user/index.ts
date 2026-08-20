@@ -51,9 +51,13 @@ Deno.serve(async (req) => {
     // admin/sócio só excluem dentro da própria org — platform admin pula essa checagem,
     // pode mirar qualquer colaborador de qualquer empresa.
     if (!ehPlatformAdmin) {
-      const { data: targetProfile } = await admin.from("profiles").select("org_id").eq("id", userId).single();
+      const { data: targetProfile } = await admin.from("profiles").select("org_id, role").eq("id", userId).single();
       if (!targetProfile || targetProfile.org_id !== callerProfile.org_id) {
         return new Response(JSON.stringify({ error: "Colaborador não encontrado." }), { status: 404, headers: corsHeaders });
+      }
+      // sócio pode excluir qualquer um (menos admin); admin exclui todo mundo, sócio incluso.
+      if (callerProfile.role === "socio" && targetProfile.role === "admin") {
+        return new Response(JSON.stringify({ error: "Sócio não pode excluir o admin." }), { status: 403, headers: corsHeaders });
       }
     }
 

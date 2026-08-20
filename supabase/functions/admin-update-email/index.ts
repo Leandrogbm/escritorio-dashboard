@@ -46,7 +46,11 @@ Deno.serve(async (req) => {
 
     const { error: updErr } = await admin.auth.admin.updateUserById(userId, { email, email_confirm: true });
     if (updErr) {
-      return new Response(JSON.stringify({ error: updErr.message }), { status: 400, headers: corsHeaders });
+      // GoTrue devolve "Error updating user" genérico pra violação de unique constraint —
+      // email é único em todo o Supabase Auth, não só dentro da empresa.
+      const duplicado = /duplicate key|users_email_partial_key/i.test(updErr.message);
+      const msg = duplicado ? "Esse email já está em uso por outra conta." : updErr.message;
+      return new Response(JSON.stringify({ error: msg }), { status: 400, headers: corsHeaders });
     }
 
     return new Response(JSON.stringify({ ok: true }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });

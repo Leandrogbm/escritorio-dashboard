@@ -33,7 +33,9 @@ export default function EquipeTab({ currentRole }) {
   const { data: equipe, loading, refresh } = useSupabaseTable("equipe_view", { orderBy: "nome", ascending: true });
   const [editing, setEditing] = useState(null); // {...} = editar métricas de quem já existe
   const [creating, setCreating] = useState(false); // novo colaborador
-  const podeExcluir = currentRole === "admin" || currentRole === "socio";
+  // sócio exclui geral, menos o admin; admin exclui todo mundo — mesma regra da Edge
+  // Function admin-delete-user, aqui só esconde o botão (a de verdade é lá).
+  const podeExcluir = (alvo) => currentRole === "admin" || (currentRole === "socio" && alvo.role !== "admin");
 
   const salvarMetricas = async ({ email, role, ...values }) => {
     // "cargo" (texto livre exibido no card) segue o rótulo do perfil escolhido — mantém o
@@ -101,7 +103,7 @@ export default function EquipeTab({ currentRole }) {
               </div>
               <div className="flex items-center gap-2">
                 <Stamp tone="neutral">{e.ativos} ativos</Stamp>
-                {podeExcluir && (
+                {podeExcluir(e) && (
                   <button
                     onClick={(ev) => { ev.stopPropagation(); excluirColaborador(e.id); }}
                     aria-label="Excluir colaborador"

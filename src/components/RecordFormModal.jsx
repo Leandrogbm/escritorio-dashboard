@@ -78,6 +78,9 @@ export default function RecordFormModal({ open, title, fields, initialValues, on
                 step={f.type === "number" ? "0.01" : undefined}
                 value={values[f.key] ?? ""}
                 placeholder={f.placeholder}
+                // off: navegador não deve autopreencher email/senha de outra conta salva aqui —
+                // esses campos são dados de terceiros (cliente/colaborador), não do próprio usuário.
+                autoComplete="off"
                 onChange={(e) => setValues((v) => ({ ...v, [f.key]: f.mask ? f.mask(e.target.value) : e.target.value }))}
                 onBlur={f.onBlur ? async (e) => {
                   const patch = await f.onBlur(e.target.value);
