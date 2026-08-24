@@ -108,11 +108,14 @@ export default function FinanceiroTab({ orgId } = {}) {
       c.itens.push(h);
       if (h.status === "Pago") c.totalPago += h.valor;
       else c.totalReceber += h.valor;
-      if (estaAtrasado(h)) c.atrasado += h.valor;
+      const atrasado = estaAtrasado(h);
+      if (atrasado) c.atrasado += h.valor;
       if (h.vencimento?.slice(0, 7) === mesAtual) {
         c.total += h.valor;
+        // Em aberto dentro do prazo = pendente; em aberto fora do prazo = atrasado (já
+        // contado acima) — não pode contar nos dois ao mesmo tempo.
         if (h.status === "Pago") c.recebido += h.valor;
-        else c.pendente += h.valor;
+        else if (!atrasado) c.pendente += h.valor;
       }
     }
     return [...map.values()];
@@ -123,7 +126,7 @@ export default function FinanceiroTab({ orgId } = {}) {
 
   const faturamentoMes = honorarios.filter((h) => h.vencimento?.slice(0, 7) === mesAtual).reduce((s, h) => s + h.valor, 0);
   const recebidoMes = honorarios.filter((h) => h.vencimento?.slice(0, 7) === mesAtual && h.status === "Pago").reduce((s, h) => s + h.valor, 0);
-  const pendenteMes = honorarios.filter((h) => h.vencimento?.slice(0, 7) === mesAtual && h.status === "Em aberto").reduce((s, h) => s + h.valor, 0);
+  const pendenteMes = honorarios.filter((h) => h.vencimento?.slice(0, 7) === mesAtual && h.status === "Em aberto" && !estaAtrasado(h)).reduce((s, h) => s + h.valor, 0);
   const atrasadosTodos = honorarios.filter(estaAtrasado);
   const totalAtrasado = atrasadosTodos.reduce((s, h) => s + h.valor, 0);
 
