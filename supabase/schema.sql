@@ -611,7 +611,8 @@ create table notificacoes (
   processo_id uuid references processos(id) on delete cascade,
   movimentacao_id uuid references movimentacoes_processo(id) on delete cascade,
   prazo_id uuid references prazos(id) on delete cascade,
-  tipo text not null check (tipo in ('movimentacao','prazo')) default 'movimentacao',
+  honorario_id uuid references honorarios(id) on delete cascade,
+  tipo text not null check (tipo in ('movimentacao','prazo','pagamento_possivel')) default 'movimentacao',
   titulo text not null,
   texto text,
   requer_atencao boolean not null default false,
@@ -644,9 +645,17 @@ create policy movimentacoes_sel on movimentacoes_processo for select using
 -- ninguém edita andamento processual na mão, ele vem da fonte oficial.
 
 alter table notificacoes enable row level security;
+create trigger trg_set_org_id before insert on notificacoes for each row execute function set_org_id();
 create policy notificacoes_sel on notificacoes for select using (org_id = auth_org_id());
 create policy notificacoes_upd on notificacoes for update
   using (org_id = auth_org_id()) with check (org_id = auth_org_id()); -- só marcar como lida
+-- Insert/delete pelo usuário só existe pro fluxo de "possível pagamento" (importação de
+-- extrato cria a notificação, confirmar/rejeitar no sino apaga) — movimentação/prazo
+-- continuam só via service role (Edge Function), sem policy de insert/delete pra eles.
+create policy notificacoes_ins on notificacoes for insert
+  with check ((org_id = auth_org_id() and has_module('financeiro') and tipo = 'pagamento_possivel') or is_platform_admin());
+create policy notificacoes_del on notificacoes for delete
+  using ((org_id = auth_org_id() and has_module('financeiro') and tipo = 'pagamento_possivel') or is_platform_admin());
 
 -- ── Portal do Cliente ────────────────────────────────────────────────────
 -- Login separado do da equipe (profiles) — não mistura com Equipe/RLS de colaborador.

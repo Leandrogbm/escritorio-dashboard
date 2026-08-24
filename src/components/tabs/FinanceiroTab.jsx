@@ -10,7 +10,6 @@ import ImportarExtratoModal from "./ImportarExtratoModal.jsx";
 import { COLORS } from "../../lib/theme.js";
 import { BRL } from "../../data/mockData.js";
 import { useSupabaseTable } from "../../hooks/useSupabaseTable.js";
-import { supabase } from "../../lib/supabaseClient.js";
 
 const STATUS_OPTIONS = [
   { value: "Em aberto", label: "Em aberto" },
@@ -41,12 +40,6 @@ export default function FinanceiroTab({ orgId } = {}) {
   const [selecionado, setSelecionado] = useState(null); // cliente_id aberto no painel de detalhe
   const [busca, setBusca] = useState("");
   const [importando, setImportando] = useState(false); // abre o modal de importar extrato
-
-  const confirmarPagamentos = async (ids) => {
-    const { error } = await supabase.from("honorarios").update({ status: "Pago" }).in("id", ids);
-    if (error) throw error;
-    await refresh();
-  };
 
   // Resumo por cliente — PF mostra como "parcelas", PJ como "mensalidade", mas o dado é o
   // mesmo (uma linha em honorarios por cobrança); só muda o texto na hora de criar/exibir.
@@ -230,7 +223,7 @@ export default function FinanceiroTab({ orgId } = {}) {
       />
 
       {importando && (
-        <ImportarExtratoModal honorarios={honorarios} onConfirmar={confirmarPagamentos} onClose={() => setImportando(false)} />
+        <ImportarExtratoModal honorarios={honorarios} orgId={orgId} onClose={() => setImportando(false)} />
       )}
     </div>
   );
