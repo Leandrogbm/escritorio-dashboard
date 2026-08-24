@@ -4,8 +4,9 @@ import Card from "../Card.jsx";
 import SectionTitle from "../SectionTitle.jsx";
 import { COLORS } from "../../lib/theme.js";
 import { ROLES, MODULES } from "../../config/permissions.js";
+import ApiKeysSection from "../ApiKeysSection.jsx";
 
-export default function ConfigTab({ permissions, togglePermission }) {
+export default function ConfigTab({ permissions, togglePermission, orgId }) {
   return (
     <div>
       <SectionTitle icon={Settings} title="Configurações" subtitle="Defina quais abas cada perfil enxerga no dashboard" />
@@ -51,6 +52,8 @@ export default function ConfigTab({ permissions, togglePermission }) {
       <p className="text-xs mt-3" style={{ color: COLORS.slate }}>
         O perfil Administrador(a) sempre enxerga todos os módulos e não pode ser restringido por aqui.
       </p>
+
+      <ApiKeysSection orgId={orgId} />
     </div>
   );
 }

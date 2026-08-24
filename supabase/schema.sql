@@ -181,6 +181,20 @@ create table documentos_processo (
 create index documentos_processo_org_id_idx on documentos_processo (org_id);
 create index documentos_processo_processo_id_idx on documentos_processo (processo_id);
 
+-- API pública (Configurações → API pública): chave pra integração externa (ERP/CRM) usar
+-- a Edge Function api-gateway em vez de sessão de usuário. Guarda só o hash — a chave em
+-- texto puro só existe uma vez, na resposta de api-keys-create.
+create table api_keys (
+  id uuid primary key default gen_random_uuid(),
+  org_id uuid not null references organizations(id),
+  nome text not null,
+  key_hash text not null unique,
+  key_prefix text not null,
+  created_at timestamptz not null default now(),
+  last_used_at timestamptz
+);
+create index api_keys_org_id_idx on api_keys (org_id);
+
 -- Os 3 planos e seus limites — fonte única de verdade (Edge Function admin-create-user e
 -- a policy processos_ins leem daqui). limite_usuarios/limite_processos null = sem limite.
 create table plan_limits (
@@ -235,14 +249,17 @@ create or replace function has_module(module_key text) returns boolean
       where org_id = auth_org_id() and role = auth_role() and module = module_key)
   $$;
 
--- Usuário normal continua 100% travado no próprio org_id. Só quando quem chama é platform
--- admin E já mandou um org_id explícito (operando "dentro" de outra empresa) é que
--- respeitamos o valor enviado — sem isso, o INSERT cairia sempre na empresa do platform
--- admin, nunca na empresa alvo que ele escolheu no seletor de empresas.
+-- Usuário normal continua 100% travado no próprio org_id. Duas exceções, ambas exigindo
+-- org_id explícito no INSERT: (1) platform admin em modo suporte — sem isso o INSERT cairia
+-- sempre na empresa do platform admin, nunca na empresa alvo; (2) conexão service_role sem
+-- sessão de usuário (Edge Function tipo api-gateway, auth.uid() é null nesse caso) — sem
+-- essa exceção o org_id que a function mandava explicitamente era sobrescrito com null
+-- (achado testando a API pública). RLS continua intacta pra ambos: service_role já ignora
+-- RLS de qualquer jeito, isso aqui só corrige QUAL org_id fica gravado.
 create or replace function set_org_id() returns trigger
   language plpgsql security definer set search_path = public as $$
 begin
-  if is_platform_admin() and new.org_id is not null then
+  if (auth.uid() is null or is_platform_admin()) and new.org_id is not null then
     return new;
   end if;
   new.org_id := auth_org_id();
@@ -497,6 +514,12 @@ create policy documentos_processo_sel on documentos_processo for select using ((
 create policy documentos_processo_ins on documentos_processo for insert with check ((org_id = auth_org_id() and has_module('processos')) or is_platform_admin());
 create policy documentos_processo_del on documentos_processo for delete using ((org_id = auth_org_id() and has_module('processos')) or is_platform_admin());
 create trigger trg_audit_documentos_processo after insert or update or delete on documentos_processo for each row execute function log_platform_admin_write();
+
+alter table api_keys enable row level security;
+create policy api_keys_sel on api_keys for select using ((org_id = auth_org_id() and auth_role() in ('admin','socio')) or is_platform_admin());
+create policy api_keys_del on api_keys for delete using ((org_id = auth_org_id() and auth_role() in ('admin','socio')) or is_platform_admin());
+-- sem policy de insert: só a Edge Function api-keys-create grava (service_role) — precisa
+-- gerar/hashear a chave no servidor, nunca confiar num hash mandado pelo client.
 
 -- Storage RLS por pasta "<org_id>/...": platform admin também sobe/apaga (modo suporte),
 -- por isso o "or is_platform_admin()" — sem ele, path do org alvo nunca bate com

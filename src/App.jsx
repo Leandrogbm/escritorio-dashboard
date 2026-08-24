@@ -96,7 +96,7 @@ export default function App() {
   const orgId = emSuporte ? orgOverride.org_id : profile?.org_id;
 
   const renderTab = () => {
-    if (activeTab === "config") return <ConfigTab permissions={permissions} togglePermission={togglePermission} />;
+    if (activeTab === "config") return <ConfigTab permissions={permissions} togglePermission={togglePermission} orgId={orgId} />;
     // Minha Empresa fica de fora do modo suporte de propósito: ela lê/grava em
     // profile.organizations/profile.org_id, que continuam sendo os do PRÓPRIO platform
     // admin — misturar com orgOverride ali daria pra editar a empresa errada por engano.
