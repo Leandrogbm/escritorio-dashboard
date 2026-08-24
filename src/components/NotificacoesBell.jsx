@@ -1,17 +1,17 @@
 import React, { useState } from "react";
-import { Bell, AlertTriangle, ThumbsUp, ThumbsDown } from "lucide-react";
+import { Bell, AlertTriangle } from "lucide-react";
 import { COLORS } from "../lib/theme.js";
 import { useSupabaseTable } from "../hooks/useSupabaseTable.js";
 import { supabase } from "../lib/supabaseClient.js";
 
-// Painel de notificações (movimentação nova do DataJud + alerta de prazo vencendo + possível
-// pagamento identificado na importação de extrato). "Possível pagamento" tem 👍/👎 em vez de
-// só marcar lida: 👍 confirma (marca o honorário como Pago) e apaga a notificação; 👎 só apaga
-// (a cobrança continua em aberto, some dessa lista de possibilidades).
+// Painel de notificações (movimentação nova do DataJud + alerta de prazo vencendo). Possível
+// pagamento (extrato) NÃO aparece aqui — é específico do Financeiro e tem ação própria
+// (confirmar/rejeitar), por isso vive no sino por cliente (ClienteBell.jsx), não neste geral.
 // Sem polling em tempo real por ora — recarrega ao abrir o sino, suficiente pra um
 // escritório pequeno checar algumas vezes por dia (real-time fica pra depois, se pedirem).
 export default function NotificacoesBell() {
-  const { data: notificacoes, refresh } = useSupabaseTable("notificacoes", { select: "*", orderBy: "created_at", ascending: false });
+  const { data: todas, refresh } = useSupabaseTable("notificacoes", { select: "*", orderBy: "created_at", ascending: false });
+  const notificacoes = todas.filter((n) => n.tipo !== "pagamento_possivel");
   const [aberto, setAberto] = useState(false);
 
   const naoLidas = notificacoes.filter((n) => !n.lida);
@@ -27,17 +27,6 @@ export default function NotificacoesBell() {
     const ids = naoLidas.map((n) => n.id);
     if (ids.length === 0) return;
     await supabase.from("notificacoes").update({ lida: true }).in("id", ids);
-    refresh();
-  };
-
-  const confirmarPagamento = async (n) => {
-    await supabase.from("honorarios").update({ status: "Pago" }).eq("id", n.honorario_id);
-    await supabase.from("notificacoes").delete().eq("id", n.id);
-    refresh();
-  };
-
-  const rejeitarPagamento = async (n) => {
-    await supabase.from("notificacoes").delete().eq("id", n.id);
     refresh();
   };
 
@@ -70,34 +59,19 @@ export default function NotificacoesBell() {
                 <p className="px-4 py-6 text-center text-sm" style={{ color: COLORS.slate }}>Nenhuma notificação ainda.</p>
               )}
               {notificacoes.map((n) => (
-                n.tipo === "pagamento_possivel" ? (
-                  <div key={n.id} className="w-full text-left px-4 py-3" style={{ borderBottom: `1px solid ${COLORS.line}`, background: "rgba(165,121,59,0.06)" }}>
-                    <p className="text-sm" style={{ color: COLORS.ink, fontWeight: 600 }}>{n.titulo}</p>
+                <button
+                  key={n.id}
+                  onClick={() => marcarLida(n.id)}
+                  className="w-full text-left px-4 py-3 flex items-start gap-2"
+                  style={{ borderBottom: `1px solid ${COLORS.line}`, background: n.lida ? "transparent" : "rgba(165,121,59,0.06)" }}
+                >
+                  {n.requer_atencao && <AlertTriangle size={14} color={COLORS.wine} className="mt-0.5 shrink-0" />}
+                  <div>
+                    <p className="text-sm" style={{ color: COLORS.ink, fontWeight: n.lida ? 400 : 600 }}>{n.titulo}</p>
                     {n.texto && <p className="text-xs mt-0.5" style={{ color: COLORS.slate }}>{n.texto}</p>}
-                    <div className="flex items-center gap-2 mt-2">
-                      <button onClick={() => confirmarPagamento(n)} className="flex items-center gap-1 px-2.5 py-1.5 rounded-md text-xs font-semibold" style={{ background: COLORS.success, color: "#fff" }}>
-                        <ThumbsUp size={12} /> Confirmar
-                      </button>
-                      <button onClick={() => rejeitarPagamento(n)} className="flex items-center gap-1 px-2.5 py-1.5 rounded-md text-xs font-semibold" style={{ border: `1px solid ${COLORS.line}`, color: COLORS.slate }}>
-                        <ThumbsDown size={12} /> Não é isso
-                      </button>
-                    </div>
+                    <p className="text-xs mt-1" style={{ color: COLORS.slate }}>{new Date(n.created_at).toLocaleString("pt-BR")}</p>
                   </div>
-                ) : (
-                  <button
-                    key={n.id}
-                    onClick={() => marcarLida(n.id)}
-                    className="w-full text-left px-4 py-3 flex items-start gap-2"
-                    style={{ borderBottom: `1px solid ${COLORS.line}`, background: n.lida ? "transparent" : "rgba(165,121,59,0.06)" }}
-                  >
-                    {n.requer_atencao && <AlertTriangle size={14} color={COLORS.wine} className="mt-0.5 shrink-0" />}
-                    <div>
-                      <p className="text-sm" style={{ color: COLORS.ink, fontWeight: n.lida ? 400 : 600 }}>{n.titulo}</p>
-                      {n.texto && <p className="text-xs mt-0.5" style={{ color: COLORS.slate }}>{n.texto}</p>}
-                      <p className="text-xs mt-1" style={{ color: COLORS.slate }}>{new Date(n.created_at).toLocaleString("pt-BR")}</p>
-                    </div>
-                  </button>
-                )
+                </button>
               ))}
             </div>
           </div>

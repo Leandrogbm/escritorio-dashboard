@@ -7,6 +7,7 @@ import RowActions from "../RowActions.jsx";
 import RecordFormModal from "../RecordFormModal.jsx";
 import SearchInput from "../SearchInput.jsx";
 import ImportarExtratoModal from "./ImportarExtratoModal.jsx";
+import ClienteBell from "../ClienteBell.jsx";
 import { COLORS } from "../../lib/theme.js";
 import { BRL } from "../../data/mockData.js";
 import { useSupabaseTable } from "../../hooks/useSupabaseTable.js";
@@ -36,6 +37,21 @@ export default function FinanceiroTab({ orgId } = {}) {
     select: "*, cliente:clientes(id,nome,tipo)", eq: orgEq,
   });
   const { data: clientes } = useSupabaseTable("clientes", { select: "id,nome,tipo", orderBy: "nome", ascending: true, eq: orgEq });
+  const { data: notificacoesTodas, refresh: refreshNotificacoesPagamento } = useSupabaseTable("notificacoes", { select: "id, tipo, honorario_id, titulo, texto", eq: orgEq });
+  // Notificação não guarda cliente_id direto — só honorario_id — então casa pelo mapa
+  // honorario→cliente que já vem de `honorarios` (join que já buscamos de qualquer jeito).
+  const notificacoesPorCliente = useMemo(() => {
+    const honorarioParaCliente = new Map(honorarios.map((h) => [h.id, h.cliente?.id]));
+    const map = new Map();
+    for (const n of notificacoesTodas) {
+      if (n.tipo !== "pagamento_possivel") continue;
+      const clienteId = honorarioParaCliente.get(n.honorario_id);
+      if (!clienteId) continue;
+      if (!map.has(clienteId)) map.set(clienteId, []);
+      map.get(clienteId).push(n);
+    }
+    return map;
+  }, [notificacoesPagamento, honorarios]);
   const [editing, setEditing] = useState(null); // {} = novo (do topo), {cliente_id} = novo já com cliente, {...} = editando
   const [selecionado, setSelecionado] = useState(null); // cliente_id aberto no painel de detalhe
   const [busca, setBusca] = useState("");
@@ -149,7 +165,12 @@ export default function FinanceiroTab({ orgId } = {}) {
             {porClienteFiltrado.map((c, i) => (
               <tr key={c.id} onClick={() => setSelecionado(c.id)} className="cursor-pointer"
                 style={{ borderTop: `1px solid ${COLORS.line}`, background: i % 2 ? "#FAF9F5" : COLORS.paperRaised }}>
-                <td className="px-4 py-3" style={{ color: COLORS.ink, fontWeight: 600 }}>{c.nome}</td>
+                <td className="px-4 py-3" style={{ color: COLORS.ink, fontWeight: 600 }}>
+                  <div className="flex items-center gap-1.5">
+                    {c.nome}
+                    <ClienteBell notificacoes={notificacoesPorCliente.get(c.id) ?? []} onMudou={() => { refreshNotificacoesPagamento(); refresh(); }} />
+                  </div>
+                </td>
                 <td className="px-4 py-3" style={{ color: COLORS.slate }}>{c.tipo}</td>
                 <td className="px-4 py-3" style={{ color: COLORS.ink }}>{BRL(c.total)}</td>
                 <td className="px-4 py-3" style={{ color: COLORS.success }}>{BRL(c.recebido)}</td>
