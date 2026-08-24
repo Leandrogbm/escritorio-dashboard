@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from "react";
-import { DollarSign, Plus, X, Upload } from "lucide-react";
+import { DollarSign, Plus, X, Upload, Wallet } from "lucide-react";
 import Card from "../Card.jsx";
 import SectionTitle from "../SectionTitle.jsx";
 import Stamp from "../Stamp.jsx";
@@ -12,6 +12,7 @@ import { COLORS } from "../../lib/theme.js";
 import { BRL } from "../../data/mockData.js";
 import { useSupabaseTable } from "../../hooks/useSupabaseTable.js";
 import { useEscClose } from "../../hooks/useEscClose.js";
+import { supabase } from "../../lib/supabaseClient.js";
 
 const STATUS_OPTIONS = [
   { value: "Em aberto", label: "Em aberto" },
@@ -39,6 +40,23 @@ export default function FinanceiroTab({ orgId } = {}) {
   });
   const { data: clientes } = useSupabaseTable("clientes", { select: "id,nome,tipo", orderBy: "nome", ascending: true, eq: orgEq });
   const { data: processos } = useSupabaseTable("processos", { select: "id,numero,area,cliente_id", orderBy: "numero", ascending: true, eq: orgEq });
+  const { data: orgRows } = useSupabaseTable("organizations", { select: "asaas_token", eq: orgId ? ["id", orgId] : undefined });
+  const asaasConectado = !!orgRows[0]?.asaas_token;
+  const [gerandoCobranca, setGerandoCobranca] = useState(null); // id do honorário sendo gerado
+  const [erroCobranca, setErroCobranca] = useState("");
+
+  const gerarCobrancaAsaas = async (honorarioId) => {
+    setGerandoCobranca(honorarioId);
+    setErroCobranca("");
+    const { data, error } = await supabase.functions.invoke("asaas-criar-cobranca", { body: { honorarioId } });
+    setGerandoCobranca(null);
+    if (error) {
+      setErroCobranca((await error.context?.json?.().catch(() => null))?.error ?? error.message);
+      return;
+    }
+    await refresh();
+    window.open(data.invoiceUrl, "_blank");
+  };
   const { data: notificacoesTodas, refresh: refreshNotificacoesPagamento } = useSupabaseTable("notificacoes", { select: "id, tipo, honorario_id, titulo, texto", eq: orgEq });
   // Notificação não guarda cliente_id direto — só honorario_id — então casa pelo mapa
   // honorario→cliente que já vem de `honorarios` (join que já buscamos de qualquer jeito).
@@ -208,6 +226,8 @@ export default function FinanceiroTab({ orgId } = {}) {
               </div>
             </div>
 
+            {erroCobranca && <p className="text-xs mb-3" style={{ color: COLORS.wine }}>{erroCobranca}</p>}
+
             <Card className="overflow-hidden !p-0">
               <div className="overflow-x-auto">
               <table className="w-full text-sm">
@@ -226,7 +246,20 @@ export default function FinanceiroTab({ orgId } = {}) {
                     <tr key={h.id} style={{ borderTop: `1px solid ${COLORS.line}` }}>
                       <td className="px-4 py-2 font-semibold" style={{ color: COLORS.ink }}>{BRL(h.valor)}</td>
                       <td className="px-4 py-2" style={{ color: COLORS.slate }}>{new Date(`${h.vencimento}T00:00:00`).toLocaleDateString("pt-BR")}</td>
-                      <td className="px-4 py-2"><Stamp tone={estaAtrasado(h) ? "urgent" : h.status === "Pago" ? "ok" : "warn"}>{h.status}</Stamp></td>
+                      <td className="px-4 py-2">
+                        <Stamp tone={estaAtrasado(h) ? "urgent" : h.status === "Pago" ? "ok" : "warn"}>{h.status}</Stamp>
+                        {asaasConectado && h.status !== "Pago" && (
+                          h.asaas_invoice_url ? (
+                            <a href={h.asaas_invoice_url} target="_blank" rel="noreferrer" className="flex items-center gap-1 text-xs underline mt-1" style={{ color: COLORS.brass }}>
+                              <Wallet size={11} /> Ver cobrança Asaas
+                            </a>
+                          ) : (
+                            <button onClick={() => gerarCobrancaAsaas(h.id)} disabled={gerandoCobranca === h.id} className="flex items-center gap-1 text-xs underline mt-1" style={{ color: COLORS.brass, opacity: gerandoCobranca === h.id ? 0.5 : 1 }}>
+                              <Wallet size={11} /> {gerandoCobranca === h.id ? "Gerando..." : "Gerar cobrança Asaas"}
+                            </button>
+                          )
+                        )}
+                      </td>
                       <td className="px-2 py-2">
                         <RowActions
                           onEdit={() => setEditing({ ...h, cliente_id: h.cliente?.id })}

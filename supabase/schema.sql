@@ -224,6 +224,16 @@ alter table organizations add column if not exists d4sign_token text;
 alter table organizations add column if not exists d4sign_crypt_key text;
 alter table organizations add column if not exists d4sign_safe_uuid text;
 
+-- ── Asaas (cobrança automática — boleto/Pix/cartão) ─────────────────────
+-- Mesmo padrão do D4Sign: cada escritório usa a PRÓPRIA conta Asaas, credencial colada em
+-- Configurações → Cobrança automática. "asaas_customer_id"/"asaas_charge_id" cacheiam o id
+-- do lado da Asaas, pra não recriar cliente/cobrança à toa numa segunda tentativa.
+alter table organizations add column if not exists asaas_token text;
+alter table organizations add column if not exists asaas_ambiente text not null default 'sandbox' check (asaas_ambiente in ('sandbox','producao'));
+alter table clientes add column if not exists asaas_customer_id text;
+alter table honorarios add column if not exists asaas_charge_id text;
+alter table honorarios add column if not exists asaas_invoice_url text; -- link de pagamento (boleto+Pix) pra mandar ao cliente
+
 create table documentos_assinatura (
   id uuid primary key default gen_random_uuid(),
   org_id uuid not null references organizations(id),

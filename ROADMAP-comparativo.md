@@ -116,14 +116,24 @@ com uma fonte de dados real por trás — senão é enfeite arriscado.
 
 ## Prioridade sugerida geral (impacto × esforço)
 
-1. **Asaas** — cobrança automática (maior dor real resolvida)
-2. **IA — próximo passo sugerido** (quase grátis, reaproveita tudo)
-3. **LiderHub — Kanban de funil de leads** (sem WhatsApp automático, só o board)
-4. **AdvBox — rentabilidade por tipo de ação** (gráfico novo na Visão Executiva)
-5. **IA — checklist padrão por área** (médio esforço, bom valor)
-6. ZapSign / contingenciamento / IA-estratégia — ficam de standby, só entram se surgir
-   necessidade concreta (D4Sign falhar, cliente pedir provisionamento, base de
-   jurisprudência aparecer)
+- [x] **Asaas** — cobrança automática (boleto/Pix/cartão, webhook marca "Pago" sozinho).
+  Conta própria por escritório (Configurações → Cobrança automática), ambiente sandbox/
+  produção. ⚠️ Sem teste contra conta real (não temos credencial) — testado tudo que dava
+  sem conta (erro amigável faltando credencial) e o webhook isoladamente (simulado, sem
+  precisar de conta Asaas de verdade); o caminho que fala com a Asaas de verdade só valida
+  na primeira tentativa real de vocês.
+- [x] **IA — próximo passo sugerido** — junto com o resumo automático de andamento (1
+  chamada só). Testado contra processo real de produção.
+- [x] **LiderHub — Kanban de funil de leads** (sem WhatsApp automático, só o board manual).
+  Testado de ponta a ponta com empresa descartável.
+- [x] **AdvBox — rentabilidade por tipo de ação** — gráfico na Visão Executiva, só
+  honorários vinculados a processo entram (campo "Processo" opcional na cobrança).
+- [x] **IA — checklist padrão por área** — botão "Sugerir checklist (IA)" no Kanban de
+  tarefas do processo, só aparece quando ainda não tem nenhuma tarefa. Testado direto
+  contra a function.
+- [ ] ZapSign / contingenciamento / IA-estratégia — ficam de standby, só entram se surgir
+  necessidade concreta (D4Sign falhar, cliente pedir provisionamento, base de
+  jurisprudência aparecer)
 
 Fontes: [ADVBOX — Software Jurídico](https://advbox.com.br/software-juridico),
 [ADVBOX adquire LawX](https://www.direitonews.com.br/2026/08/advbox-adquire-lawx-anuncia-nova-geracao-inteligencia-artificial-escritorios-advocacia.html),

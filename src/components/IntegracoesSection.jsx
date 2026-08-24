@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { PenTool, ListChecks } from "lucide-react";
+import { PenTool, ListChecks, Wallet } from "lucide-react";
 import { COLORS } from "../lib/theme.js";
 import { useSupabaseTable } from "../hooks/useSupabaseTable.js";
 import { supabase } from "../lib/supabaseClient.js";
@@ -34,24 +34,36 @@ function ComoConseguir({ passos }) {
 
 export default function IntegracoesSection({ orgId }) {
   const { data: orgRows, refresh: refreshOrg } = useSupabaseTable("organizations", {
-    select: "d4sign_token,d4sign_crypt_key,d4sign_safe_uuid", eq: orgId ? ["id", orgId] : undefined,
+    select: "d4sign_token,d4sign_crypt_key,d4sign_safe_uuid,asaas_token,asaas_ambiente", eq: orgId ? ["id", orgId] : undefined,
   });
   const org = orgRows[0];
   const [d4, setD4] = useState({ d4sign_token: "", d4sign_crypt_key: "", d4sign_safe_uuid: "" });
   const [salvandoD4, setSalvandoD4] = useState(false);
+  const [asaas, setAsaas] = useState({ asaas_token: "", asaas_ambiente: "sandbox" });
+  const [salvandoAsaas, setSalvandoAsaas] = useState(false);
 
   // carrega os valores salvos assim que a organização chega (fetch async)
   useEffect(() => {
     if (!org) return;
     setD4({ d4sign_token: org.d4sign_token ?? "", d4sign_crypt_key: org.d4sign_crypt_key ?? "", d4sign_safe_uuid: org.d4sign_safe_uuid ?? "" });
+    setAsaas({ asaas_token: org.asaas_token ?? "", asaas_ambiente: org.asaas_ambiente ?? "sandbox" });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [org?.d4sign_token, org?.d4sign_crypt_key, org?.d4sign_safe_uuid]);
+  }, [org?.d4sign_token, org?.d4sign_crypt_key, org?.d4sign_safe_uuid, org?.asaas_token, org?.asaas_ambiente]);
 
   const salvarD4 = async (e) => {
     e.preventDefault();
     setSalvandoD4(true);
     const { error } = await supabase.from("organizations").update(d4).eq("id", orgId);
     setSalvandoD4(false);
+    if (error) return alert(error.message);
+    await refreshOrg();
+  };
+
+  const salvarAsaas = async (e) => {
+    e.preventDefault();
+    setSalvandoAsaas(true);
+    const { error } = await supabase.from("organizations").update(asaas).eq("id", orgId);
+    setSalvandoAsaas(false);
     if (error) return alert(error.message);
     await refreshOrg();
   };
@@ -89,6 +101,38 @@ export default function IntegracoesSection({ orgId }) {
           {salvandoD4 ? "Salvando..." : "Salvar"}
         </button>
       </form>
+
+      <div className="mt-8 pt-6" style={{ borderTop: `1px solid ${COLORS.line}` }}>
+        <p className="flex items-center gap-2 text-sm font-semibold mb-1" style={{ color: COLORS.ink }}>
+          <Wallet size={16} color={COLORS.brass} /> Cobrança automática
+        </p>
+        <p className="text-xs mb-3" style={{ color: COLORS.slate }}>
+          Conecte a conta Asaas do escritório pra gerar boleto/Pix/cartão de verdade em cada cobrança (Financeiro) — quando o cliente pagar, a cobrança vira "Pago" sozinha, sem precisar importar extrato.
+        </p>
+
+        <ComoConseguir passos={[
+          <>Crie (ou entre na) conta em <strong>asaas.com</strong> com os dados do escritório.</>,
+          <>No menu, vá em <strong>"Integrações" → "API"</strong> e copie a <strong>Chave de API</strong>.</>,
+          <>Se quiser testar antes de usar de verdade, use o <strong>Ambiente de testes (sandbox)</strong> — a Asaas tem uma conta sandbox separada (sandbox.asaas.com), com chave de API própria.</>,
+        ]} />
+
+        <form onSubmit={salvarAsaas} className="flex flex-col gap-3 max-w-md">
+          <label className="flex flex-col gap-1 text-xs" style={hintStyle}>
+            <span style={labelStyle}>Chave de API</span> <span>(em Integrações → API, na Asaas)</span>
+            <input value={asaas.asaas_token} onChange={(e) => setAsaas((v) => ({ ...v, asaas_token: e.target.value }))} className="px-3 py-2 rounded-md text-sm" style={inputStyle} />
+          </label>
+          <label className="flex flex-col gap-1 text-xs" style={hintStyle}>
+            <span style={labelStyle}>Ambiente</span>
+            <select value={asaas.asaas_ambiente} onChange={(e) => setAsaas((v) => ({ ...v, asaas_ambiente: e.target.value }))} className="px-3 py-2 rounded-md text-sm" style={inputStyle}>
+              <option value="sandbox">Testes (sandbox) — não gera cobrança real</option>
+              <option value="producao">Produção — gera cobrança real</option>
+            </select>
+          </label>
+          <button type="submit" disabled={salvandoAsaas} className="self-start px-3.5 py-2 rounded-md text-sm font-semibold" style={{ background: COLORS.ink, color: "#fff", opacity: salvandoAsaas ? 0.6 : 1 }}>
+            {salvandoAsaas ? "Salvando..." : "Salvar"}
+          </button>
+        </form>
+      </div>
     </div>
   );
 }
