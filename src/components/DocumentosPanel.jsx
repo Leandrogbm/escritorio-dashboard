@@ -1,9 +1,12 @@
 import React, { useState } from "react";
-import { X, Upload, FileText, Trash2, Download } from "lucide-react";
+import { X, Upload, FileText, Trash2, Download, PenTool } from "lucide-react";
 import Card from "./Card.jsx";
+import Stamp from "./Stamp.jsx";
 import { COLORS } from "../lib/theme.js";
 import { useSupabaseTable } from "../hooks/useSupabaseTable.js";
 import { supabase } from "../lib/supabaseClient.js";
+
+const ASSINATURA_TONE = { enviado: "warn", assinado_parcial: "warn", finalizado: "ok", cancelado: "urgent" };
 
 const BUCKET = "documentos-processo";
 
@@ -20,7 +23,12 @@ export default function DocumentosPanel({ processo, orgId, profile, onClose }) {
     select: "*", eq: orgEq, orderBy: "created_at", ascending: false,
   });
   const doProcesso = documentos.filter((d) => d.processo_id === processo.id);
+  const { data: assinaturas, refresh: refreshAssinaturas } = useSupabaseTable("documentos_assinatura", {
+    select: "documento_processo_id, status", eq: orgEq,
+  });
+  const assinaturaPorDoc = new Map(assinaturas.map((a) => [a.documento_processo_id, a]));
   const [enviando, setEnviando] = useState(false);
+  const [enviandoAssinatura, setEnviandoAssinatura] = useState(null); // id do documento em envio
   const [erro, setErro] = useState("");
 
   const orgIdReal = orgId ?? profile?.org_id;
@@ -64,6 +72,23 @@ export default function DocumentosPanel({ processo, orgId, profile, onClose }) {
     await refresh();
   };
 
+  const enviarParaAssinatura = async (doc) => {
+    const nome = prompt("Nome do signatário:");
+    if (!nome) return;
+    const email = prompt("Email do signatário:");
+    if (!email) return;
+    setEnviandoAssinatura(doc.id);
+    const { error } = await supabase.functions.invoke("d4sign-enviar", {
+      body: { documentoId: doc.id, orgId, signatarios: [{ nome, email }] },
+    });
+    setEnviandoAssinatura(null);
+    if (error) {
+      alert((await error.context?.json?.().catch(() => null))?.error ?? error.message);
+      return;
+    }
+    await refreshAssinaturas();
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.4)" }} onClick={onClose}>
       <div className="w-full max-w-lg max-h-[85vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
@@ -93,6 +118,13 @@ export default function DocumentosPanel({ processo, orgId, profile, onClose }) {
                   <p className="text-sm truncate" style={{ color: COLORS.ink }}>{d.nome_arquivo}</p>
                   <p className="text-xs" style={{ color: COLORS.slate }}>{formatTamanho(d.tamanho)} · {new Date(d.created_at).toLocaleDateString("pt-BR")}</p>
                 </div>
+                {assinaturaPorDoc.has(d.id) ? (
+                  <Stamp tone={ASSINATURA_TONE[assinaturaPorDoc.get(d.id).status]}>{assinaturaPorDoc.get(d.id).status}</Stamp>
+                ) : (
+                  <button onClick={() => enviarParaAssinatura(d)} disabled={enviandoAssinatura === d.id} aria-label="Enviar pra assinatura" title="Enviar pra assinatura (D4Sign)" className="p-1.5 rounded hover:opacity-70" style={{ color: COLORS.brass, opacity: enviandoAssinatura === d.id ? 0.5 : 1 }}>
+                    <PenTool size={15} />
+                  </button>
+                )}
                 <button onClick={() => baixar(d)} aria-label="Baixar" className="p-1.5 rounded hover:opacity-70" style={{ color: COLORS.slate }}><Download size={15} /></button>
                 <button onClick={() => excluir(d)} aria-label="Excluir" className="p-1.5 rounded hover:opacity-70" style={{ color: COLORS.wine }}><Trash2 size={14} /></button>
               </div>

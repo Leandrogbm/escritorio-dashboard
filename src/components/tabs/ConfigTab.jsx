@@ -5,6 +5,7 @@ import SectionTitle from "../SectionTitle.jsx";
 import { COLORS } from "../../lib/theme.js";
 import { ROLES, MODULES } from "../../config/permissions.js";
 import ApiKeysSection from "../ApiKeysSection.jsx";
+import IntegracoesSection from "../IntegracoesSection.jsx";
 
 export default function ConfigTab({ permissions, togglePermission, orgId }) {
   return (
@@ -54,6 +55,7 @@ export default function ConfigTab({ permissions, togglePermission, orgId }) {
       </p>
 
       <ApiKeysSection orgId={orgId} />
+      <IntegracoesSection orgId={orgId} />
     </div>
   );
 }
