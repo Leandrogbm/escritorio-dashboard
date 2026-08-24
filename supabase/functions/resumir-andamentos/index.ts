@@ -77,19 +77,32 @@ Não invente informação que não está na lista. Exemplo de formato: {"resumo"
 Movimentações:
 ${listaMovimentacoes}${aviso}`;
 
-    const claudeRes = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "x-api-key": apiKey,
-        "anthropic-version": "2023-06-01",
-        "content-type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "claude-sonnet-5",
-        max_tokens: 800,
-        messages: [{ role: "user", content: prompt }],
-      }),
-    });
+    // Timeout explícito — sem isso, se a Anthropic travar/demorar, a function fica pendurada
+    // pra sempre e o botão no front vira "Gerando..." eterno (bug real já visto em produção).
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 25000);
+    let claudeRes: Response;
+    try {
+      claudeRes = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: {
+          "x-api-key": apiKey,
+          "anthropic-version": "2023-06-01",
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          model: "claude-sonnet-5",
+          max_tokens: 800,
+          messages: [{ role: "user", content: prompt }],
+        }),
+        signal: controller.signal,
+      });
+    } catch (err) {
+      const timedOut = (err as Error).name === "AbortError";
+      return new Response(JSON.stringify({ error: timedOut ? "A IA demorou demais pra responder. Tenta de novo." : `Falha ao chamar a IA: ${(err as Error).message}` }), { status: 504, headers: corsHeaders });
+    } finally {
+      clearTimeout(timeout);
+    }
 
     if (!claudeRes.ok) {
       const erro = await claudeRes.text();

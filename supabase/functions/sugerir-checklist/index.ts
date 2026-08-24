@@ -35,11 +35,24 @@ Deno.serve(async (req) => {
 
     const prompt = `Você é assistente de um escritório de advocacia brasileiro. Pra um processo novo cadastrado na área "${area}"${numero ? ` (número ${numero})` : ""}, sugira um checklist inicial de 4 a 7 tarefas típicas desse tipo de caso, do tipo "coisas que normalmente precisam ser feitas no início/andamento desse processo" (ex.: reunir documentação, protocolar petição inicial, acompanhar prazo de contestação, etc. — adaptado à área). Responda SOMENTE um array JSON de strings curtas (cada uma até ~8 palavras), sem texto antes ou depois. Ex.: ["Reunir documentos do cliente","Protocolar petição inicial"]`;
 
-    const claudeRes = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: { "x-api-key": apiKey, "anthropic-version": "2023-06-01", "content-type": "application/json" },
-      body: JSON.stringify({ model: "claude-sonnet-5", max_tokens: 500, messages: [{ role: "user", content: prompt }] }),
-    });
+    // Timeout explícito — sem isso, se a Anthropic travar/demorar, a function fica pendurada
+    // pra sempre e o botão no front vira "Gerando..." eterno (bug real já visto em produção).
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 25000);
+    let claudeRes: Response;
+    try {
+      claudeRes = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: { "x-api-key": apiKey, "anthropic-version": "2023-06-01", "content-type": "application/json" },
+        body: JSON.stringify({ model: "claude-sonnet-5", max_tokens: 500, messages: [{ role: "user", content: prompt }] }),
+        signal: controller.signal,
+      });
+    } catch (err) {
+      const timedOut = (err as Error).name === "AbortError";
+      return new Response(JSON.stringify({ error: timedOut ? "A IA demorou demais pra responder. Tenta de novo." : `Falha ao chamar a IA: ${(err as Error).message}` }), { status: 504, headers: corsHeaders });
+    } finally {
+      clearTimeout(timeout);
+    }
     if (!claudeRes.ok) {
       const erro = await claudeRes.text();
       return new Response(JSON.stringify({ error: `Falha ao gerar sugestão: ${erro}` }), { status: 502, headers: corsHeaders });

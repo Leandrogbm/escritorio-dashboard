@@ -73,11 +73,21 @@ async function classificarUrgenciaIA(nomes: string[], anthropicKey: string): Pro
     const lista = nomes.map((n, i) => `${i}: ${n}`).join("\n");
     const prompt = `Você é assistente jurídico brasileiro. Pra cada movimentação processual abaixo, diga se ela EXIGE ação/atenção do advogado em breve (ex.: intimação, prazo, decisão, sentença, despacho que pede manifestação) ou é só trâmite burocrático de rotina (ex.: juntada de documento, conclusão, distribuição, remessa). Responda SOMENTE um array JSON de true/false, na mesma ordem e mesma quantidade da lista, sem nenhum texto antes ou depois. Ex.: [true,false,false]\n\nMovimentações:\n${lista}`;
 
-    const res = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: { "x-api-key": anthropicKey, "anthropic-version": "2023-06-01", "content-type": "application/json" },
-      body: JSON.stringify({ model: "claude-sonnet-5", max_tokens: 500, messages: [{ role: "user", content: prompt }] }),
-    });
+    // Timeout explícito — sem isso, uma Anthropic lenta/travada pendura o sync inteiro (que já
+    // percorre todos os processos da org, não é só 1 chamada).
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 25000);
+    let res: Response;
+    try {
+      res = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: { "x-api-key": anthropicKey, "anthropic-version": "2023-06-01", "content-type": "application/json" },
+        body: JSON.stringify({ model: "claude-sonnet-5", max_tokens: 500, messages: [{ role: "user", content: prompt }] }),
+        signal: controller.signal,
+      });
+    } finally {
+      clearTimeout(timeout);
+    }
     if (!res.ok) return null;
 
     const body = await res.json();
