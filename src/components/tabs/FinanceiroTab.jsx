@@ -51,7 +51,7 @@ export default function FinanceiroTab({ orgId } = {}) {
       map.get(clienteId).push(n);
     }
     return map;
-  }, [notificacoesPagamento, honorarios]);
+  }, [notificacoesTodas, honorarios]);
   const [editing, setEditing] = useState(null); // {} = novo (do topo), {cliente_id} = novo já com cliente, {...} = editando
   const [selecionado, setSelecionado] = useState(null); // cliente_id aberto no painel de detalhe
   const [busca, setBusca] = useState("");
