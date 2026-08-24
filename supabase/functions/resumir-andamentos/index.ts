@@ -58,11 +58,16 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ error: "Esse processo ainda não tem andamento sincronizado pra resumir." }), { status: 400, headers: corsHeaders });
     }
 
-    const listaMovimentacoes = movimentacoes
+    // Processo com histórico longo (dezenas de movimentações) não precisa mandar tudo pra
+    // IA — as mais recentes são o que importa pro resumo, e mantém o prompt enxuto.
+    const MAX_MOVIMENTACOES = 40;
+    const recortadas = movimentacoes.length > MAX_MOVIMENTACOES ? movimentacoes.slice(-MAX_MOVIMENTACOES) : movimentacoes;
+    const listaMovimentacoes = recortadas
       .map((m) => `- ${new Date(m.data_hora).toLocaleDateString("pt-BR")}: ${m.nome}${m.requer_atencao ? " (requer atenção)" : ""}`)
       .join("\n");
+    const aviso = movimentacoes.length > MAX_MOVIMENTACOES ? `\n\n(Só as ${MAX_MOVIMENTACOES} movimentações mais recentes de ${movimentacoes.length} no total.)` : "";
 
-    const prompt = `Você é assistente de um escritório de advocacia brasileiro. Resuma o andamento processual abaixo (processo ${processo.numero}) em linguagem simples e direta, em português, pra um advogado ler em segundos e entender rápido o que aconteceu e o que está pendente. No máximo 4-5 frases. Não invente informação que não está na lista.\n\nMovimentações:\n${listaMovimentacoes}`;
+    const prompt = `Você é assistente de um escritório de advocacia brasileiro. Resuma o andamento processual abaixo (processo ${processo.numero}) em linguagem simples e direta, em português, pra um advogado ler em segundos e entender rápido o que aconteceu e o que está pendente. No máximo 4-5 frases. Não invente informação que não está na lista.\n\nMovimentações:\n${listaMovimentacoes}${aviso}`;
 
     const claudeRes = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
@@ -73,7 +78,7 @@ Deno.serve(async (req) => {
       },
       body: JSON.stringify({
         model: "claude-sonnet-5",
-        max_tokens: 400,
+        max_tokens: 700,
         messages: [{ role: "user", content: prompt }],
       }),
     });
@@ -84,9 +89,20 @@ Deno.serve(async (req) => {
     }
 
     const claudeBody = await claudeRes.json();
-    const resumo = claudeBody.content?.[0]?.text?.trim();
+    // .text pode vir em qualquer bloco de content (às vezes tem mais de um) — junta todos
+    // que forem do tipo "text" em vez de assumir que é sempre o primeiro item.
+    const resumo = (claudeBody.content ?? [])
+      .filter((b: { type: string }) => b.type === "text")
+      .map((b: { text: string }) => b.text)
+      .join("\n")
+      .trim();
     if (!resumo) {
-      return new Response(JSON.stringify({ error: "A IA não devolveu nenhum texto." }), { status: 502, headers: corsHeaders });
+      // Devolve o corpo cru (cortado) — sem isso, "não devolveu texto" não dá pra debugar
+      // sem acesso a log, e no Windows/CLI a gente não tem `supabase functions logs`.
+      const corpoCru = JSON.stringify(claudeBody).slice(0, 500);
+      return new Response(JSON.stringify({
+        error: `A IA não devolveu nenhum texto (stop_reason: ${claudeBody.stop_reason ?? "?"}). Resposta crua: ${corpoCru}`,
+      }), { status: 502, headers: corsHeaders });
     }
 
     await admin.from("processos").update({ resumo_ia: resumo, resumo_ia_gerado_em: new Date().toISOString() }).eq("id", processoId);
