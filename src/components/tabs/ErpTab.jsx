@@ -122,15 +122,15 @@ export default function ErpTab({ orgId }) {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
         <Card>
           <p className="text-xs uppercase tracking-wide" style={{ color: COLORS.slate }}>Despesas pagas</p>
-          <p className="text-2xl mt-1" style={{ fontFamily: "'Source Serif 4', serif", fontWeight: 700, color: COLORS.success }}>{BRL(totalPago)}</p>
+          <p className="text-2xl mt-1" style={{ fontFamily: "'Source Serif 4', serif", fontWeight: 700, color: totalPago ? COLORS.success : COLORS.slate }}>{BRL(totalPago)}</p>
         </Card>
         <Card>
           <p className="text-xs uppercase tracking-wide" style={{ color: COLORS.slate }}>A pagar</p>
-          <p className="text-2xl mt-1" style={{ fontFamily: "'Source Serif 4', serif", fontWeight: 700, color: COLORS.brass }}>{BRL(totalAberto)}</p>
+          <p className="text-2xl mt-1" style={{ fontFamily: "'Source Serif 4', serif", fontWeight: 700, color: totalAberto ? COLORS.brass : COLORS.slate }}>{BRL(totalAberto)}</p>
         </Card>
         <Card>
           <p className="text-xs uppercase tracking-wide" style={{ color: COLORS.slate }}>Em atraso</p>
-          <p className="text-2xl mt-1" style={{ fontFamily: "'Source Serif 4', serif", fontWeight: 700, color: COLORS.wine }}>{BRL(totalAtrasado)}</p>
+          <p className="text-2xl mt-1" style={{ fontFamily: "'Source Serif 4', serif", fontWeight: 700, color: totalAtrasado ? COLORS.wine : COLORS.slate }}>{BRL(totalAtrasado)}</p>
           <p className="text-xs mt-1.5" style={{ color: COLORS.slate }}>{atrasadas.length} despesa(s) atrasada(s)</p>
         </Card>
       </div>

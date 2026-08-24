@@ -3,9 +3,9 @@ export const COLORS = {
   inkSoft: "#2C3B57",
   paper: "#F2F0E9",
   paperRaised: "#FFFFFF",
-  wine: "#6E2A2A",
+  wine: "#C1272D",
   brass: "#A5793B",
   slate: "#5B6472",
-  success: "#3E6B50",
+  success: "#1E8449",
   line: "#DCD7C9",
 };

@@ -190,15 +190,15 @@ export default function FinanceiroTab({ orgId } = {}) {
         </Card>
         <Card>
           <p className="text-xs uppercase tracking-wide" style={{ color: COLORS.slate }}>Recebido no mês</p>
-          <p className="text-2xl mt-1" style={{ fontFamily: "'Source Serif 4', serif", fontWeight: 700, color: COLORS.success }}>{BRL(recebidoMes)}</p>
+          <p className="text-2xl mt-1" style={{ fontFamily: "'Source Serif 4', serif", fontWeight: 700, color: recebidoMes ? COLORS.success : COLORS.slate }}>{BRL(recebidoMes)}</p>
         </Card>
         <Card>
           <p className="text-xs uppercase tracking-wide" style={{ color: COLORS.slate }}>Pendente no mês</p>
-          <p className="text-2xl mt-1" style={{ fontFamily: "'Source Serif 4', serif", fontWeight: 700, color: COLORS.brass }}>{BRL(pendenteMes)}</p>
+          <p className="text-2xl mt-1" style={{ fontFamily: "'Source Serif 4', serif", fontWeight: 700, color: pendenteMes ? COLORS.brass : COLORS.slate }}>{BRL(pendenteMes)}</p>
         </Card>
         <Card>
           <p className="text-xs uppercase tracking-wide" style={{ color: COLORS.slate }}>Em atraso (total)</p>
-          <p className="text-2xl mt-1" style={{ fontFamily: "'Source Serif 4', serif", fontWeight: 700, color: COLORS.wine }}>{BRL(totalAtrasado)}</p>
+          <p className="text-2xl mt-1" style={{ fontFamily: "'Source Serif 4', serif", fontWeight: 700, color: totalAtrasado ? COLORS.wine : COLORS.slate }}>{BRL(totalAtrasado)}</p>
           <p className="text-xs mt-1.5" style={{ color: COLORS.slate }}>{atrasadosTodos.length} cobrança(s) atrasada(s)</p>
         </Card>
       </div>
@@ -228,8 +228,8 @@ export default function FinanceiroTab({ orgId } = {}) {
                 </td>
                 <td className="px-4 py-3" style={{ color: COLORS.slate }}>{c.tipo}</td>
                 <td className="px-4 py-3" style={{ color: COLORS.ink }}>{BRL(c.total)}</td>
-                <td className="px-4 py-3" style={{ color: COLORS.success }}>{BRL(c.recebido)}</td>
-                <td className="px-4 py-3" style={{ color: COLORS.brass }}>{BRL(c.pendente)}</td>
+                <td className="px-4 py-3" style={{ color: c.recebido ? COLORS.success : COLORS.slate }}>{BRL(c.recebido)}</td>
+                <td className="px-4 py-3" style={{ color: c.pendente ? COLORS.brass : COLORS.slate }}>{BRL(c.pendente)}</td>
                 <td className="px-4 py-3" style={{ color: c.atrasado ? COLORS.wine : COLORS.slate }}>{BRL(c.atrasado)}</td>
               </tr>
             ))}
@@ -246,9 +246,9 @@ export default function FinanceiroTab({ orgId } = {}) {
                 <p style={{ fontFamily: "'Source Serif 4', serif", fontWeight: 700, fontSize: 18, color: COLORS.ink }}>{clienteAberto.nome}</p>
                 <p className="text-xs" style={{ color: COLORS.slate }}>{clienteAberto.tipo === "PJ" ? "Mensalidade fixa" : "Parcelas"}</p>
                 <p className="text-xs mt-1">
-                  <span style={{ color: COLORS.success }}>Total pago: {BRL(clienteAberto.totalPago)}</span>
+                  <span style={{ color: clienteAberto.totalPago ? COLORS.success : COLORS.slate }}>Total pago: {BRL(clienteAberto.totalPago)}</span>
                   {" · "}
-                  <span style={{ color: COLORS.brass }}>Total a receber: {BRL(clienteAberto.totalReceber)}</span>
+                  <span style={{ color: clienteAberto.totalReceber ? COLORS.brass : COLORS.slate }}>Total a receber: {BRL(clienteAberto.totalReceber)}</span>
                 </p>
               </div>
               <div className="flex items-center gap-2">
