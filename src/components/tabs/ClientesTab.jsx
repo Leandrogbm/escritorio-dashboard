@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Users, Plus, MessageCircle, UserCheck, KeyRound, FolderOpen } from "lucide-react";
 import Card from "../Card.jsx";
 import SectionTitle from "../SectionTitle.jsx";
@@ -57,6 +57,12 @@ export default function ClientesTab({ currentRole, orgId, profile }) {
   const [vendoDocumentos, setVendoDocumentos] = useState(null); // cliente aberto na pasta de documentos
   const [busca, setBusca] = useState("");
   const podeExcluir = currentRole === "admin" || currentRole === "socio"; // RLS (clientes_del) já barra no banco — isso só esconde o botão
+
+  // Mesmo motivo do ProcessosTab: <main> é quem rola, não a window — sem isso o botão
+  // "Voltar" da página de documentos sai da tela se a lista estava rolada.
+  useEffect(() => {
+    document.querySelector("main")?.scrollTo({ top: 0 });
+  }, [vendoDocumentos]);
 
   const criarAcessoPortal = async (cliente) => {
     const email = prompt(`Email do "${cliente.nome}" pra acessar o Portal do Cliente:`, cliente.email || "");

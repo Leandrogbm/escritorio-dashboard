@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Briefcase, Plus, AlertTriangle, RefreshCw } from "lucide-react";
 import Card from "../Card.jsx";
 import SectionTitle from "../SectionTitle.jsx";
@@ -54,6 +54,13 @@ export default function ProcessosTab({ currentRole, orgId, profile }) {
   const [busca, setBusca] = useState("");
 
   const podeSincronizar = currentRole === "admin" || currentRole === "socio";
+
+  // <main> (App.jsx) é quem rola, não a window — sem isso, abrir/fechar a página cheia do
+  // processo mantém a posição de rolagem de antes, e o botão "Voltar" (que fica no topo)
+  // sai da tela. Parecia bug de clique; era só a rolagem não voltando pro topo.
+  useEffect(() => {
+    document.querySelector("main")?.scrollTo({ top: 0 });
+  }, [processoAberto]);
 
   const processosFiltrados = processos.filter((p) => {
     const q = busca.trim().toLowerCase();
