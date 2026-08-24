@@ -310,6 +310,18 @@ alter table organizations add column if not exists asaas_token text;
 alter table organizations add column if not exists asaas_ambiente text not null default 'sandbox' check (asaas_ambiente in ('sandbox','producao'));
 alter table clientes add column if not exists asaas_customer_id text;
 alter table clientes add column if not exists celular2 text; -- segundo telefone, quando o cliente tem mais de um contato
+
+-- ── Escavador (busca de processos por CPF/CNPJ) ─────────────────────────
+-- Mesmo padrão: conta paga do PRÓPRIO escritório, token pessoal gerado em
+-- api.escavador.com/tokens, colado em Configurações → Integrações.
+alter table organizations add column if not exists escavador_token text;
+
+-- ── Trello (cópia de tarefa criada) ──────────────────────────────────────
+-- Key+Token de app pessoal (trello.com/power-ups/admin) + id da lista onde os cards
+-- entram — não é sincronização de mão dupla, só manda uma cópia quando a tarefa é criada.
+alter table organizations add column if not exists trello_key text;
+alter table organizations add column if not exists trello_token text;
+alter table organizations add column if not exists trello_list_id text;
 alter table honorarios add column if not exists asaas_charge_id text;
 alter table honorarios add column if not exists asaas_invoice_url text; -- link de pagamento (boleto+Pix) pra mandar ao cliente
 
@@ -1016,6 +1028,30 @@ select cron.schedule('datajud-sync-diario', '0 9 * * *', $$
   );
 $$);
 select cron.schedule('prazos-alertas-diario', '0 8 * * *', $$ select gerar_alertas_prazos(); $$);
+
+-- ── Trello: manda cópia de tarefa nova (1 via, não sincroniza edição/conclusão) ──────────
+-- Trigger em vez de chamar a Edge Function direto do client: cobre TODO caminho que cria
+-- tarefa numa chamada só — Kanban (QuadroTab), TarefasPanel (por processo) E o trigger
+-- automático prazo→tarefa (sync_prazo_tarefa) — sem duplicar a chamada em 3 lugares.
+-- INTERNAL_WEBHOOK_SECRET: mesmo valor salvo no Vault (internal_webhook_secret) e como
+-- secret da Edge Function — trello-copiar-tarefa decide sozinha se a org tem Trello
+-- conectado; se não tiver, só devolve ok sem fazer nada (não trava o insert da tarefa).
+create or replace function notificar_trello_nova_tarefa() returns trigger
+  language plpgsql security definer set search_path = public as $$
+begin
+  perform net.http_post(
+    url := 'https://vclylstjbpsxikmnpguk.supabase.co/functions/v1/trello-copiar-tarefa',
+    headers := jsonb_build_object(
+      'Content-Type', 'application/json',
+      'x-webhook-secret', (select decrypted_secret from vault.decrypted_secrets where name = 'internal_webhook_secret')
+    ),
+    body := jsonb_build_object('tarefaId', new.id)
+  );
+  return new;
+end;
+$$;
+create trigger trg_notificar_trello_nova_tarefa after insert on tarefas
+  for each row execute function notificar_trello_nova_tarefa();
 
 -- ── Seed: Gimenes & Pires ────────────────────────────────────────────────
 

@@ -1,10 +1,11 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Users, Plus, MessageCircle, UserCheck, KeyRound, FolderOpen } from "lucide-react";
+import { Users, Plus, MessageCircle, UserCheck, KeyRound, FolderOpen, Search } from "lucide-react";
 import Card from "../Card.jsx";
 import SectionTitle from "../SectionTitle.jsx";
 import RowActions from "../RowActions.jsx";
 import RecordFormModal from "../RecordFormModal.jsx";
 import ClienteDocumentosPagina from "../ClienteDocumentosPagina.jsx";
+import EscavadorBuscaModal from "../EscavadorBuscaModal.jsx";
 import SearchInput from "../SearchInput.jsx";
 import { COLORS } from "../../lib/theme.js";
 import { useSupabaseTable } from "../../hooks/useSupabaseTable.js";
@@ -55,6 +56,7 @@ export default function ClientesTab({ currentRole, orgId, profile }) {
   const temAcesso = useMemo(() => new Set(acessosPortal.map((a) => a.cliente_id)), [acessosPortal]);
   const [editing, setEditing] = useState(null); // null = fechado, {} = novo, {...} = editando
   const [vendoDocumentos, setVendoDocumentos] = useState(null); // cliente aberto na pasta de documentos
+  const [buscandoProcessos, setBuscandoProcessos] = useState(null); // cliente aberto na busca Escavador
   const [busca, setBusca] = useState("");
   const podeExcluir = currentRole === "admin" || currentRole === "socio"; // RLS (clientes_del) já barra no banco — isso só esconde o botão
 
@@ -162,6 +164,9 @@ export default function ClientesTab({ currentRole, orgId, profile }) {
                     <button onClick={() => setVendoDocumentos(c)} aria-label="Documentos do cliente" title="Documentos do cliente" className="p-1.5 rounded hover:opacity-70" style={{ color: COLORS.brass }}>
                       <FolderOpen size={14} />
                     </button>
+                    <button onClick={() => setBuscandoProcessos(c)} aria-label="Buscar processos (Escavador)" title="Buscar processos (Escavador)" className="p-1.5 rounded hover:opacity-70" style={{ color: COLORS.brass }}>
+                      <Search size={14} />
+                    </button>
                     {podeExcluir && (
                       temAcesso.has(c.id) ? (
                         <span title="Já tem acesso ao Portal do Cliente" className="p-1.5" style={{ color: COLORS.success }}><UserCheck size={14} /></span>
@@ -189,6 +194,10 @@ export default function ClientesTab({ currentRole, orgId, profile }) {
         onClose={() => setEditing(null)}
         onSubmit={(values) => (editing?.id ? update(editing.id, values) : insert(values))}
       />
+
+      {buscandoProcessos && (
+        <EscavadorBuscaModal cliente={buscandoProcessos} orgId={orgId} onClose={() => setBuscandoProcessos(null)} />
+      )}
     </div>
   );
 }
