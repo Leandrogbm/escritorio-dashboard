@@ -102,37 +102,42 @@ export default function IntegracoesSection({ orgId }) {
         </button>
       </form>
 
-      <div className="mt-8 pt-6" style={{ borderTop: `1px solid ${COLORS.line}` }}>
-        <p className="flex items-center gap-2 text-sm font-semibold mb-1" style={{ color: COLORS.ink }}>
-          <Wallet size={16} color={COLORS.brass} /> Cobrança automática
-        </p>
-        <p className="text-xs mb-3" style={{ color: COLORS.slate }}>
-          Conecte a conta Asaas do escritório pra gerar boleto/Pix/cartão de verdade em cada cobrança (Financeiro) — quando o cliente pagar, a cobrança vira "Pago" sozinha, sem precisar importar extrato.
-        </p>
+      {/* ponytail: Asaas construído e testado (function + webhook), mas o usuário pediu pra
+          segurar em back log — não subir pro cliente ainda. UI escondida, código intacto
+          (ver ROADMAP-comparativo.md). Reativar: tirar esse comentário e o "false &&" abaixo. */}
+      {false && (
+        <div className="mt-8 pt-6" style={{ borderTop: `1px solid ${COLORS.line}` }}>
+          <p className="flex items-center gap-2 text-sm font-semibold mb-1" style={{ color: COLORS.ink }}>
+            <Wallet size={16} color={COLORS.brass} /> Cobrança automática
+          </p>
+          <p className="text-xs mb-3" style={{ color: COLORS.slate }}>
+            Conecte a conta Asaas do escritório pra gerar boleto/Pix/cartão de verdade em cada cobrança (Financeiro) — quando o cliente pagar, a cobrança vira "Pago" sozinha, sem precisar importar extrato.
+          </p>
 
-        <ComoConseguir passos={[
-          <>Crie (ou entre na) conta em <strong>asaas.com</strong> com os dados do escritório.</>,
-          <>No menu, vá em <strong>"Integrações" → "API"</strong> e copie a <strong>Chave de API</strong>.</>,
-          <>Se quiser testar antes de usar de verdade, use o <strong>Ambiente de testes (sandbox)</strong> — a Asaas tem uma conta sandbox separada (sandbox.asaas.com), com chave de API própria.</>,
-        ]} />
+          <ComoConseguir passos={[
+            <>Crie (ou entre na) conta em <strong>asaas.com</strong> com os dados do escritório.</>,
+            <>No menu, vá em <strong>"Integrações" → "API"</strong> e copie a <strong>Chave de API</strong>.</>,
+            <>Se quiser testar antes de usar de verdade, use o <strong>Ambiente de testes (sandbox)</strong> — a Asaas tem uma conta sandbox separada (sandbox.asaas.com), com chave de API própria.</>,
+          ]} />
 
-        <form onSubmit={salvarAsaas} className="flex flex-col gap-3 max-w-md">
-          <label className="flex flex-col gap-1 text-xs" style={hintStyle}>
-            <span style={labelStyle}>Chave de API</span> <span>(em Integrações → API, na Asaas)</span>
-            <input value={asaas.asaas_token} onChange={(e) => setAsaas((v) => ({ ...v, asaas_token: e.target.value }))} className="px-3 py-2 rounded-md text-sm" style={inputStyle} />
-          </label>
-          <label className="flex flex-col gap-1 text-xs" style={hintStyle}>
-            <span style={labelStyle}>Ambiente</span>
-            <select value={asaas.asaas_ambiente} onChange={(e) => setAsaas((v) => ({ ...v, asaas_ambiente: e.target.value }))} className="px-3 py-2 rounded-md text-sm" style={inputStyle}>
-              <option value="sandbox">Testes (sandbox) — não gera cobrança real</option>
-              <option value="producao">Produção — gera cobrança real</option>
-            </select>
-          </label>
-          <button type="submit" disabled={salvandoAsaas} className="self-start px-3.5 py-2 rounded-md text-sm font-semibold" style={{ background: COLORS.ink, color: "#fff", opacity: salvandoAsaas ? 0.6 : 1 }}>
-            {salvandoAsaas ? "Salvando..." : "Salvar"}
-          </button>
-        </form>
-      </div>
+          <form onSubmit={salvarAsaas} className="flex flex-col gap-3 max-w-md">
+            <label className="flex flex-col gap-1 text-xs" style={hintStyle}>
+              <span style={labelStyle}>Chave de API</span> <span>(em Integrações → API, na Asaas)</span>
+              <input value={asaas.asaas_token} onChange={(e) => setAsaas((v) => ({ ...v, asaas_token: e.target.value }))} className="px-3 py-2 rounded-md text-sm" style={inputStyle} />
+            </label>
+            <label className="flex flex-col gap-1 text-xs" style={hintStyle}>
+              <span style={labelStyle}>Ambiente</span>
+              <select value={asaas.asaas_ambiente} onChange={(e) => setAsaas((v) => ({ ...v, asaas_ambiente: e.target.value }))} className="px-3 py-2 rounded-md text-sm" style={inputStyle}>
+                <option value="sandbox">Testes (sandbox) — não gera cobrança real</option>
+                <option value="producao">Produção — gera cobrança real</option>
+              </select>
+            </label>
+            <button type="submit" disabled={salvandoAsaas} className="self-start px-3.5 py-2 rounded-md text-sm font-semibold" style={{ background: COLORS.ink, color: "#fff", opacity: salvandoAsaas ? 0.6 : 1 }}>
+              {salvandoAsaas ? "Salvando..." : "Salvar"}
+            </button>
+          </form>
+        </div>
+      )}
     </div>
   );
 }

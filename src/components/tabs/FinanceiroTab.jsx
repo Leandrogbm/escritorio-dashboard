@@ -41,7 +41,10 @@ export default function FinanceiroTab({ orgId } = {}) {
   const { data: clientes } = useSupabaseTable("clientes", { select: "id,nome,tipo", orderBy: "nome", ascending: true, eq: orgEq });
   const { data: processos } = useSupabaseTable("processos", { select: "id,numero,area,cliente_id", orderBy: "numero", ascending: true, eq: orgEq });
   const { data: orgRows } = useSupabaseTable("organizations", { select: "asaas_token", eq: orgId ? ["id", orgId] : undefined });
-  const asaasConectado = !!orgRows[0]?.asaas_token;
+  // ponytail: Asaas construído e testado, mas segurado em back log a pedido do usuário —
+  // não subir pro cliente ainda (ver ROADMAP-comparativo.md). "&& false" esconde o botão
+  // sem tirar o resto do código; reativar removendo o "&& false".
+  const asaasConectado = !!orgRows[0]?.asaas_token && false;
   const [gerandoCobranca, setGerandoCobranca] = useState(null); // id do honorário sendo gerado
   const [erroCobranca, setErroCobranca] = useState("");
 
@@ -111,10 +114,10 @@ export default function FinanceiroTab({ orgId } = {}) {
   const fields = useMemo(() => {
     const base = [
       { key: "cliente_id", label: "Cliente", type: "select", options: clientes.map((c) => ({ value: c.id, label: `${c.nome} (${c.tipo})` })) },
-      {
-        key: "processo_id", label: "Processo (opcional — pra entrar na rentabilidade por área)", type: "select", optional: true,
-        options: processosDoCliente.map((p) => ({ value: p.id, label: `${p.numero} — ${p.area}` })),
-      },
+      // ponytail: campo "Processo" (rentabilidade por área) construído mas em back log a
+      // pedido do usuário — escondido do form até o gráfico voltar a aparecer na Visão
+      // Executiva. Coluna honorarios.processo_id continua existindo, só não é preenchida
+      // por aqui enquanto isso.
       { key: "valor", label: editing?.id ? "Valor (R$)" : ehPJ ? "Valor da mensalidade (R$)" : "Valor de cada parcela (R$)", type: "number" },
       { key: "vencimento", label: editing?.id ? "Vencimento" : "Vencimento da 1ª cobrança", type: "date" },
     ];

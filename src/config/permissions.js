@@ -1,4 +1,4 @@
-import { Clock, Briefcase, DollarSign, Users, Building2, TrendingUp, Trello, UserPlus } from "lucide-react";
+import { Clock, Briefcase, DollarSign, Users, Building2, TrendingUp, Trello } from "lucide-react";
 
 export const ROLES = [
   { key: "socio", label: "Sócio(a)" },
@@ -8,8 +8,10 @@ export const ROLES = [
   { key: "admin", label: "Administrador(a)" },
 ];
 
+// ponytail: "leads" (funil de captação) construído e testado, mas em back log a pedido do
+// usuário — não subir pro cliente ainda (ver ROADMAP-comparativo.md). Tirar do array esconde
+// a aba inteira (sidebar + permissões) sem apagar LeadsTab.jsx nem a tabela `leads`.
 export const MODULES = [
-  { key: "leads", label: "Leads", icon: UserPlus },
   { key: "clientes", label: "Clientes", icon: Users },
   { key: "processos", label: "Processos", icon: Briefcase },
   { key: "quadro", label: "Quadro de tarefas", icon: Trello },

@@ -211,29 +211,9 @@ export default function ExecutivoTab({ orgId } = {}) {
           </div>
         )}
       </Card>
-      <Card className="mt-6">
-        <p className="text-sm font-semibold mb-1" style={{ color: COLORS.ink }}>Rentabilidade por área do direito</p>
-        <p className="text-xs mb-4" style={{ color: COLORS.slate }}>Honorários recebidos e a receber, só de cobranças vinculadas a um processo (campo "Processo" opcional em Financeiro → nova cobrança).</p>
-        {!loadingFinanceiro && rentabilidadePorArea.length === 0 ? (
-          <p className="text-sm" style={{ color: COLORS.slate }}>
-            {semVinculoDeArea ? "Nenhuma cobrança vinculada a um processo ainda — vincule ao criar uma cobrança em Financeiro pra aparecer aqui." : "Sem cobranças cadastradas ainda."}
-          </p>
-        ) : (
-          <div style={{ width: "100%", height: 260 }}>
-            <ResponsiveContainer>
-              <BarChart data={rentabilidadePorArea} margin={{ top: 4, right: 8, left: 0, bottom: 4 }}>
-                <CartesianGrid stroke={COLORS.line} vertical={false} />
-                <XAxis dataKey="area" tick={{ fill: COLORS.slate, fontSize: 12 }} axisLine={{ stroke: COLORS.line }} tickLine={false} />
-                <YAxis tick={{ fill: COLORS.slate, fontSize: 12 }} axisLine={false} tickLine={false} tickFormatter={(v) => `${v / 1000}k`} />
-                <Tooltip formatter={(v) => BRL(v)} contentStyle={{ borderRadius: 8, border: `1px solid ${COLORS.line}`, fontFamily: "Inter" }} />
-                <Legend wrapperStyle={{ fontSize: 12 }} formatter={(v) => (v === "recebido" ? "Recebido" : "A receber")} />
-                <Bar dataKey="recebido" stackId="v" radius={[0, 0, 0, 0]} fill={COLORS.success} />
-                <Bar dataKey="aReceber" stackId="v" radius={[4, 4, 0, 0]} fill={COLORS.brass} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        )}
-      </Card>
+      {/* ponytail: gráfico construído e correto, mas em back log a pedido do usuário —
+          depende do campo "Processo" que também está escondido no form de honorário
+          (FinanceiroTab.jsx). Reativar os dois juntos quando decidir subir. */}
     </div>
   );
 }
