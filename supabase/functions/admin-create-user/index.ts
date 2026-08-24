@@ -65,7 +65,7 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ error: "Só admin pode criar colaborador." }), { status: 403, headers: corsHeaders });
     }
 
-    const { nome, email, role, orgId } = await req.json();
+    const { nome, email, role, orgId, oab_numero, oab_uf } = await req.json();
     const ALLOWED_ROLES = ["socio", "advogado", "financeiro", "recepcao", "admin"]; // espelha o check constraint de profiles.role
     if (!nome || !email || !ALLOWED_ROLES.includes(role)) {
       return new Response(JSON.stringify({ error: "Nome, email e cargo válido são obrigatórios." }), { status: 400, headers: corsHeaders });
@@ -114,6 +114,8 @@ Deno.serve(async (req) => {
       org_id: targetOrgId,
       nome,
       role,
+      oab_numero: oab_numero || null,
+      oab_uf: oab_uf || null,
     });
     if (insertErr) {
       // profile falhou — desfaz o Auth user pra não deixar conta órfã sem perfil.

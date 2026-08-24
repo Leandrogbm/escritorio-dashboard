@@ -1,4 +1,5 @@
-// Busca processo novo pra cada OAB monitorada (oabs_monitoradas) via Jusbrasil Soluções, e
+// Busca processo novo pra cada colaborador com OAB preenchida (profiles.oab_numero/oab_uf —
+// campo do próprio cadastro em Equipe, não uma lista separada) via Jusbrasil Soluções, e
 // grava em processos_descobertos os CNJs que ainda não estão nem lá nem em `processos`.
 // Dois jeitos de chamar, mesmo padrão do datajud-sync: cron (x-cron-secret, todas as
 // empresas) ou usuário autenticado (botão "Sincronizar agora", só a própria empresa).
@@ -24,15 +25,36 @@ async function sincronizarOrg(admin: ReturnType<typeof createClient>, orgId: str
   const { data: org } = await admin.from("organizations").select("jusbrasil_token").eq("id", orgId).single();
   if (!org?.jusbrasil_token) return { orgId, pulado: "sem token configurado" };
 
-  const { data: oabs } = await admin.from("oabs_monitoradas").select("id, correlation_id").eq("org_id", orgId);
+  const { data: advogados } = await admin
+    .from("profiles")
+    .select("id, nome, oab_numero, oab_uf, jusbrasil_correlation_id")
+    .eq("org_id", orgId)
+    .not("oab_numero", "is", null);
+
   const { data: processosExistentes } = await admin.from("processos").select("numero").eq("org_id", orgId);
   const numerosExistentes = new Set((processosExistentes ?? []).map((p: { numero: string }) => soDigitos(p.numero)));
 
   let novos = 0;
-  for (const oab of oabs ?? []) {
-    if (!oab.correlation_id) continue;
+  for (const adv of advogados ?? []) {
+    let correlationId = adv.jusbrasil_correlation_id;
+
+    // 1ª vez que essa OAB é vista: registra o monitoramento e guarda o correlation_id.
+    if (!correlationId) {
+      const regRes = await fetch("https://op.digesto.com.br/api/monitoramento/oab/acompanhamento/", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${org.jusbrasil_token}`, "Content-Type": "application/json" },
+        body: JSON.stringify([{ name: adv.nome, number: adv.oab_numero, region: (adv.oab_uf || "").toUpperCase(), is_active: true }]),
+      });
+      if (!regRes.ok) continue;
+      const regBody = await regRes.json().catch(() => null);
+      const item = Array.isArray(regBody) ? regBody[0] : regBody;
+      correlationId = item?.correlation_id ?? null;
+      if (!correlationId) continue;
+      await admin.from("profiles").update({ jusbrasil_correlation_id: correlationId }).eq("id", adv.id);
+    }
+
     const res = await fetch(
-      `https://op.digesto.com.br/api/monitoramento/oab/vinculos/processos/oab?correlation_id=${oab.correlation_id}&per_page=100&page=1`,
+      `https://op.digesto.com.br/api/monitoramento/oab/vinculos/processos/oab?correlation_id=${correlationId}&per_page=100&page=1`,
       { headers: { Authorization: `Bearer ${org.jusbrasil_token}`, Accept: "application/json" } }
     );
     if (!res.ok) continue;
@@ -41,7 +63,7 @@ async function sincronizarOrg(admin: ReturnType<typeof createClient>, orgId: str
       const cnj = soDigitos(v.cnj ?? "");
       if (!cnj || numerosExistentes.has(cnj)) continue;
       const { error } = await admin.from("processos_descobertos").insert({
-        org_id: orgId, oab_monitorada_id: oab.id, numero_cnj: cnj,
+        org_id: orgId, colaborador_id: adv.id, numero_cnj: cnj,
       });
       if (!error) novos++; // erro aqui normalmente é duplicata (unique org_id+numero_cnj), ignora
     }

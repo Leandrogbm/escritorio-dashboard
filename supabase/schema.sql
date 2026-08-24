@@ -48,7 +48,12 @@ create table profiles (
   cargo text,
   horas_mes int not null default 0,
   meta_horas int not null default 160,
-  created_at timestamptz not null default now()
+  created_at timestamptz not null default now(),
+  -- OAB do colaborador (opcional) — quem tem preenchida entra na captação automática de
+  -- processo novo (Jusbrasil). jusbrasil_correlation_id é preenchido sozinho no 1º sync.
+  oab_numero int,
+  oab_uf text,
+  jusbrasil_correlation_id text
 );
 create index profiles_org_id_idx on profiles (org_id);
 
@@ -217,24 +222,15 @@ create table documentos_assinatura (
 create index documentos_assinatura_org_id_idx on documentos_assinatura (org_id);
 
 -- ── Jusbrasil (captação automática de processo por OAB) ─────────────────
+-- Quem é monitorado é decidido pela OAB cadastrada em cada colaborador (profiles.oab_numero/
+-- oab_uf, aba Equipe) — sem lista separada. jusbrasil_correlation_id (em profiles) guarda o
+-- id que o Jusbrasil devolveu no 1º registro de monitoramento.
 alter table organizations add column if not exists jusbrasil_token text;
-
-create table oabs_monitoradas (
-  id uuid primary key default gen_random_uuid(),
-  org_id uuid not null references organizations(id),
-  nome_advogado text not null,
-  numero_oab int not null,
-  uf_oab text not null,
-  jusbrasil_oab_id bigint,
-  correlation_id text,
-  created_at timestamptz not null default now()
-);
-create index oabs_monitoradas_org_id_idx on oabs_monitoradas (org_id);
 
 create table processos_descobertos (
   id uuid primary key default gen_random_uuid(),
   org_id uuid not null references organizations(id),
-  oab_monitorada_id uuid references oabs_monitoradas(id) on delete set null,
+  colaborador_id uuid references profiles(id) on delete set null, -- de qual OAB veio a descoberta
   numero_cnj text not null,
   status text not null check (status in ('novo','importado','ignorado')) default 'novo',
   created_at timestamptz not null default now(),
@@ -270,7 +266,8 @@ alter table organizations add constraint organizations_plano_fkey foreign key (p
 -- Equipe — nem pro resto da equipe, nem pra ele mesmo, sem exceção.
 create view equipe_view with (security_invoker = true) as
   select p.id, p.org_id, p.nome, p.cargo, p.horas_mes as horas, p.meta_horas as meta,
-         count(pr.id) filter (where pr.status <> 'Encerrado') as ativos, p.role
+         count(pr.id) filter (where pr.status <> 'Encerrado') as ativos, p.role,
+         p.oab_numero, p.oab_uf
   from profiles p
   left join processos pr on pr.responsavel_id = p.id
   where p.id not in (select user_id from platform_admins)
@@ -575,11 +572,6 @@ create trigger trg_audit_documentos_assinatura after insert or update or delete 
 -- sem policy de insert/update pro client: só d4sign-enviar/d4sign-webhook gravam
 -- (service_role) — status vem do lado da D4Sign, não é editável na mão.
 
-alter table oabs_monitoradas enable row level security;
-create trigger trg_set_org_id before insert on oabs_monitoradas for each row execute function set_org_id();
-create policy oabs_monitoradas_sel on oabs_monitoradas for select using ((org_id = auth_org_id() and auth_role() in ('admin','socio')) or is_platform_admin());
-create policy oabs_monitoradas_del on oabs_monitoradas for delete using ((org_id = auth_org_id() and auth_role() in ('admin','socio')) or is_platform_admin());
-create trigger trg_audit_oabs_monitoradas after insert or update or delete on oabs_monitoradas for each row execute function log_platform_admin_write();
 
 alter table processos_descobertos enable row level security;
 create trigger trg_set_org_id before insert on processos_descobertos for each row execute function set_org_id();

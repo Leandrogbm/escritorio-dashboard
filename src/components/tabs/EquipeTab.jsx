@@ -17,10 +17,14 @@ import { supabase } from "../../lib/supabaseClient.js";
 // admin não passa mais por esse dropdown, nem sócio nem o próprio admin escolhem por aqui.
 const cargoOptions = () => ROLES.filter((r) => r.key !== "admin").map((r) => ({ value: r.key, label: r.label }));
 
+// OAB/UF são opcionais — só quem tem OAB preenchida entra na captação automática de
+// processo novo (Configurações → Jusbrasil), sem precisar de cadastro separado.
 const metricFields = () => [
   { key: "nome", label: "Nome" },
   { key: "email", label: "Novo email (deixe em branco pra não alterar)", type: "email", optional: true },
   { key: "role", label: "Cargo", type: "select", options: cargoOptions() },
+  { key: "oab_numero", label: "Número OAB (pra captação automática de processo)", type: "number", optional: true },
+  { key: "oab_uf", label: "UF da OAB", optional: true, placeholder: "SP" },
 ];
 
 // Criação do Auth user (com senha temporária mandada por email) roda na Edge Function
@@ -29,6 +33,8 @@ const newMemberFields = () => [
   { key: "nome", label: "Nome" },
   { key: "email", label: "Email", type: "email" },
   { key: "role", label: "Cargo", type: "select", options: cargoOptions() },
+  { key: "oab_numero", label: "Número OAB (pra captação automática de processo)", type: "number", optional: true },
+  { key: "oab_uf", label: "UF da OAB", optional: true, placeholder: "SP" },
 ];
 
 // Lê o motivo real dentro do corpo da resposta (FunctionsHttpError não traz isso em
