@@ -2,11 +2,11 @@ import React, { useMemo, useState } from "react";
 import { Briefcase, Plus, AlertTriangle, RefreshCw } from "lucide-react";
 import Card from "../Card.jsx";
 import SectionTitle from "../SectionTitle.jsx";
-import Stamp from "../Stamp.jsx";
 import RowActions from "../RowActions.jsx";
 import RecordFormModal from "../RecordFormModal.jsx";
 import ProcessoPagina from "../ProcessoPagina.jsx";
 import ProcessoBell from "../ProcessoBell.jsx";
+import StatusPicker from "../StatusPicker.jsx";
 import SearchInput from "../SearchInput.jsx";
 import { COLORS } from "../../lib/theme.js";
 import { useSupabaseTable } from "../../hooks/useSupabaseTable.js";
@@ -118,6 +118,7 @@ export default function ProcessosTab({ currentRole, orgId, profile }) {
           onEditar={() => setEditing({ ...atual, cliente_id: atual.cliente?.id, responsavel_id: atual.responsavel?.id })}
           onExcluir={() => { remove(atual.id); setProcessoAberto(null); }}
           onRegistrarPrazo={abrirRegistrarPrazo(atual.id)}
+          onMudarStatus={(status) => update(atual.id, { status })}
         />
         <RecordFormModal
           open={editing !== null}
@@ -182,7 +183,7 @@ export default function ProcessosTab({ currentRole, orgId, profile }) {
               <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
                 {p.datajud_status === "erro" && <AlertTriangle size={14} color={COLORS.wine} />}
                 <ProcessoBell notificacoes={notificacoesPorProcesso.get(p.id) ?? []} onMudou={refreshNotificacoes} />
-                <Stamp tone={STATUS_TONE[p.status]}>{p.status}</Stamp>
+                <StatusPicker value={p.status} options={STATUS_OPTIONS.map((s) => s.value)} tone={STATUS_TONE} onChange={(status) => update(p.id, { status })} />
               </div>
             </div>
             {atrasos > 0 && (

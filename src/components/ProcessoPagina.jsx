@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { ArrowLeft, AlertTriangle, FileClock, ListTodo, Landmark, FileText, Pencil, Trash2 } from "lucide-react";
 import Card from "./Card.jsx";
-import Stamp from "./Stamp.jsx";
+import StatusPicker from "./StatusPicker.jsx";
 import MovimentacoesPanel from "./MovimentacoesPanel.jsx";
 import TarefasPanel from "./TarefasPanel.jsx";
 import DepositosPanel from "./DepositosPanel.jsx";
@@ -13,7 +13,7 @@ const STATUS_TONE = { "Em andamento": "ok", "Aguardando decisão": "warn", "Susp
 // Página cheia do processo (substitui a lista dentro da própria aba Processos, não é popup)
 // — clicar num processo troca o conteúdo da tela, com botão "Voltar", em vez de empilhar
 // modal em cima de modal (era confuso: Esc fechava um de cada vez, fora de ordem).
-export default function ProcessoPagina({ processo: p, atrasos, equipe, orgId, profile, onVoltar, onEditar, onExcluir, onRegistrarPrazo }) {
+export default function ProcessoPagina({ processo: p, atrasos, equipe, orgId, profile, onVoltar, onEditar, onExcluir, onRegistrarPrazo, onMudarStatus }) {
   const [aba, setAba] = useState("andamentos");
 
   const abas = [
@@ -34,7 +34,7 @@ export default function ProcessoPagina({ processo: p, atrasos, equipe, orgId, pr
           <p style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 12, color: COLORS.slate }}>{p.numero}</p>
           <p className="mt-1 text-2xl" style={{ fontFamily: "'Source Serif 4', serif", fontWeight: 700, color: COLORS.ink }}>{p.cliente?.nome ?? "—"}</p>
         </div>
-        <Stamp tone={STATUS_TONE[p.status]}>{p.status}</Stamp>
+        <StatusPicker value={p.status} options={Object.keys(STATUS_TONE)} tone={STATUS_TONE} onChange={onMudarStatus} />
       </div>
 
       {atrasos > 0 && (
