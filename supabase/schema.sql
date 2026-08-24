@@ -143,6 +143,25 @@ create table tarefas (
 create index tarefas_org_id_idx on tarefas (org_id);
 create index tarefas_processo_id_idx on tarefas (processo_id);
 
+-- Depósito judicial: dinheiro retido numa conta controlada pelo tribunal (garantia
+-- recursal, penhora, execução) — não passa pela conta do escritório, por isso não
+-- reaproveita o importador de extrato de honorarios. Só acompanhamento do ciclo de vida.
+create table depositos_judiciais (
+  id uuid primary key default gen_random_uuid(),
+  org_id uuid not null references organizations(id),
+  processo_id uuid not null references processos(id) on delete cascade,
+  valor numeric(14,2) not null,
+  tipo text not null check (tipo in ('Recursal','Garantia de execução','Penhora','Caução','Outro')),
+  data_deposito date not null,
+  status text not null check (status in ('Depositado','Liberado','Convertido em renda')) default 'Depositado',
+  banco text,
+  numero_comprovante text,
+  observacoes text,
+  created_at timestamptz not null default now()
+);
+create index depositos_judiciais_org_id_idx on depositos_judiciais (org_id);
+create index depositos_judiciais_processo_id_idx on depositos_judiciais (processo_id);
+
 -- Os 3 planos e seus limites — fonte única de verdade (Edge Function admin-create-user e
 -- a policy processos_ins leem daqui). limite_usuarios/limite_processos null = sem limite.
 create table plan_limits (
@@ -443,6 +462,15 @@ create policy tarefas_upd on tarefas for update
   using ((org_id = auth_org_id() and has_module('processos')) or is_platform_admin()) with check (true);
 create policy tarefas_del on tarefas for delete using ((org_id = auth_org_id() and has_module('processos')) or is_platform_admin());
 create trigger trg_audit_tarefas after insert or update or delete on tarefas for each row execute function log_platform_admin_write();
+
+alter table depositos_judiciais enable row level security;
+create trigger trg_set_org_id before insert on depositos_judiciais for each row execute function set_org_id();
+create policy depositos_judiciais_sel on depositos_judiciais for select using ((org_id = auth_org_id() and has_module('financeiro')) or is_platform_admin());
+create policy depositos_judiciais_ins on depositos_judiciais for insert with check ((org_id = auth_org_id() and has_module('financeiro')) or is_platform_admin());
+create policy depositos_judiciais_upd on depositos_judiciais for update
+  using ((org_id = auth_org_id() and has_module('financeiro')) or is_platform_admin()) with check (true);
+create policy depositos_judiciais_del on depositos_judiciais for delete using ((org_id = auth_org_id() and has_module('financeiro')) or is_platform_admin());
+create trigger trg_audit_depositos_judiciais after insert or update or delete on depositos_judiciais for each row execute function log_platform_admin_write();
 
 -- Excluir empresa por completo (colaboradores, clientes, processos, financeiro, a org em si)
 -- é a Edge Function platform-delete-org — precisa apagar cada Auth user via Admin API,

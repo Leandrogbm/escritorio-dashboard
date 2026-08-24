@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from "react";
-import { Briefcase, Plus, AlertTriangle, RefreshCw, FileClock, ListTodo } from "lucide-react";
+import { Briefcase, Plus, AlertTriangle, RefreshCw, FileClock, ListTodo, Landmark } from "lucide-react";
 import Card from "../Card.jsx";
 import SectionTitle from "../SectionTitle.jsx";
 import Stamp from "../Stamp.jsx";
@@ -7,6 +7,7 @@ import RowActions from "../RowActions.jsx";
 import RecordFormModal from "../RecordFormModal.jsx";
 import MovimentacoesPanel from "../MovimentacoesPanel.jsx";
 import TarefasPanel from "../TarefasPanel.jsx";
+import DepositosPanel from "../DepositosPanel.jsx";
 import SearchInput from "../SearchInput.jsx";
 import { COLORS } from "../../lib/theme.js";
 import { useSupabaseTable } from "../../hooks/useSupabaseTable.js";
@@ -40,6 +41,7 @@ export default function ProcessosTab({ currentRole, orgId }) {
   const [editing, setEditing] = useState(null);
   const [vendoAndamentos, setVendoAndamentos] = useState(null); // processo aberto no painel de andamentos
   const [vendoTarefas, setVendoTarefas] = useState(null); // processo aberto no kanban de tarefas
+  const [vendoDepositos, setVendoDepositos] = useState(null); // processo aberto no painel de depósitos judiciais
   const [registrandoPrazo, setRegistrandoPrazo] = useState(null); // {processo_id, movimentacao_origem_id, data_inicio, tipo}
   const [sincronizando, setSincronizando] = useState(false);
   const [busca, setBusca] = useState("");
@@ -140,6 +142,9 @@ export default function ProcessosTab({ currentRole, orgId }) {
                 <button onClick={() => setVendoTarefas(p)} className="flex items-center gap-1.5 text-xs underline" style={{ color: COLORS.slate }}>
                   <ListTodo size={13} /> Tarefas
                 </button>
+                <button onClick={() => setVendoDepositos(p)} className="flex items-center gap-1.5 text-xs underline" style={{ color: COLORS.slate }}>
+                  <Landmark size={13} /> Depósitos
+                </button>
               </div>
               <RowActions
                 onEdit={() => setEditing({ ...p, cliente_id: p.cliente?.id, responsavel_id: p.responsavel?.id })}
@@ -176,6 +181,10 @@ export default function ProcessosTab({ currentRole, orgId }) {
 
       {vendoTarefas && (
         <TarefasPanel processo={vendoTarefas} equipe={equipe} orgId={orgId} onClose={() => setVendoTarefas(null)} />
+      )}
+
+      {vendoDepositos && (
+        <DepositosPanel processo={vendoDepositos} orgId={orgId} onClose={() => setVendoDepositos(null)} />
       )}
 
       <RecordFormModal
