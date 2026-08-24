@@ -27,7 +27,7 @@ export default function TopBar({ profile, signOut, onAbrirMenu, suporte, onSairS
             <Menu size={20} />
           </button>
           <Scale size={16} className="shrink-0 hidden sm:block" />
-          <span className="text-sm truncate">{suporte ?? profile.organizations?.nome ?? "Escritório Dashboard"}</span>
+          <span className="text-sm truncate">{suporte ?? profile.organizations?.nome ?? "Actum"}</span>
         </div>
 
         <div className="flex items-center gap-2 sm:gap-3 shrink-0">

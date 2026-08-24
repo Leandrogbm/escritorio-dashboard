@@ -3,7 +3,7 @@
 // têm hash no nome (Vite), então só entram no cache na primeira vez que forem buscados.
 // ponytail: sem estratégia de invalidação de cache mais esperta — se sobrar lixo de build
 // antigo, o próprio network-first já prioriza a versão nova sempre que há rede.
-const CACHE = "mysaldo-v1";
+const CACHE = "actum-v2";
 
 self.addEventListener("install", () => self.skipWaiting());
 self.addEventListener("activate", (e) => e.waitUntil(self.clients.claim()));

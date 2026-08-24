@@ -1,4 +1,4 @@
--- Escritório Dashboard — schema Supabase (multi-tenant)
+-- Actum — schema Supabase (multi-tenant)
 -- Como aplicar: copiar este arquivo inteiro e colar no SQL Editor do projeto Supabase, rodar uma vez.
 --
 -- Configuração fora do SQL (Authentication → Settings no dashboard, ou API de management):
@@ -13,7 +13,7 @@ create table organizations (
   nome text not null,
   slug text unique not null,
   cnpj text unique, -- cadastro self-service (signup-empresa) usa os dígitos do CNPJ como slug
-  -- billing que a empresa paga PRA plataforma (mysaldo) — não confundir com honorarios,
+  -- billing que a empresa paga PRA plataforma (Actum) — não confundir com honorarios,
   -- que é o financeiro interno dela. Só o platform admin edita (organizations_billing_upd).
   plano text,
   valor_mensal numeric(10,2),
@@ -371,7 +371,7 @@ begin
 end;
 $$;
 
--- ── Admin da plataforma (dono do mysaldo) ───────────────────────────────
+-- ── Admin da plataforma (dono da Actum) ───────────────────────────────
 -- Separado do admin de cada empresa. Três coisas: (1) painel de billing — plano/valor/
 -- status que cada empresa paga PRA plataforma, nada a ver com o financeiro interno dela
 -- (honorarios); (2) "usuário master" — acesso leitura+escrita a qualquer empresa, como se

@@ -1,4 +1,4 @@
-# Escritório Dashboard
+# Actum
 
 Dashboard interno para escritório de advocacia. Cada perfil (Sócio, Advogado, Financeiro, Recepção) enxerga apenas as abas liberadas pelo Administrador, configuráveis em tempo real na aba **Configurações**.
 

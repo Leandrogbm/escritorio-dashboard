@@ -1,7 +1,7 @@
 {
   "name": "Actum",
   "short_name": "Actum",
-  "description": "Gestão jurídica: processos, prazos, clientes e financeiro.",
+  "description": "Gestão jurídica e ERP: processos, prazos, clientes e financeiro.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#F2F0E9",

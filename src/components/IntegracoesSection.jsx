@@ -74,7 +74,7 @@ export default function IntegracoesSection({ orgId }) {
         <PenTool size={16} color={COLORS.brass} /> Assinatura eletrônica
       </p>
       <p className="text-xs mb-3" style={{ color: COLORS.slate }}>
-        Pra mandar documento pra assinar sem sair do mysaldo, conecte a conta D4Sign do escritório aqui embaixo — são 3 códigos, você pega tudo dentro da conta D4Sign de vocês.
+        Pra mandar documento pra assinar sem sair da Actum, conecte a conta D4Sign do escritório aqui embaixo — são 3 códigos, você pega tudo dentro da conta D4Sign de vocês.
       </p>
 
       <ComoConseguir passos={[

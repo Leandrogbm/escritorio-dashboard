@@ -29,7 +29,7 @@ const CONFIG_FIELDS = [
   ] },
 ];
 
-// Painel do dono da plataforma (mysaldo) — métricas agregadas por empresa cliente (via RPC
+// Painel do dono da plataforma (Actum) — métricas agregadas por empresa cliente (via RPC
 // platform_org_metrics, security definer) + billing que a empresa paga PRA plataforma
 // (diferente do financeiro interno dela). "Inspecionar" abre acesso de suporte somente-leitura.
 export default function PlatformAdminPanel({ temPerfilProprio, onEntrarNaEmpresa, onEntrarComoAdmin, signOut }) {
@@ -83,7 +83,7 @@ export default function PlatformAdminPanel({ temPerfilProprio, onEntrarNaEmpresa
       <header className="flex flex-wrap items-center justify-between gap-2 px-4 sm:px-8 py-4" style={{ background: COLORS.paperRaised, borderBottom: `1px solid ${COLORS.line}` }}>
         <div className="flex items-center gap-2" style={{ color: COLORS.slate }}>
           <LayoutGrid size={16} />
-          <span className="text-sm">mysaldo — painel da plataforma</span>
+          <span className="text-sm">Actum — painel da plataforma</span>
         </div>
         <div className="flex items-center gap-3">
           {temPerfilProprio && (

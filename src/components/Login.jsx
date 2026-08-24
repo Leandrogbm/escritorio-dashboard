@@ -1,5 +1,4 @@
 import React, { useState } from "react";
-import { Scale } from "lucide-react";
 import Card from "./Card.jsx";
 import Signup from "./Signup.jsx";
 import { COLORS } from "../lib/theme.js";
@@ -44,7 +43,7 @@ export default function Login() {
       <div className="min-h-screen w-full flex items-center justify-center" style={{ background: COLORS.paper, fontFamily: "'Inter', sans-serif" }}>
         <Card className="w-full max-w-sm">
           <div className="flex flex-col items-center gap-2 mb-6">
-            <Scale size={28} color={COLORS.brass} />
+            <img src="/brand/logo-icon.png" alt="Actum" className="w-9 h-9" />
             <p style={{ fontFamily: "'Source Serif 4', serif", color: COLORS.ink, fontWeight: 600, fontSize: 18 }}>
               Redefinir senha
             </p>
@@ -94,9 +93,9 @@ export default function Login() {
     <div className="min-h-screen w-full flex items-center justify-center" style={{ background: COLORS.paper, fontFamily: "'Inter', sans-serif" }}>
       <Card className="w-full max-w-sm">
         <div className="flex flex-col items-center gap-2 mb-6">
-          <Scale size={28} color={COLORS.brass} />
+          <img src="/brand/logo-icon.png" alt="Actum" className="w-9 h-9" />
           <p style={{ fontFamily: "'Source Serif 4', serif", color: COLORS.ink, fontWeight: 600, fontSize: 18 }}>
-            Escritório Dashboard
+            Actum
           </p>
           <p className="text-xs" style={{ color: COLORS.slate }}>Acesse com seu e-mail e senha</p>
         </div>

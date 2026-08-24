@@ -4,17 +4,6 @@ import { COLORS } from "../lib/theme.js";
 import { MODULES } from "../config/permissions.js";
 import { useEscClose } from "../hooks/useEscClose.js";
 
-// Iniciais do nome da empresa pro badge do topo (ex.: "Gimenes & Pires" → "GP")
-function iniciais(nome) {
-  return (nome || "ED")
-    .split(/\s+/)
-    .filter((w) => w.length > 1) // ignora "&", "de", etc.
-    .slice(0, 2)
-    .map((w) => w[0])
-    .join("")
-    .toUpperCase() || "ED";
-}
-
 // Desktop (md+): coluna fixa, com o botão de recolher/expandir pra ícone-só.
 // Mobile/tablet estreito: vira gaveta (drawer) sobre o conteúdo, aberta pelo hambúrguer
 // da TopBar — sem "recolher" aqui, é aberta (tela toda) ou fechada (fora da tela).
@@ -59,17 +48,12 @@ export default function Sidebar({ allowedModules, activeTab, setActiveTab, curre
         </button>
 
         <div className={`pt-7 pb-6 flex items-center gap-3 ${recolhida ? "md:px-4 md:justify-center" : ""} px-6`} style={{ borderBottom: "1px solid rgba(255,255,255,0.1)" }}>
-          <div
-            className="w-11 h-11 rounded-full flex items-center justify-center shrink-0"
-            style={{ border: `2px solid ${COLORS.brass}`, boxShadow: `inset 0 0 0 2px ${COLORS.ink}, inset 0 0 0 3px ${COLORS.brass}` }}
-          >
-            <span style={{ fontFamily: "'Source Serif 4', serif", color: COLORS.brass, fontWeight: 700, fontSize: 14 }}>{iniciais(orgNome)}</span>
-          </div>
+          <img src="/brand/logo-icon.png" alt="Actum" className="w-9 h-9 shrink-0" />
           <div className={`min-w-0 ${recolhida ? "md:hidden" : ""}`}>
-            <p className="truncate" style={{ fontFamily: "'Source Serif 4', serif", color: "#fff", fontWeight: 600, fontSize: 15, lineHeight: 1.15 }}>
-              {orgNome || "Escritório Dashboard"}
+            <p className="truncate" style={{ fontFamily: "'Source Serif 4', serif", color: "#fff", fontWeight: 600, fontSize: 17, lineHeight: 1.15 }}>
+              Actum
             </p>
-            <p className="text-[11px] tracking-wide" style={{ color: "rgba(255,255,255,0.5)" }}>ADVOCACIA</p>
+            <p className="text-[11px] tracking-wide" style={{ color: "rgba(255,255,255,0.5)" }}>GESTÃO JURÍDICA E ERP</p>
           </div>
         </div>
 
