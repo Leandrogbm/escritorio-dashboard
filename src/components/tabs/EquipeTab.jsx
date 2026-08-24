@@ -133,7 +133,7 @@ export default function EquipeTab({ currentRole, orgId }) {
       )}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {equipe.map((e) => (
-          <Card key={e.id} className="cursor-pointer">
+          <Card key={e.id} className="cursor-pointer" hoverable>
             <div onClick={() => setEditing(e)} className="flex items-center justify-between">
               <div>
                 <p style={{ fontFamily: "'Source Serif 4', serif", fontWeight: 600, color: COLORS.ink }}>{e.nome}</p>

@@ -84,9 +84,9 @@ export default function Sidebar({ allowedModules, activeTab, setActiveTab, curre
                 key={m.key}
                 onClick={() => escolher(m.key)}
                 title={recolhida ? m.label : undefined}
-                className={`w-full flex items-center gap-3 py-2.5 rounded-md text-sm transition-colors ${recolhida ? "md:justify-center md:px-0" : ""} px-3`}
+                className={`w-full flex items-center gap-3 py-2.5 rounded-md text-sm transition-colors ${!active ? "hover:bg-white/[0.06]" : ""} ${recolhida ? "md:justify-center md:px-0" : ""} px-3`}
                 style={{
-                  background: active ? "rgba(165,121,59,0.18)" : "transparent",
+                  background: active ? "rgba(165,121,59,0.18)" : undefined,
                   color: active ? COLORS.brass : "rgba(255,255,255,0.75)",
                   fontWeight: active ? 600 : 500,
                 }}
@@ -103,9 +103,9 @@ export default function Sidebar({ allowedModules, activeTab, setActiveTab, curre
               <button
                 onClick={() => escolher("empresa")}
                 title={recolhida ? "Minha Empresa" : undefined}
-                className={`w-full flex items-center gap-3 py-2.5 rounded-md text-sm ${recolhida ? "md:justify-center md:px-0" : ""} px-3`}
+                className={`w-full flex items-center gap-3 py-2.5 rounded-md text-sm transition-colors ${activeTab !== "empresa" ? "hover:bg-white/[0.06]" : ""} ${recolhida ? "md:justify-center md:px-0" : ""} px-3`}
                 style={{
-                  background: activeTab === "empresa" ? "rgba(165,121,59,0.18)" : "transparent",
+                  background: activeTab === "empresa" ? "rgba(165,121,59,0.18)" : undefined,
                   color: activeTab === "empresa" ? COLORS.brass : "rgba(255,255,255,0.75)",
                   fontWeight: activeTab === "empresa" ? 600 : 500,
                 }}

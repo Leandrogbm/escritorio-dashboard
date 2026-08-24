@@ -23,6 +23,7 @@ import MinhaEmpresaTab from "./components/tabs/MinhaEmpresaTab.jsx";
 import PortalCliente from "./components/PortalCliente.jsx";
 import LeadsCaptacaoTab from "./components/tabs/LeadsCaptacaoTab.jsx";
 import LeadForm from "./components/LeadForm.jsx";
+import PageLoader from "./components/PageLoader.jsx";
 
 export default function App() {
   // ponytail: Captação de Leads em back log a pedido do usuário (ver ROADMAP-comparativo.md)
@@ -48,6 +49,15 @@ export default function App() {
     if (tab) localStorage.setItem("activeTab", tab); else localStorage.removeItem("activeTab");
   };
   const [verEmpresa, setVerEmpresa] = useState(false); // platform admin que também é admin de uma org: alterna pra visão normal
+  // Balança girando por um instante a cada troca de aba (UX, não é o loading de dado —
+  // cada aba já cuida do próprio `loading`) — dá o "algo está acontecendo" na transição
+  // sem esperar a query terminar, evita a tela mudar de conteúdo seca demais.
+  const [trocandoAba, setTrocandoAba] = useState(false);
+  useEffect(() => {
+    setTrocandoAba(true);
+    const t = setTimeout(() => setTrocandoAba(false), 420);
+    return () => clearTimeout(t);
+  }, [activeTab]);
   const [menuMobileAberto, setMenuMobileAberto] = useState(false); // sidebar vira gaveta em telas pequenas
 
   // Em modo suporte o platform admin opera como admin completo da empresa escolhida —
@@ -152,7 +162,7 @@ export default function App() {
           onSairSuporte={() => setOrgOverride(null)}
         />
         <main className="flex-1 px-4 sm:px-8 py-6 sm:py-8 overflow-y-auto overflow-x-hidden">
-          {renderTab()}
+          {trocandoAba ? <PageLoader /> : <div key={activeTab} className="tab-fade-in">{renderTab()}</div>}
         </main>
       </div>
     </div>

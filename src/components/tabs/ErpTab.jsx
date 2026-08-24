@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from "react";
-import { Building2, Plus } from "lucide-react";
+import { Calculator, Plus } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
 import Card from "../Card.jsx";
 import SectionTitle from "../SectionTitle.jsx";
@@ -73,7 +73,7 @@ export default function ErpTab({ orgId }) {
   return (
     <div>
       <SectionTitle
-        icon={Building2}
+        icon={Calculator}
         title="ERP"
         subtitle="Contas a pagar, fluxo de caixa e resultado do escritório"
         action={

@@ -16,3 +16,95 @@ html, body {
 #root {
   overflow-x: hidden;
 }
+
+/* Polimento global de interação — aplica em TODO botão/campo do sistema de uma vez, sem
+   precisar tocar em cada componente (a maioria já define cor via `style` inline; isso aqui
+   cuida só de movimento/profundidade, que nenhum inline style define, então nunca briga). */
+@layer base {
+  button:not(:disabled) {
+    transition: transform 150ms cubic-bezier(0.22, 1, 0.36, 1), box-shadow 150ms ease, filter 150ms ease, opacity 150ms ease;
+  }
+  button:not(:disabled):hover {
+    transform: translateY(-1.5px);
+    filter: brightness(1.06);
+  }
+  button:not(:disabled):active {
+    transform: translateY(0);
+    filter: brightness(0.96);
+    transition-duration: 60ms;
+  }
+  a {
+    transition: opacity 150ms ease, color 150ms ease;
+  }
+  input, select, textarea {
+    transition: border-color 150ms ease, box-shadow 150ms ease;
+  }
+  input:focus, select:focus, textarea:focus {
+    outline: none;
+    border-color: #A5793B !important;
+    box-shadow: 0 0 0 3px rgba(165, 121, 59, 0.15);
+  }
+  ::selection {
+    background: rgba(165, 121, 59, 0.25);
+  }
+  /* Scrollbar discreta, combinando com a paleta — Firefox + WebKit */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: #DCD7C9 transparent;
+  }
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #DCD7C9;
+    border-radius: 999px;
+    border: 2px solid #F2F0E9;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #C4BCA8;
+  }
+}
+
+.card-hoverable {
+  box-shadow: 0 1px 2px rgba(22, 35, 59, 0.05);
+  transition: transform 200ms cubic-bezier(0.22, 1, 0.36, 1), box-shadow 200ms ease, border-color 200ms ease;
+}
+.card-hoverable:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 24px rgba(22, 35, 59, 0.10);
+  border-color: #C4BCA8;
+}
+
+/* Balança da justiça balançando — transição entre abas (ver PageLoader.jsx). Gira em torno
+   do próprio centro pra imitar o prato de uma balança de verdade oscilando, não só girar. */
+@keyframes balanca-swing {
+  0%, 100% { transform: rotate(-14deg); }
+  50% { transform: rotate(14deg); }
+}
+.balanca-animada {
+  animation: balanca-swing 0.7s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+  transform-origin: 50% 15%; /* gira em torno do "pino" do topo da balança, não do centro do ícone */
+}
+.tab-fade-in {
+  animation: tab-fade-in 260ms ease both;
+}
+@keyframes tab-fade-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  button:not(:disabled), a, input, select, textarea, .card-hoverable {
+    transition: none !important;
+  }
+  button:not(:disabled):hover, .card-hoverable:hover {
+    transform: none !important;
+  }
+  .balanca-animada, .tab-fade-in {
+    animation: none !important;
+  }
+}

@@ -127,7 +127,7 @@ export default function ProcessosTab({ currentRole, orgId, profile }) {
         {processosFiltrados.map((p) => {
           const atrasos = clientesInadimplentes.get(p.cliente?.id);
           return (
-          <Card key={p.id}>
+          <Card key={p.id} hoverable>
             <div className="flex items-start justify-between gap-3">
               <div>
                 <p style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 12, color: COLORS.slate }}>{p.numero}</p>
