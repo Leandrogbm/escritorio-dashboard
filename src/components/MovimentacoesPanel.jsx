@@ -1,16 +1,35 @@
-import React from "react";
-import { X, AlertTriangle, Clock } from "lucide-react";
+import React, { useState } from "react";
+import { X, AlertTriangle, Clock, Sparkles } from "lucide-react";
 import Card from "./Card.jsx";
 import { COLORS } from "../lib/theme.js";
 import { useSupabaseTable } from "../hooks/useSupabaseTable.js";
+import { supabase } from "../lib/supabaseClient.js";
 
 // Andamentos trazidos do DataJud pro processo. Só leitura (vem da fonte oficial) — a ação
 // que o advogado tem aqui é registrar um prazo a partir de uma movimentação relevante,
-// já que o DataJud não traz o prazo pronto (só avisa que algo aconteceu no processo).
+// já que o DataJud não traz o prazo pronto (só avisa que algo aconteceu no processo), e
+// pedir um resumo por IA (cacheado em processos.resumo_ia, só reprocessa quando pedido).
 export default function MovimentacoesPanel({ processo, onClose, onRegistrarPrazo }) {
   const { data: movimentacoes, loading } = useSupabaseTable("movimentacoes_processo", {
     select: "*", orderBy: "data_hora", ascending: false, eq: ["processo_id", processo.id],
   });
+  const [resumo, setResumo] = useState(processo.resumo_ia ?? null);
+  const [resumoGeradoEm, setResumoGeradoEm] = useState(processo.resumo_ia_gerado_em ?? null);
+  const [resumindo, setResumindo] = useState(false);
+  const [erroResumo, setErroResumo] = useState("");
+
+  const resumirComIA = async () => {
+    setResumindo(true);
+    setErroResumo("");
+    const { data, error } = await supabase.functions.invoke("resumir-andamentos", { body: { processoId: processo.id } });
+    setResumindo(false);
+    if (error) {
+      setErroResumo((await error.context?.json?.().catch(() => null))?.error ?? error.message);
+      return;
+    }
+    setResumo(data.resumo);
+    setResumoGeradoEm(new Date().toISOString());
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end" style={{ background: "rgba(0,0,0,0.4)" }} onClick={onClose}>
@@ -22,6 +41,26 @@ export default function MovimentacoesPanel({ processo, onClose, onRegistrarPrazo
           </div>
           <button onClick={onClose} className="p-2 rounded hover:opacity-70" style={{ color: COLORS.slate }}><X size={18} /></button>
         </div>
+
+        <Card className="mb-4" style={{ background: "rgba(165,121,59,0.06)", borderColor: "rgba(165,121,59,0.3)" }}>
+          <div className="flex items-center justify-between gap-2 mb-1.5">
+            <p className="flex items-center gap-1.5 text-xs font-semibold" style={{ color: COLORS.ink }}>
+              <Sparkles size={13} color={COLORS.brass} /> Resumo por IA
+            </p>
+            <button onClick={resumirComIA} disabled={resumindo} className="text-xs underline shrink-0" style={{ color: COLORS.brass, opacity: resumindo ? 0.5 : 1 }}>
+              {resumindo ? "Gerando..." : resumo ? "Atualizar" : "Gerar resumo"}
+            </button>
+          </div>
+          {resumo ? (
+            <>
+              <p className="text-sm" style={{ color: COLORS.ink }}>{resumo}</p>
+              {resumoGeradoEm && <p className="text-xs mt-1.5" style={{ color: COLORS.slate }}>Gerado em {new Date(resumoGeradoEm).toLocaleString("pt-BR")}</p>}
+            </>
+          ) : (
+            <p className="text-sm" style={{ color: COLORS.slate }}>Nenhum resumo gerado ainda.</p>
+          )}
+          {erroResumo && <p className="text-xs mt-1.5" style={{ color: COLORS.wine }}>{erroResumo}</p>}
+        </Card>
 
         {processo.ultima_verificacao_datajud && (
           <p className="text-xs mb-4" style={{ color: COLORS.slate }}>

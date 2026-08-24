@@ -584,6 +584,11 @@ alter table processos add column if not exists ultima_verificacao_datajud timest
 alter table processos add column if not exists datajud_status text check (datajud_status in ('ok','erro','nao_suportado'));
 alter table processos add column if not exists datajud_erro text;
 
+-- Resumo automático de andamento (IA, Anthropic/Claude) — botão "Gerar resumo" no painel de
+-- Andamentos. Cacheado aqui, só reprocessa quando pedido (não gera sozinho a cada sync).
+alter table processos add column if not exists resumo_ia text;
+alter table processos add column if not exists resumo_ia_gerado_em timestamptz;
+
 create table movimentacoes_processo (
   id uuid primary key default gen_random_uuid(),
   org_id uuid not null references organizations(id),
