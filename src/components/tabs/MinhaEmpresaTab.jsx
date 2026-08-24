@@ -16,8 +16,6 @@ export default function MinhaEmpresaTab({ profile, onAtualizado }) {
   const [form, setForm] = useState({
     nome: org.nome ?? "",
     cnpj: org.cnpj ?? "",
-    inscricao_municipal: org.inscricao_municipal ?? "",
-    aliquota_iss: org.aliquota_iss ?? "",
     cep: org.cep ?? "",
     logradouro: org.logradouro ?? "",
     numero: org.numero ?? "",
@@ -42,8 +40,7 @@ export default function MinhaEmpresaTab({ profile, onAtualizado }) {
     setMsg("");
     // cnpj é unique no banco — "" bateria com a "" de outra empresa que também deixou em
     // branco (unique não trata duas strings vazias como diferente, só NULL é sempre diferente).
-    const payload = { ...form, cnpj: form.cnpj || null, aliquota_iss: form.aliquota_iss === "" ? null : Number(form.aliquota_iss) };
-    const { error } = await supabase.from("organizations").update(payload).eq("id", profile.org_id);
+    const { error } = await supabase.from("organizations").update({ ...form, cnpj: form.cnpj || null }).eq("id", profile.org_id);
     setSalvando(false);
     if (error) return setMsg(error.code === "23505" ? "Esse CNPJ já está cadastrado em outra empresa." : error.message);
     setMsg("Salvo.");
@@ -72,20 +69,6 @@ export default function MinhaEmpresaTab({ profile, onAtualizado }) {
               className="px-3 py-2 rounded-md text-sm" style={inputStyle}
             />
           </label>
-
-          <div className="grid grid-cols-2 gap-3">
-            <label className="flex flex-col gap-1 text-xs" style={{ color: COLORS.slate }}>
-              Inscrição Municipal
-              <input value={form.inscricao_municipal} onChange={(e) => campo("inscricao_municipal", { inscricao_municipal: e.target.value })} className="px-3 py-2 rounded-md text-sm" style={inputStyle} />
-            </label>
-            <label className="flex flex-col gap-1 text-xs" style={{ color: COLORS.slate }}>
-              Alíquota de ISS (%)
-              <input type="number" step="0.01" min="0" max="100" value={form.aliquota_iss} onChange={(e) => campo("aliquota_iss", { aliquota_iss: e.target.value })} className="px-3 py-2 rounded-md text-sm" style={inputStyle} />
-            </label>
-          </div>
-          <p className="text-xs -mt-2" style={{ color: COLORS.slate }}>
-            Esses dois campos são pra quando a emissão de nota fiscal for ligada (Financeiro → gerar nota).
-          </p>
 
           <div className="grid grid-cols-2 gap-3">
             <label className="flex flex-col gap-1 text-xs" style={{ color: COLORS.slate }}>
