@@ -133,6 +133,23 @@ create table notas_fiscais (
 );
 create index notas_fiscais_org_id_idx on notas_fiscais (org_id);
 
+-- Funil de captação (Kanban de leads) — gente que ainda não é cliente, procurando o
+-- escritório (WhatsApp, indicação, anúncio). Não é a mesma coisa que "captação de processo
+-- novo pra oferecer serviço" (isso continua fora, por ética OAB) — aqui é sempre alguém que
+-- já procurou o escritório por conta própria. "Converter em cliente" cria uma linha em
+-- `clientes` e marca etapa = Convertido, sem apagar o histórico do lead.
+create table leads (
+  id uuid primary key default gen_random_uuid(),
+  org_id uuid not null references organizations(id),
+  nome text not null,
+  telefone text,
+  origem text, -- ex.: "Indicação", "WhatsApp", "Instagram" — texto livre, mesmo padrão de clientes.origem
+  etapa text not null check (etapa in ('Novo','Consulta agendada','Proposta enviada','Convertido','Perdido')) default 'Novo',
+  observacoes text,
+  created_at timestamptz not null default now()
+);
+create index leads_org_id_idx on leads (org_id);
+
 -- Kanban de tarefas por processo (Processos → botão "Tarefas"). 3 colunas fixas.
 create table tarefas (
   id uuid primary key default gen_random_uuid(),
@@ -514,6 +531,15 @@ create policy notas_fiscais_sel on notas_fiscais for select using ((org_id = aut
 create policy notas_fiscais_ins on notas_fiscais for insert with check ((org_id = auth_org_id() and has_module('financeiro')) or is_platform_admin());
 create policy notas_fiscais_del on notas_fiscais for delete using ((org_id = auth_org_id() and has_module('financeiro')) or is_platform_admin());
 create trigger trg_audit_notas_fiscais after insert or update or delete on notas_fiscais for each row execute function log_platform_admin_write();
+
+alter table leads enable row level security;
+create trigger trg_set_org_id before insert on leads for each row execute function set_org_id();
+create policy leads_sel on leads for select using ((org_id = auth_org_id() and has_module('leads')) or is_platform_admin());
+create policy leads_ins on leads for insert with check ((org_id = auth_org_id() and has_module('leads')) or is_platform_admin());
+create policy leads_upd on leads for update
+  using ((org_id = auth_org_id() and has_module('leads')) or is_platform_admin()) with check (true);
+create policy leads_del on leads for delete using ((org_id = auth_org_id() and has_module('leads')) or is_platform_admin());
+create trigger trg_audit_leads after insert or update or delete on leads for each row execute function log_platform_admin_write();
 
 alter table tarefas enable row level security;
 create trigger trg_set_org_id before insert on tarefas for each row execute function set_org_id();

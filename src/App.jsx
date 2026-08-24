@@ -12,6 +12,7 @@ import EmptyState from "./components/EmptyState.jsx";
 import PrazosTab from "./components/tabs/PrazosTab.jsx";
 import ProcessosTab from "./components/tabs/ProcessosTab.jsx";
 import QuadroTab from "./components/tabs/QuadroTab.jsx";
+import LeadsTab from "./components/tabs/LeadsTab.jsx";
 import FinanceiroTab from "./components/tabs/FinanceiroTab.jsx";
 import ClientesTab from "./components/tabs/ClientesTab.jsx";
 import EquipeTab from "./components/tabs/EquipeTab.jsx";
@@ -108,6 +109,7 @@ export default function App() {
       case "processos": return <ProcessosTab currentRole={currentRole} orgId={orgId} profile={profile} />;
       case "quadro": return <QuadroTab orgId={orgId} currentRole={currentRole} profile={profile} />;
       case "financeiro": return <FinanceiroTab orgId={orgId} />;
+      case "leads": return <LeadsTab orgId={orgId} />;
       case "clientes": return <ClientesTab currentRole={currentRole} orgId={orgId} />;
       case "equipe": return <EquipeTab currentRole={currentRole} orgId={orgId} />;
       case "executivo": return <ExecutivoTab orgId={orgId} />;
