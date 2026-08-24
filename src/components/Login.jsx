@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { Eye, EyeOff } from "lucide-react";
 import Card from "./Card.jsx";
 import Signup from "./Signup.jsx";
 import { COLORS } from "../lib/theme.js";
@@ -10,6 +11,7 @@ export default function Login() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [forgot, setForgot] = useState(false); // true = mostra o form de "esqueci minha senha"
+  const [verSenha, setVerSenha] = useState(false);
   const [sent, setSent] = useState(false);
   const [signingUp, setSigningUp] = useState(false); // true = mostra o cadastro de empresa nova
 
@@ -111,16 +113,27 @@ export default function Login() {
             className="px-3.5 py-2.5 rounded-md text-sm outline-none"
             style={{ border: `1px solid ${COLORS.line}`, color: COLORS.ink, background: COLORS.paperRaised }}
           />
-          <input
-            type="password"
-            required
-            autoComplete="current-password"
-            placeholder="Senha"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            className="px-3.5 py-2.5 rounded-md text-sm outline-none"
-            style={{ border: `1px solid ${COLORS.line}`, color: COLORS.ink, background: COLORS.paperRaised }}
-          />
+          <div className="relative">
+            <input
+              type={verSenha ? "text" : "password"}
+              required
+              autoComplete="current-password"
+              placeholder="Senha"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="w-full px-3.5 py-2.5 pr-10 rounded-md text-sm outline-none"
+              style={{ border: `1px solid ${COLORS.line}`, color: COLORS.ink, background: COLORS.paperRaised }}
+            />
+            <button
+              type="button"
+              onClick={() => setVerSenha((v) => !v)}
+              aria-label={verSenha ? "Esconder senha" : "Mostrar senha"}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 rounded hover:opacity-70"
+              style={{ color: COLORS.slate }}
+            >
+              {verSenha ? <EyeOff size={16} /> : <Eye size={16} />}
+            </button>
+          </div>
 
           {error && <p className="text-xs" style={{ color: COLORS.wine }}>{error}</p>}
 
