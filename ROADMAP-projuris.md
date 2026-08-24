@@ -33,12 +33,14 @@ terminar e sobe.
   inicial" no Android/iOS abre em tela cheia como app. Não é app nativo em loja (Apple/
   Google) — isso é projeto à parte (conta de desenvolvedor, build nativo, revisão).
 
-- [x] **Assinatura eletrônica (D4Sign)** e **Captação automática de processo (Jusbrasil)**
-  — construídos a partir da documentação oficial de cada provedor, cada escritório usa a
-  PRÓPRIA conta (credencial por empresa). ⚠️ Sem teste contra conta real (não temos
-  credencial) — testei tudo que dava sem conta (erro amigável faltando credencial, RLS de
-  leitura/atualização); o caminho que fala com D4Sign/Jusbrasil de verdade só valida na
-  primeira tentativa real de vocês. Ver commit pra detalhe completo do que foi/não foi testado.
+- [x] **Assinatura eletrônica (D4Sign)** — construído a partir da documentação oficial,
+  cada escritório usa a PRÓPRIA conta. ⚠️ Sem teste contra conta real (não temos
+  credencial) — testei tudo que dava sem conta (erro amigável faltando credencial); o
+  caminho que fala com D4Sign de verdade só valida na primeira tentativa real de vocês.
+- [x→removido] **Captação automática de processo (Jusbrasil)** — construído, mas o cliente
+  não tem o produto "Jusbrasil Soluções" (é contrato B2B separado da conta pessoal dele,
+  confirmado checando a conta real). Removido por completo (banco, funções, tela) —
+  reintroduzir se/quando contratarem esse produto.
 
 ## Bloqueados por decisão de negócio (provedor pago) — não são gap técnico, são compra a fazer
 
