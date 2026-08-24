@@ -128,8 +128,8 @@ export default function IntegracoesSection({ orgId }) {
         </p>
 
         <ComoConseguir passos={[
-          <>Fale com o time comercial do <strong>Jusbrasil Soluções</strong> (jusbrasil.com.br) e contrate o módulo <strong>"Monitoramento por OAB"</strong>, se o escritório ainda não tiver.</>,
-          <>Peça pra eles te passarem o <strong>token de acesso à API</strong> da conta.</>,
+          <>Entre na conta do escritório em <strong>jusbrasil.com.br</strong> e procure por <strong>"Chave de API"</strong> ou <strong>"Token de acesso"</strong> em Configurações/Conta — a maioria das contas já mostra isso pronto, sem precisar pedir pra ninguém.</>,
+          <>Não achou? Fale com o time comercial do Jusbrasil Soluções e peça o módulo <strong>"Monitoramento por OAB"</strong> (se o escritório ainda não tiver) — eles liberam e te passam o token.</>,
           <>Cole esse código no campo abaixo.</>,
         ]} />
 
