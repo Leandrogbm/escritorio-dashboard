@@ -94,13 +94,19 @@ export default function FinanceiroTab({ orgId } = {}) {
 
   // Resumo por cliente — PF mostra como "parcelas", PJ como "mensalidade", mas o dado é o
   // mesmo (uma linha em honorarios por cobrança); só muda o texto na hora de criar/exibir.
+  // Mensalidade gera vários meses de uma vez (ver `parcelas` em `salvar`); meses ainda no
+  // futuro (vencimento > hoje) ficam cadastrados e aparecem na lista do cliente, mas não
+  // entram no Total/Pendente daqui — senão um cliente com 12 meses gerados de uma vez
+  // aparece "devendo" o ano inteiro em vez de só o que já venceu.
   const porCliente = useMemo(() => {
     const map = new Map(clientes.map((c) => [c.id, { ...c, total: 0, recebido: 0, pendente: 0, atrasado: 0, itens: [] }]));
     for (const h of honorarios) {
       const c = map.get(h.cliente?.id);
       if (!c) continue;
-      c.total += h.valor;
       c.itens.push(h);
+      const futuro = h.status !== "Pago" && !estaAtrasado(h) && h.vencimento > hojeStr;
+      if (futuro) continue;
+      c.total += h.valor;
       if (h.status === "Pago") c.recebido += h.valor;
       else if (estaAtrasado(h)) c.atrasado += h.valor;
       else c.pendente += h.valor;
