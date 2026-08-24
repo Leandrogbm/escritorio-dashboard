@@ -107,15 +107,17 @@ export default function ImportarExtratoModal({ honorarios, orgId, onClose }) {
             <div>
               <p className="text-sm mb-4" style={{ color: COLORS.slate }}>
                 Suba o extrato baixado do banco: <strong>.ofx</strong> ou <strong>.csv</strong> (data;valor;descrição)
-                se o internet banking oferecer, ou o próprio <strong>.pdf</strong> do extrato do app (nesse caso a
-                leitura é menos precisa — linha com valor e saldo juntos, por exemplo, é ignorada em vez de arriscar
-                um match errado). O sistema casa as entradas com as cobranças em aberto por valor, data e nome de
-                quem pagou — cada match vira uma notificação no sino, pra confirmar ou rejeitar de lá.
+                se o internet banking oferecer, o <strong>.pdf</strong> do extrato do app, ou até uma <strong>foto</strong>
+                do extrato (lê o texto da imagem automaticamente — menos preciso que PDF/OFX, então linha com valor
+                e saldo juntos, por exemplo, é ignorada em vez de arriscar um match errado). O sistema casa as
+                entradas com as cobranças em aberto por valor, data e nome de quem pagou — cada match vira uma
+                notificação no sino, pra confirmar ou rejeitar de lá.
               </p>
               <label className="flex items-center gap-1.5 px-3 py-2 rounded-md text-sm cursor-pointer w-fit" style={{ border: `1px solid ${COLORS.line}`, color: COLORS.ink }}>
-                <Upload size={14} /> {carregando ? "Lendo..." : "Escolher arquivo"}
-                <input type="file" accept=".ofx,.csv,.txt,.pdf" className="hidden" disabled={carregando} onChange={abrirArquivo} />
+                <Upload size={14} /> {carregando ? "Lendo..." : "Escolher arquivo ou foto"}
+                <input type="file" accept=".ofx,.csv,.txt,.pdf,image/*" className="hidden" disabled={carregando} onChange={abrirArquivo} />
               </label>
+              {carregando && <p className="text-xs mt-2" style={{ color: COLORS.slate }}>Foto pode demorar alguns segundos a mais pra ler.</p>}
               {erro && <p className="text-xs mt-3" style={{ color: COLORS.wine }}>{erro}</p>}
             </div>
           ) : (

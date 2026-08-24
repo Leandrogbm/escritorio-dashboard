@@ -60,6 +60,36 @@ function parseCsv(texto) {
 const DATA_RE = /(\d{2}\/\d{2}\/\d{4}|\d{4}-\d{2}-\d{2})/;
 const VALOR_RE = /R?\$?\s?-?\d{1,3}(?:\.\d{3})*,\d{2}/g;
 
+// Mesma regra de segurança do PDF: só aceita linha com exatamente 1 valor em R$ (evita
+// confundir "valor" com "saldo" quando as duas colunas aparecem juntas na mesma linha).
+function extrairDeLinhas(linhasTexto) {
+  const out = [];
+  for (const linha of linhasTexto) {
+    const dataMatch = linha.match(DATA_RE);
+    const valores = linha.match(VALOR_RE);
+    if (!dataMatch || !valores || valores.length !== 1) continue;
+    const data = normalizarData(dataMatch[1]);
+    const valor = normalizarValor(valores[0]);
+    if (data && valor != null) out.push({ data, valor, memo: linha.replace(DATA_RE, "").replace(VALOR_RE, "").trim() });
+  }
+  return out;
+}
+
+// Foto de extrato (celular) — OCR client-side via Tesseract.js, sem servidor/custo. Precisão
+// de foto é bem mais baixa que PDF/OFX (ângulo, luz, fonte do banco) — por isso o mesmo filtro
+// rígido acima (só linha com 1 valor certeiro) é ainda mais importante aqui: prefere ficar de
+// fora do que virar um match errado.
+async function parseImagem(file) {
+  const { createWorker } = await import("tesseract.js");
+  const worker = await createWorker("por");
+  try {
+    const { data } = await worker.recognize(file);
+    return extrairDeLinhas(data.text.split(/\r?\n/));
+  } finally {
+    await worker.terminate();
+  }
+}
+
 async function parsePdf(file) {
   const pdfjs = await import("pdfjs-dist");
   const workerUrl = (await import("pdfjs-dist/build/pdf.worker.min.mjs?url")).default;
@@ -82,22 +112,16 @@ async function parsePdf(file) {
     }
   }
 
-  const out = [];
-  for (const linha of linhasTexto) {
-    const dataMatch = linha.match(DATA_RE);
-    const valores = linha.match(VALOR_RE);
-    if (!dataMatch || !valores || valores.length !== 1) continue;
-    const data = normalizarData(dataMatch[1]);
-    const valor = normalizarValor(valores[0]);
-    if (data && valor != null) out.push({ data, valor, memo: linha.replace(DATA_RE, "").replace(VALOR_RE, "").trim() });
-  }
-  return out;
+  return extrairDeLinhas(linhasTexto);
 }
 
 // Só entradas (créditos) interessam pra achar pagamento recebido — TRNAMT/valor negativo é saída.
 export async function parseExtrato(file) {
   if (/\.pdf$/i.test(file.name) || file.type === "application/pdf") {
     return (await parsePdf(file)).filter((l) => l.valor > 0);
+  }
+  if (file.type.startsWith("image/")) {
+    return (await parseImagem(file)).filter((l) => l.valor > 0);
   }
   const texto = await file.text();
   const linhas = /<OFX>|<STMTTRN>/i.test(texto) ? parseOfx(texto) : parseCsv(texto);
