@@ -95,9 +95,9 @@ export default function ImportarExtratoModal({ honorarios, orgId, onClose }) {
   const comMatch = linhas?.filter((l) => l.match).length ?? 0;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.4)" }} onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
       <div className="w-full max-w-2xl max-h-[85vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-        <Card>
+        <Card style={{ boxShadow: "0 20px 48px rgba(22,35,59,0.22)" }}>
           <div className="flex items-center justify-between mb-4">
             <p style={{ fontFamily: "'Source Serif 4', serif", fontWeight: 700, fontSize: 16, color: COLORS.ink }}>Importar extrato</p>
             <button onClick={onClose} className="p-1 rounded hover:opacity-70" style={{ color: COLORS.slate }}><X size={18} /></button>

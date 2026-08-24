@@ -25,8 +25,8 @@ const FIELDS = [
 // Depósito judicial fica retido numa conta do tribunal, não passa pela conta do escritório —
 // diferente da importação de extrato (Financeiro), que bate honorário com o banco DO
 // escritório. Aqui é só acompanhar o ciclo de vida (depositado → liberado/convertido).
-export default function DepositosPanel({ processo, orgId, onClose }) {
-  useEscClose(onClose);
+export default function DepositosPanel({ processo, orgId, onClose, embutido = false }) {
+  useEscClose(onClose, !embutido);
   const orgEq = orgId ? ["org_id", orgId] : undefined;
   const { data: depositos, insert, update, remove } = useSupabaseTable("depositos_judiciais", {
     select: "*", eq: orgEq, orderBy: "data_deposito", ascending: false,
@@ -35,17 +35,17 @@ export default function DepositosPanel({ processo, orgId, onClose }) {
   const total = doProcesso.filter((d) => d.status !== "Liberado").reduce((s, d) => s + Number(d.valor), 0);
   const [editing, setEditing] = useState(null);
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.4)" }} onClick={onClose}>
-      <div className="w-full max-w-2xl max-h-[85vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-        <Card>
-          <div className="flex items-center justify-between mb-1">
-            <div>
-              <p style={{ fontFamily: "'Source Serif 4', serif", fontWeight: 700, fontSize: 16, color: COLORS.ink }}>{processo.numero}</p>
-              <p className="text-xs" style={{ color: COLORS.slate }}>Depósitos judiciais</p>
+  const conteudo = (
+    <>
+          {!embutido && (
+            <div className="flex items-center justify-between mb-1">
+              <div>
+                <p style={{ fontFamily: "'Source Serif 4', serif", fontWeight: 700, fontSize: 16, color: COLORS.ink }}>{processo.numero}</p>
+                <p className="text-xs" style={{ color: COLORS.slate }}>Depósitos judiciais</p>
+              </div>
+              <button onClick={onClose} className="p-1 rounded hover:opacity-70" style={{ color: COLORS.slate }}><X size={18} /></button>
             </div>
-            <button onClick={onClose} className="p-1 rounded hover:opacity-70" style={{ color: COLORS.slate }}><X size={18} /></button>
-          </div>
+          )}
           <p className="text-2xl mb-4" style={{ fontFamily: "'Source Serif 4', serif", fontWeight: 700, color: COLORS.brass }}>
             {BRL(total)} <span className="text-xs font-normal" style={{ color: COLORS.slate }}>ainda retidos</span>
           </p>
@@ -79,17 +79,29 @@ export default function DepositosPanel({ processo, orgId, onClose }) {
               </div>
             ))}
           </div>
+    </>
+  );
+
+  const modal = (
+    <RecordFormModal
+      open={editing !== null}
+      title={editing?.id ? "Editar depósito" : "Registrar depósito"}
+      fields={FIELDS}
+      initialValues={editing}
+      onClose={() => setEditing(null)}
+      onSubmit={(values) => (editing?.id ? update(editing.id, values) : insert({ ...values, processo_id: processo.id }))}
+    />
+  );
+
+  if (embutido) return <>{conteudo}{modal}</>;
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="w-full max-w-2xl max-h-[85vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+        <Card style={{ boxShadow: "0 20px 48px rgba(22,35,59,0.22)" }}>
+          {conteudo}
         </Card>
       </div>
-
-      <RecordFormModal
-        open={editing !== null}
-        title={editing?.id ? "Editar depósito" : "Registrar depósito"}
-        fields={FIELDS}
-        initialValues={editing}
-        onClose={() => setEditing(null)}
-        onSubmit={(values) => (editing?.id ? update(editing.id, values) : insert({ ...values, processo_id: processo.id }))}
-      />
+      {modal}
     </div>
   );
 }

@@ -38,9 +38,9 @@ export default function GerarNotaModal({ honorario, org, onGerada, onClose }) {
   };
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.4)" }} onClick={onClose}>
+    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" onClick={onClose}>
       <div className="w-full max-w-md" onClick={(e) => e.stopPropagation()}>
-        <Card>
+        <Card style={{ boxShadow: "0 20px 48px rgba(22,35,59,0.22)" }}>
           <div className="flex items-center justify-between mb-4">
             <p className="flex items-center gap-2" style={{ fontFamily: "'Source Serif 4', serif", fontWeight: 700, fontSize: 16, color: COLORS.ink }}>
               <Receipt size={18} color={COLORS.brass} /> Gerar nota fiscal

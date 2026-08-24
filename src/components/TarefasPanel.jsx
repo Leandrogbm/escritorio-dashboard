@@ -11,8 +11,11 @@ import { supabase } from "../lib/supabaseClient.js";
 // drag nativo não funciona direito).
 const COLUNAS = ["A fazer", "Em andamento", "Concluída"];
 
-export default function TarefasPanel({ processo, equipe, orgId, onClose }) {
-  useEscClose(onClose);
+// `embutido`: true quando usado como aba dentro de ProcessoPagina (sem moldura de modal,
+// sem Esc próprio — a página é que trata Esc/fechar). false = continua funcionando como
+// popup solto (compatibilidade, não tem outro lugar usando assim hoje mas deixa pronto).
+export default function TarefasPanel({ processo, equipe, orgId, onClose, embutido = false }) {
+  useEscClose(onClose, !embutido);
   const orgEq = orgId ? ["org_id", orgId] : undefined;
   const { data: tarefas, insert, update, remove } = useSupabaseTable("tarefas", {
     select: "*, responsavel:profiles(id,nome)", eq: orgEq, orderBy: "created_at", ascending: true,
@@ -75,17 +78,17 @@ export default function TarefasPanel({ processo, equipe, orgId, onClose }) {
     if (id) update(id, { status: coluna });
   };
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.4)" }} onClick={onClose}>
-      <div className="w-full max-w-3xl max-h-[85vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-        <Card>
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <p style={{ fontFamily: "'Source Serif 4', serif", fontWeight: 700, fontSize: 16, color: COLORS.ink }}>{processo.numero}</p>
-              <p className="text-xs" style={{ color: COLORS.slate }}>Tarefas</p>
+  const conteudo = (
+    <>
+          {!embutido && (
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <p style={{ fontFamily: "'Source Serif 4', serif", fontWeight: 700, fontSize: 16, color: COLORS.ink }}>{processo.numero}</p>
+                <p className="text-xs" style={{ color: COLORS.slate }}>Tarefas</p>
+              </div>
+              <button onClick={onClose} className="p-1 rounded hover:opacity-70" style={{ color: COLORS.slate }}><X size={18} /></button>
             </div>
-            <button onClick={onClose} className="p-1 rounded hover:opacity-70" style={{ color: COLORS.slate }}><X size={18} /></button>
-          </div>
+          )}
 
           {!formAberto && !checklist && (
             <div className="flex flex-wrap items-center gap-2 mb-2">
@@ -203,6 +206,15 @@ export default function TarefasPanel({ processo, equipe, orgId, onClose }) {
               </div>
             ))}
           </div>
+    </>
+  );
+
+  if (embutido) return conteudo;
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="w-full max-w-3xl max-h-[85vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+        <Card style={{ boxShadow: "0 20px 48px rgba(22,35,59,0.22)" }}>
+          {conteudo}
         </Card>
       </div>
     </div>

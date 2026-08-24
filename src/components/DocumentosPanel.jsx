@@ -18,8 +18,8 @@ function formatTamanho(bytes) {
 }
 
 // Bucket privado — link de download é uma URL assinada (expira), não link público direto.
-export default function DocumentosPanel({ processo, orgId, profile, onClose }) {
-  useEscClose(onClose);
+export default function DocumentosPanel({ processo, orgId, profile, onClose, embutido = false }) {
+  useEscClose(onClose, !embutido);
   const orgEq = orgId ? ["org_id", orgId] : undefined;
   const { data: documentos, insert, remove, refresh } = useSupabaseTable("documentos_processo", {
     select: "*", eq: orgEq, orderBy: "created_at", ascending: false,
@@ -91,17 +91,17 @@ export default function DocumentosPanel({ processo, orgId, profile, onClose }) {
     await refreshAssinaturas();
   };
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.4)" }} onClick={onClose}>
-      <div className="w-full max-w-lg max-h-[85vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-        <Card>
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <p style={{ fontFamily: "'Source Serif 4', serif", fontWeight: 700, fontSize: 16, color: COLORS.ink }}>{processo.numero}</p>
-              <p className="text-xs" style={{ color: COLORS.slate }}>Documentos</p>
+  const conteudo = (
+    <>
+          {!embutido && (
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <p style={{ fontFamily: "'Source Serif 4', serif", fontWeight: 700, fontSize: 16, color: COLORS.ink }}>{processo.numero}</p>
+                <p className="text-xs" style={{ color: COLORS.slate }}>Documentos</p>
+              </div>
+              <button onClick={onClose} className="p-1 rounded hover:opacity-70" style={{ color: COLORS.slate }}><X size={18} /></button>
             </div>
-            <button onClick={onClose} className="p-1 rounded hover:opacity-70" style={{ color: COLORS.slate }}><X size={18} /></button>
-          </div>
+          )}
 
           <label className="flex items-center gap-1.5 px-3 py-2 rounded-md text-sm cursor-pointer w-fit mb-4" style={{ border: `1px solid ${COLORS.line}`, color: COLORS.ink }}>
             <Upload size={14} /> {enviando ? "Enviando..." : "Enviar documento"}
@@ -132,6 +132,15 @@ export default function DocumentosPanel({ processo, orgId, profile, onClose }) {
               </div>
             ))}
           </div>
+    </>
+  );
+
+  if (embutido) return conteudo;
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="w-full max-w-lg max-h-[85vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+        <Card style={{ boxShadow: "0 20px 48px rgba(22,35,59,0.22)" }}>
+          {conteudo}
         </Card>
       </div>
     </div>

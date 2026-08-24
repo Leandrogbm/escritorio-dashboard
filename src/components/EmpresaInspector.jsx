@@ -70,8 +70,8 @@ export default function EmpresaInspector({ orgId, orgNome, onClose }) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end" style={{ background: "rgba(0,0,0,0.4)" }}>
-      <div className="w-full max-w-2xl h-full overflow-y-auto p-6" style={{ background: COLORS.paper }}>
+    <div className="fixed inset-0 z-50 flex justify-end">
+      <div className="w-full max-w-2xl h-full overflow-y-auto p-6" style={{ background: COLORS.paper, borderLeft: `1px solid ${COLORS.line}`, boxShadow: "-20px 0 48px rgba(22,35,59,0.18)" }}>
         <div className="flex items-center justify-between mb-5">
           <div>
             <p style={{ fontFamily: "'Source Serif 4', serif", fontWeight: 700, fontSize: 18, color: COLORS.ink }}>{orgNome}</p>

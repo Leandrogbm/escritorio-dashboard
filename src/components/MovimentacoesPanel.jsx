@@ -10,8 +10,8 @@ import { supabase } from "../lib/supabaseClient.js";
 // que o advogado tem aqui é registrar um prazo a partir de uma movimentação relevante,
 // já que o DataJud não traz o prazo pronto (só avisa que algo aconteceu no processo), e
 // pedir um resumo por IA (cacheado em processos.resumo_ia, só reprocessa quando pedido).
-export default function MovimentacoesPanel({ processo, onClose, onRegistrarPrazo }) {
-  useEscClose(onClose);
+export default function MovimentacoesPanel({ processo, onClose, onRegistrarPrazo, embutido = false }) {
+  useEscClose(onClose, !embutido);
   const { data: movimentacoes, loading } = useSupabaseTable("movimentacoes_processo", {
     select: "*", orderBy: "data_hora", ascending: false, eq: ["processo_id", processo.id],
   });
@@ -35,16 +35,17 @@ export default function MovimentacoesPanel({ processo, onClose, onRegistrarPrazo
     setResumoGeradoEm(new Date().toISOString());
   };
 
-  return (
-    <div className="fixed inset-0 z-50 flex justify-end" style={{ background: "rgba(0,0,0,0.4)" }} onClick={onClose}>
-      <div className="w-full max-w-lg h-full overflow-y-auto p-6" style={{ background: COLORS.paper }} onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between mb-2">
-          <div>
-            <p style={{ fontFamily: "'Source Serif 4', serif", fontWeight: 700, fontSize: 18, color: COLORS.ink }}>{processo.numero}</p>
-            <p className="text-xs" style={{ color: COLORS.slate }}>Andamentos (DataJud)</p>
+  const conteudo = (
+    <>
+        {!embutido && (
+          <div className="flex items-center justify-between mb-2">
+            <div>
+              <p style={{ fontFamily: "'Source Serif 4', serif", fontWeight: 700, fontSize: 18, color: COLORS.ink }}>{processo.numero}</p>
+              <p className="text-xs" style={{ color: COLORS.slate }}>Andamentos (DataJud)</p>
+            </div>
+            <button onClick={onClose} className="p-2 rounded hover:opacity-70" style={{ color: COLORS.slate }}><X size={18} /></button>
           </div>
-          <button onClick={onClose} className="p-2 rounded hover:opacity-70" style={{ color: COLORS.slate }}><X size={18} /></button>
-        </div>
+        )}
 
         <Card className="mb-4" style={{ background: "rgba(165,121,59,0.06)", borderColor: "rgba(165,121,59,0.3)" }}>
           <div className="flex items-center justify-between gap-2 mb-1.5">
@@ -106,6 +107,14 @@ export default function MovimentacoesPanel({ processo, onClose, onRegistrarPrazo
             </Card>
           ))}
         </div>
+    </>
+  );
+
+  if (embutido) return conteudo;
+  return (
+    <div className="fixed inset-0 z-50 flex justify-end" onClick={onClose}>
+      <div className="w-full max-w-lg h-full overflow-y-auto p-6" style={{ background: COLORS.paper, borderLeft: `1px solid ${COLORS.line}`, boxShadow: "-20px 0 48px rgba(22,35,59,0.18)" }} onClick={(e) => e.stopPropagation()}>
+        {conteudo}
       </div>
     </div>
   );

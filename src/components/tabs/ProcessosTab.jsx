@@ -5,11 +5,7 @@ import SectionTitle from "../SectionTitle.jsx";
 import Stamp from "../Stamp.jsx";
 import RowActions from "../RowActions.jsx";
 import RecordFormModal from "../RecordFormModal.jsx";
-import MovimentacoesPanel from "../MovimentacoesPanel.jsx";
-import TarefasPanel from "../TarefasPanel.jsx";
-import DepositosPanel from "../DepositosPanel.jsx";
-import DocumentosPanel from "../DocumentosPanel.jsx";
-import ProcessoDetalhe from "../ProcessoDetalhe.jsx";
+import ProcessoPagina from "../ProcessoPagina.jsx";
 import ProcessoBell from "../ProcessoBell.jsx";
 import SearchInput from "../SearchInput.jsx";
 import { COLORS } from "../../lib/theme.js";
@@ -52,11 +48,7 @@ export default function ProcessosTab({ currentRole, orgId, profile }) {
     return map;
   }, [notificacoes]);
   const [editing, setEditing] = useState(null);
-  const [vendoDetalhe, setVendoDetalhe] = useState(null); // processo aberto na visão completa (card inteiro clicado)
-  const [vendoAndamentos, setVendoAndamentos] = useState(null); // processo aberto no painel de andamentos
-  const [vendoTarefas, setVendoTarefas] = useState(null); // processo aberto no kanban de tarefas
-  const [vendoDepositos, setVendoDepositos] = useState(null); // processo aberto no painel de depósitos judiciais
-  const [vendoDocumentos, setVendoDocumentos] = useState(null); // processo aberto no painel de documentos
+  const [processoAberto, setProcessoAberto] = useState(null); // processo aberto na página cheia (card clicado)
   const [registrandoPrazo, setRegistrandoPrazo] = useState(null); // {processo_id, movimentacao_origem_id, data_inicio, tipo}
   const [sincronizando, setSincronizando] = useState(false);
   const [busca, setBusca] = useState("");
@@ -102,6 +94,58 @@ export default function ProcessosTab({ currentRole, orgId, profile }) {
     alert(`Sincronizado: ${data.ok}/${data.processados} processo(s) ok, ${data.novos_movimentos} movimentação(ões) nova(s).`);
   };
 
+  const abrirRegistrarPrazo = (processoId) => (mov) => setRegistrandoPrazo({
+    processo_id: processoId,
+    movimentacao_origem_id: mov.id,
+    data_inicio: mov.data_hora.slice(0, 10),
+    dias_uteis: "true",
+    tipo: mov.nome,
+  });
+
+  if (processoAberto) {
+    // Processo pode ter sido atualizado (editar) desde que a página abriu — pega a versão
+    // mais fresca da lista já carregada, cai no que tinha se ainda não sincronizou.
+    const atual = processos.find((p) => p.id === processoAberto.id) ?? processoAberto;
+    return (
+      <>
+        <ProcessoPagina
+          processo={atual}
+          atrasos={clientesInadimplentes.get(atual.cliente?.id)}
+          equipe={equipe}
+          orgId={orgId}
+          profile={profile}
+          onVoltar={() => setProcessoAberto(null)}
+          onEditar={() => setEditing({ ...atual, cliente_id: atual.cliente?.id, responsavel_id: atual.responsavel?.id })}
+          onExcluir={() => { remove(atual.id); setProcessoAberto(null); }}
+          onRegistrarPrazo={abrirRegistrarPrazo(atual.id)}
+        />
+        <RecordFormModal
+          open={editing !== null}
+          title={editing?.id ? "Editar processo" : "Novo processo"}
+          fields={fields}
+          initialValues={editing}
+          onClose={() => setEditing(null)}
+          onSubmit={(values) => (editing?.id ? update(editing.id, values) : insert(values))}
+        />
+        <RecordFormModal
+          open={registrandoPrazo !== null}
+          title="Registrar prazo a partir da movimentação"
+          fields={PRAZO_FIELDS}
+          initialValues={registrandoPrazo}
+          onClose={() => setRegistrandoPrazo(null)}
+          onSubmit={(values) => insertPrazo({
+            ...values,
+            dias_uteis: values.dias_uteis === "true",
+            quantidade_dias: parseInt(values.quantidade_dias, 10),
+            alerta_dias_antes: values.alerta_dias_antes ? parseInt(values.alerta_dias_antes, 10) : 3,
+            processo_id: registrandoPrazo.processo_id,
+            movimentacao_origem_id: registrandoPrazo.movimentacao_origem_id,
+          })}
+        />
+      </>
+    );
+  }
+
   return (
     <div>
       <SectionTitle
@@ -129,7 +173,7 @@ export default function ProcessosTab({ currentRole, orgId, profile }) {
         {processosFiltrados.map((p) => {
           const atrasos = clientesInadimplentes.get(p.cliente?.id);
           return (
-          <Card key={p.id} hoverable className="cursor-pointer" onClick={() => setVendoDetalhe(p)}>
+          <Card key={p.id} hoverable className="cursor-pointer" onClick={() => setProcessoAberto(p)}>
             <div className="flex items-start justify-between gap-3">
               <div>
                 <p style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 12, color: COLORS.slate }}>{p.numero}</p>
@@ -170,62 +214,6 @@ export default function ProcessosTab({ currentRole, orgId, profile }) {
         initialValues={editing}
         onClose={() => setEditing(null)}
         onSubmit={(values) => (editing?.id ? update(editing.id, values) : insert(values))}
-      />
-
-      {vendoDetalhe && (
-        <ProcessoDetalhe
-          processo={vendoDetalhe}
-          atrasos={clientesInadimplentes.get(vendoDetalhe.cliente?.id)}
-          onClose={() => setVendoDetalhe(null)}
-          onEditar={() => setEditing({ ...vendoDetalhe, cliente_id: vendoDetalhe.cliente?.id, responsavel_id: vendoDetalhe.responsavel?.id })}
-          onExcluir={() => { remove(vendoDetalhe.id); setVendoDetalhe(null); }}
-          onAbrirAndamentos={() => setVendoAndamentos(vendoDetalhe)}
-          onAbrirTarefas={() => setVendoTarefas(vendoDetalhe)}
-          onAbrirDepositos={() => setVendoDepositos(vendoDetalhe)}
-          onAbrirDocumentos={() => setVendoDocumentos(vendoDetalhe)}
-        />
-      )}
-
-      {vendoAndamentos && (
-        <MovimentacoesPanel
-          processo={vendoAndamentos}
-          onClose={() => setVendoAndamentos(null)}
-          onRegistrarPrazo={(mov) => setRegistrandoPrazo({
-            processo_id: vendoAndamentos.id,
-            movimentacao_origem_id: mov.id,
-            data_inicio: mov.data_hora.slice(0, 10),
-            dias_uteis: "true",
-            tipo: mov.nome,
-          })}
-        />
-      )}
-
-      {vendoTarefas && (
-        <TarefasPanel processo={vendoTarefas} equipe={equipe} orgId={orgId} onClose={() => setVendoTarefas(null)} />
-      )}
-
-      {vendoDepositos && (
-        <DepositosPanel processo={vendoDepositos} orgId={orgId} onClose={() => setVendoDepositos(null)} />
-      )}
-
-      {vendoDocumentos && (
-        <DocumentosPanel processo={vendoDocumentos} orgId={orgId} profile={profile} onClose={() => setVendoDocumentos(null)} />
-      )}
-
-      <RecordFormModal
-        open={registrandoPrazo !== null}
-        title="Registrar prazo a partir da movimentação"
-        fields={PRAZO_FIELDS}
-        initialValues={registrandoPrazo}
-        onClose={() => setRegistrandoPrazo(null)}
-        onSubmit={(values) => insertPrazo({
-          ...values,
-          dias_uteis: values.dias_uteis === "true",
-          quantidade_dias: parseInt(values.quantidade_dias, 10),
-          alerta_dias_antes: values.alerta_dias_antes ? parseInt(values.alerta_dias_antes, 10) : 3,
-          processo_id: registrandoPrazo.processo_id,
-          movimentacao_origem_id: registrandoPrazo.movimentacao_origem_id,
-        })}
       />
     </div>
   );
