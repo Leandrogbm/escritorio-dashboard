@@ -1,4 +1,4 @@
-import { Clock, Briefcase, DollarSign, Users, Building2, TrendingUp, Trello } from "lucide-react";
+import { Clock, Briefcase, DollarSign, Users, Building2, TrendingUp, Trello, Calculator } from "lucide-react";
 
 export const ROLES = [
   { key: "socio", label: "Sócio(a)" },
@@ -17,6 +17,7 @@ export const MODULES = [
   { key: "quadro", label: "Quadro de tarefas", icon: Trello },
   { key: "prazos", label: "Prazos", icon: Clock },
   { key: "financeiro", label: "Financeiro", icon: DollarSign },
+  { key: "erp", label: "ERP", icon: Calculator },
   { key: "equipe", label: "Equipe", icon: Building2 },
   { key: "executivo", label: "Visão Executiva", icon: TrendingUp },
 ];

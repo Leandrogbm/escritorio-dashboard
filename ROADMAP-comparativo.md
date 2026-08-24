@@ -136,6 +136,22 @@ com uma fonte de dados real por trás — senão é enfeite arriscado.
   necessidade concreta (D4Sign falhar, cliente pedir provisionamento, base de
   jurisprudência aparecer)
 
+## ERP do escritório (24/08, 2ª leva do dia)
+
+Pergunta do usuário: "o que falta pra plataforma ser também um ERP bom" — resposta foi que
+faltava o lado de contas a pagar/fluxo de caixa/DRE (só existia contas a receber). Construída
+a peça mínima que destrava o resto, sem virar ERP genérico (isso é outro produto):
+
+- [x] **Nova aba "ERP"** — tabela `despesas` (contas a pagar: descrição, categoria, valor,
+  vencimento, situação), mesmo padrão de `honorarios`. Cards de resumo (pago/a pagar/
+  atrasado), gráfico de fluxo de caixa (entrada de honorário x saída de despesa, por mês) e
+  DRE simplificado (receita recebida − despesa paga = resultado, regime caixa). Testado de
+  ponta a ponta com empresa descartável.
+- [ ] Ainda fora: orçamento (budget x realizado), conciliação de débito no extrato (hoje só
+  casa crédito/recebimento), folha de pagamento/RH, ativo fixo — só entram se o escritório
+  sentir falta de verdade; virar ERP completo não é o objetivo, é ficar bom o suficiente
+  pra não precisar de outro sistema à parte pra despesa/fluxo de caixa.
+
 Fontes: [ADVBOX — Software Jurídico](https://advbox.com.br/software-juridico),
 [ADVBOX adquire LawX](https://www.direitonews.com.br/2026/08/advbox-adquire-lawx-anuncia-nova-geracao-inteligencia-artificial-escritorios-advocacia.html),
 [LiderHub docs](https://docs.liderhub.ai/),

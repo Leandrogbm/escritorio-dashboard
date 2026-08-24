@@ -112,6 +112,21 @@ create table honorarios (
 );
 create index honorarios_org_id_idx on honorarios (org_id);
 
+-- Contas a pagar (ERP → despesas do escritório) — mesmo shape de honorarios, só que é
+-- dinheiro SAINDO em vez de entrando. Junto com honorarios dá fluxo de caixa e DRE
+-- simplificado (receita − despesa) na aba ERP.
+create table despesas (
+  id uuid primary key default gen_random_uuid(),
+  org_id uuid not null references organizations(id),
+  descricao text not null,
+  categoria text, -- texto livre com sugestões (datalist), ver CATEGORIAS_DESPESA_COMUNS
+  valor numeric(14,2) not null,
+  vencimento date not null,
+  status text not null check (status in ('Em aberto','Vencido','Pago')) default 'Em aberto',
+  created_at timestamptz not null default now()
+);
+create index despesas_org_id_idx on despesas (org_id);
+
 -- Registro da nota "pronta pra emitir": junta os dados no momento do clique (valor, cliente,
 -- descrição). status fica 'pendente' até ligar um provedor de emissão de verdade (Focus
 -- NFe/eNotas/PlugNotas + certificado digital A1) — nesse dia, provedor_resposta recebe o
@@ -473,6 +488,15 @@ create policy honorarios_ins on honorarios for insert with check ((org_id = auth
 create policy honorarios_upd on honorarios for update
   using ((org_id = auth_org_id() and has_module('financeiro')) or is_platform_admin()) with check (true);
 create policy honorarios_del on honorarios for delete using ((org_id = auth_org_id() and has_module('financeiro')) or is_platform_admin());
+
+alter table despesas enable row level security;
+create trigger trg_set_org_id before insert on despesas for each row execute function set_org_id();
+create policy despesas_sel on despesas for select using ((org_id = auth_org_id() and has_module('erp')) or is_platform_admin());
+create policy despesas_ins on despesas for insert with check ((org_id = auth_org_id() and has_module('erp')) or is_platform_admin());
+create policy despesas_upd on despesas for update
+  using ((org_id = auth_org_id() and has_module('erp')) or is_platform_admin()) with check (true);
+create policy despesas_del on despesas for delete using ((org_id = auth_org_id() and has_module('erp')) or is_platform_admin());
+create trigger trg_audit_despesas after insert or update or delete on despesas for each row execute function log_platform_admin_write();
 
 -- security definer: ignora RLS de propósito, é o único jeito de agregar contagem
 -- cross-tenant. Só devolve algo se quem chama for platform admin; senão, vazio.
