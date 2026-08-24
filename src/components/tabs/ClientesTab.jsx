@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-import { Users, Plus, MessageCircle } from "lucide-react";
+import React, { useMemo, useState } from "react";
+import { Users, Plus, MessageCircle, UserCheck, KeyRound } from "lucide-react";
 import Card from "../Card.jsx";
 import SectionTitle from "../SectionTitle.jsx";
 import RowActions from "../RowActions.jsx";
@@ -7,6 +7,7 @@ import RecordFormModal from "../RecordFormModal.jsx";
 import SearchInput from "../SearchInput.jsx";
 import { COLORS } from "../../lib/theme.js";
 import { useSupabaseTable } from "../../hooks/useSupabaseTable.js";
+import { supabase } from "../../lib/supabaseClient.js";
 import { buscarEnderecoPorCep } from "../../lib/viaCep.js";
 import { formatCelular } from "../../lib/celular.js";
 import { formatDocumento } from "../../lib/documento.js";
@@ -44,9 +45,23 @@ const FIELDS = [
 export default function ClientesTab({ currentRole, orgId }) {
   const orgEq = orgId ? ["org_id", orgId] : undefined;
   const { data: clientes, loading, insert, update, remove } = useSupabaseTable("clientes", { orderBy: "nome", ascending: true, eq: orgEq });
+  const { data: acessosPortal, refresh: refreshAcessos } = useSupabaseTable("cliente_logins", { select: "cliente_id", eq: orgEq });
+  const temAcesso = useMemo(() => new Set(acessosPortal.map((a) => a.cliente_id)), [acessosPortal]);
   const [editing, setEditing] = useState(null); // null = fechado, {} = novo, {...} = editando
   const [busca, setBusca] = useState("");
   const podeExcluir = currentRole === "admin" || currentRole === "socio"; // RLS (clientes_del) já barra no banco — isso só esconde o botão
+
+  const criarAcessoPortal = async (cliente) => {
+    const email = prompt(`Email do "${cliente.nome}" pra acessar o Portal do Cliente:`, cliente.email || "");
+    if (!email) return;
+    const { data, error } = await supabase.functions.invoke("cliente-create-login", { body: { clienteId: cliente.id, email } });
+    if (error) {
+      alert((await error.context?.json?.().catch(() => null))?.error ?? error.message);
+      return;
+    }
+    alert(data?.warning ?? "Acesso criado — as credenciais foram enviadas por email.");
+    await refreshAcessos();
+  };
 
   const filtrados = clientes.filter((c) => {
     const q = busca.trim().toLowerCase();
@@ -117,7 +132,20 @@ export default function ClientesTab({ currentRole, orgId }) {
                 </td>
                 <td className="px-4 py-3" style={{ color: COLORS.slate }}>{c.origem || "—"}</td>
                 <td className="px-4 py-3" style={{ color: COLORS.slate }}>{c.contrato_renovacao || "—"}</td>
-                <td className="px-4 py-3"><RowActions onEdit={() => setEditing(c)} onDelete={podeExcluir ? () => remove(c.id) : undefined} /></td>
+                <td className="px-4 py-3">
+                  <div className="flex items-center gap-1">
+                    {podeExcluir && (
+                      temAcesso.has(c.id) ? (
+                        <span title="Já tem acesso ao Portal do Cliente" className="p-1.5" style={{ color: COLORS.success }}><UserCheck size={14} /></span>
+                      ) : (
+                        <button onClick={() => criarAcessoPortal(c)} aria-label="Criar acesso ao Portal do Cliente" title="Criar acesso ao Portal do Cliente" className="p-1.5 rounded hover:opacity-70" style={{ color: COLORS.brass }}>
+                          <KeyRound size={14} />
+                        </button>
+                      )
+                    )}
+                    <RowActions onEdit={() => setEditing(c)} onDelete={podeExcluir ? () => remove(c.id) : undefined} />
+                  </div>
+                </td>
               </tr>
             ))}
           </tbody>

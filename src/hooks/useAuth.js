@@ -7,6 +7,9 @@ import { supabase } from "../lib/supabaseClient.js";
 export function useAuth() {
   const [session, setSession] = useState(undefined);
   const [profile, setProfile] = useState(undefined);
+  // login de cliente final (Portal do Cliente) — só populado quando a conta não é de
+  // colaborador (profile null) e existe uma linha em cliente_logins pra ela.
+  const [clienteAcesso, setClienteAcesso] = useState(undefined);
   const [isPlatformAdmin, setIsPlatformAdmin] = useState(false);
   const [platformAdminChecked, setPlatformAdminChecked] = useState(false);
   // true depois de abrir o link do email de "redefinir senha" — supabase-js já cria uma
@@ -50,12 +53,24 @@ export function useAuth() {
       .select("*, organizations(nome, suspenso, cnpj, inscricao_municipal, aliquota_iss, cep, logradouro, numero, complemento, bairro, cidade, uf)")
       .eq("id", uid)
       .maybeSingle()
-      .then(({ data }) => setProfile(data));
+      .then(({ data }) => {
+        setProfile(data);
+        // só vale a pena checar cliente_logins quando NÃO é colaborador — a maioria das
+        // contas é de equipe, então isso evita um select à toa em todo login normal.
+        if (data) { setClienteAcesso(null); return; }
+        supabase
+          .from("cliente_logins")
+          .select("cliente_id, cliente:clientes(nome), organizations(nome)")
+          .eq("user_id", uid)
+          .maybeSingle()
+          .then(({ data: acesso }) => setClienteAcesso(acesso ?? null));
+      });
 
   useEffect(() => {
     if (session === undefined) return;
-    if (!session) { setProfile(null); setIsPlatformAdmin(false); setPlatformAdminChecked(true); return; }
+    if (!session) { setProfile(null); setClienteAcesso(null); setIsPlatformAdmin(false); setPlatformAdminChecked(true); return; }
     setProfile(undefined);
+    setClienteAcesso(undefined);
     setPlatformAdminChecked(false);
     carregarProfile(session.user.id);
     // platform_org_metrics é security definer e checa isso por dentro — não vaza nada,
@@ -67,8 +82,9 @@ export function useAuth() {
   return {
     session,
     profile,
+    clienteAcesso,
     isPlatformAdmin,
-    loading: session === undefined || (session && (profile === undefined || !platformAdminChecked)),
+    loading: session === undefined || (session && (profile === undefined || clienteAcesso === undefined || !platformAdminChecked)),
     recovery,
     clearRecovery: () => setRecovery(false),
     signOut: () => supabase.auth.signOut(),

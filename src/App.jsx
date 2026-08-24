@@ -17,9 +17,10 @@ import EquipeTab from "./components/tabs/EquipeTab.jsx";
 import ExecutivoTab from "./components/tabs/ExecutivoTab.jsx";
 import ConfigTab from "./components/tabs/ConfigTab.jsx";
 import MinhaEmpresaTab from "./components/tabs/MinhaEmpresaTab.jsx";
+import PortalCliente from "./components/PortalCliente.jsx";
 
 export default function App() {
-  const { session, profile, isPlatformAdmin, loading, recovery, clearRecovery, signOut, refreshProfile } = useAuth();
+  const { session, profile, clienteAcesso, isPlatformAdmin, loading, recovery, clearRecovery, signOut, refreshProfile } = useAuth();
   // orgOverride: platform admin "entrou" como admin de uma empresa alheia (linha de
   // platform_org_metrics, tem org_id/nome/suspenso etc.) — null no uso normal.
   const [orgOverride, setOrgOverride] = useState(null);
@@ -59,6 +60,7 @@ export default function App() {
   if (loading) return <FullScreenMessage>Carregando...</FullScreenMessage>;
   if (recovery) return <ResetPassword onDone={clearRecovery} />;
   if (!session) return <Login />;
+  if (clienteAcesso) return <PortalCliente clienteAcesso={clienteAcesso} signOut={signOut} />;
   if (isPlatformAdmin && !verEmpresa && !orgOverride) {
     return (
       <PlatformAdminPanel

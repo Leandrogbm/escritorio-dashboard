@@ -499,6 +499,38 @@ create policy notificacoes_sel on notificacoes for select using (org_id = auth_o
 create policy notificacoes_upd on notificacoes for update
   using (org_id = auth_org_id()) with check (org_id = auth_org_id()); -- só marcar como lida
 
+-- ── Portal do Cliente ────────────────────────────────────────────────────
+-- Login separado do da equipe (profiles) — não mistura com Equipe/RLS de colaborador.
+-- Mesmo padrão de platform_admins: tabela enxuta ligando um auth.user a um papel especial,
+-- aqui ligando ao cliente que ele é dentro de uma org. Só leitura — cliente nunca escreve
+-- nada, as policies abaixo só têm select.
+create table cliente_logins (
+  user_id uuid primary key references auth.users(id) on delete cascade,
+  org_id uuid not null references organizations(id),
+  cliente_id uuid not null references clientes(id) on delete cascade,
+  created_at timestamptz not null default now()
+);
+alter table cliente_logins enable row level security;
+create policy cliente_logins_select on cliente_logins for select using (user_id = auth.uid());
+
+create or replace function auth_cliente_id() returns uuid
+  language sql stable security definer set search_path = public
+  as $$ select cliente_id from cliente_logins where user_id = auth.uid() $$;
+
+-- Policies novas, permissivas — somam com as que já existem pra cada tabela (select vira
+-- "ou isso, ou aquilo", Postgres faz OR automático entre policies do mesmo comando).
+create policy organizations_cliente_sel on organizations for select using (
+  id in (select org_id from cliente_logins where user_id = auth.uid())
+);
+create policy clientes_self_sel on clientes for select using (id = auth_cliente_id());
+create policy processos_cliente_sel on processos for select using (cliente_id = auth_cliente_id());
+create policy honorarios_cliente_sel on honorarios for select using (cliente_id = auth_cliente_id());
+create policy movimentacoes_cliente_sel on movimentacoes_processo for select using (
+  processo_id in (select id from processos where cliente_id = auth_cliente_id())
+);
+
+grant execute on function auth_cliente_id() to authenticated;
+
 -- Feriados nacionais (fixos + móveis via algoritmo de Páscoa) pro cálculo de prazo em dias
 -- úteis. Feriado forense local (estadual/municipal) fica de fora por decisão consciente —
 -- sem fonte confiável validada, prefiro contar dia útil a mais do que inventar feriado errado.

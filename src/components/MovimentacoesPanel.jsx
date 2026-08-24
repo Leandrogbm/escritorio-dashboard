@@ -45,7 +45,7 @@ export default function MovimentacoesPanel({ processo, onClose, onRegistrarPrazo
                     <p className="text-xs mt-0.5" style={{ color: COLORS.slate }}>{new Date(m.data_hora).toLocaleString("pt-BR")}</p>
                   </div>
                 </div>
-                {m.requer_atencao && (
+                {m.requer_atencao && onRegistrarPrazo && (
                   <button
                     onClick={() => onRegistrarPrazo(m)}
                     className="text-xs underline shrink-0"

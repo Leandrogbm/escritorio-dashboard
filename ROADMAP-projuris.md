@@ -4,9 +4,11 @@ Checklist dos gaps identificados na comparação com o ProJuris (24/08/2026). Va
 um de cada vez — marca `[x]` quando terminar e sobe. Ordenado por impacto pra um escritório
 do tamanho da Gimenes & Pires (poucos usuários), não por facilidade técnica.
 
-- [ ] **Portal do cliente** — cliente final loga (usuário/senha próprios) e vê status do
-  próprio processo, sem falar com a equipe. Reaproveita boa parte do que já existe: novo
-  `role = 'cliente'` em profiles (ou tabela separada), RLS restrita ao próprio `cliente_id`.
+- [x] **Portal do cliente** — cliente final loga (usuário/senha próprios) e vê status do
+  próprio processo, andamentos e cobranças, sem falar com a equipe. Tabela separada
+  `cliente_logins` (não mistura com Equipe/profiles), RLS só-leitura restrita ao próprio
+  `cliente_id`. Botão "Criar acesso" na aba Clientes (admin/sócio). Testado de ponta a ponta
+  com empresa descartável: leitura scoped confirmada, escrita bloqueada pela RLS.
 - [ ] **Captação automática de processo novo** — hoje o DataJud sync só atualiza processos
   já cadastrados manualmente; falta monitorar nome/OAB do advogado nos tribunais e avisar
   quando aparece processo novo.
