@@ -4,8 +4,9 @@ import Card from "./Card.jsx";
 import { COLORS } from "../lib/theme.js";
 import { useSupabaseTable } from "../hooks/useSupabaseTable.js";
 
-// Kanban de tarefas do processo — 3 colunas fixas, sem drag&drop (botão "→"/"←" move de
-// coluna, mais simples e funciona igual em touch); mover é só um update de status.
+// Kanban de tarefas do processo — 3 colunas fixas. Mover é um update de status, disparado por
+// arrastar o card (mouse, HTML5 drag nativo) OU pelos botões "→"/"←" (mantidos pra touch, onde
+// drag nativo não funciona direito).
 const COLUNAS = ["A fazer", "Em andamento", "Concluída"];
 
 export default function TarefasPanel({ processo, equipe, orgId, onClose }) {
@@ -31,6 +32,12 @@ export default function TarefasPanel({ processo, equipe, orgId, onClose }) {
     const i = COLUNAS.indexOf(tarefa.status) + delta;
     if (i < 0 || i >= COLUNAS.length) return;
     update(tarefa.id, { status: COLUNAS[i] });
+  };
+
+  const soltar = (coluna, e) => {
+    e.preventDefault();
+    const id = e.dataTransfer.getData("text/plain");
+    if (id) update(id, { status: coluna });
   };
 
   return (
@@ -83,9 +90,19 @@ export default function TarefasPanel({ processo, equipe, orgId, onClose }) {
                 <p className="text-xs uppercase tracking-wide mb-2" style={{ color: COLORS.slate, fontWeight: 600 }}>
                   {coluna} ({doProcesso.filter((t) => t.status === coluna).length})
                 </p>
-                <div className="flex flex-col gap-2 min-h-[40px]">
+                <div
+                  className="flex flex-col gap-2 min-h-[40px] rounded-md"
+                  onDragOver={(e) => e.preventDefault()}
+                  onDrop={(e) => soltar(coluna, e)}
+                >
                   {doProcesso.filter((t) => t.status === coluna).map((t) => (
-                    <div key={t.id} className="p-2.5 rounded-md text-sm" style={{ border: `1px solid ${COLORS.line}`, background: COLORS.paperRaised }}>
+                    <div
+                      key={t.id}
+                      draggable
+                      onDragStart={(e) => e.dataTransfer.setData("text/plain", t.id)}
+                      className="p-2.5 rounded-md text-sm cursor-grab active:cursor-grabbing"
+                      style={{ border: `1px solid ${COLORS.line}`, background: COLORS.paperRaised }}
+                    >
                       <p style={{ color: COLORS.ink }}>{t.titulo}</p>
                       {t.descricao && <p className="text-xs mt-1 whitespace-pre-wrap" style={{ color: COLORS.slate }}>{t.descricao}</p>}
                       <p className="text-xs mt-0.5" style={{ color: COLORS.slate }}>{t.responsavel?.nome ?? "Sem responsável"}</p>

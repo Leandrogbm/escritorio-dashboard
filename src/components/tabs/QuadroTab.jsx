@@ -63,6 +63,12 @@ export default function QuadroTab({ orgId, currentRole, profile }) {
     update(tarefa.id, { status: nomesColunas[i] });
   };
 
+  const soltar = (coluna, e) => {
+    e.preventDefault();
+    const id = e.dataTransfer.getData("text/plain");
+    if (id) update(id, { status: coluna });
+  };
+
   return (
     <div>
       <SectionTitle icon={Trello} title="Quadro de tarefas" subtitle={vejaTudo ? "Atividades da equipe, por advogado" : "Suas atividades"} />
@@ -116,9 +122,19 @@ export default function QuadroTab({ orgId, currentRole, profile }) {
                     <p className="text-xs font-semibold" style={{ color: "#fff" }}>{coluna.nome}</p>
                     <span className="text-xs" style={{ color: "rgba(255,255,255,0.75)" }}>{doAdvogado.filter((t) => t.status === coluna.nome).length}</span>
                   </div>
-                  <div className="flex flex-col gap-2 min-h-[40px]">
+                  <div
+                    className="flex flex-col gap-2 min-h-[40px] rounded-md"
+                    onDragOver={(e) => e.preventDefault()}
+                    onDrop={(e) => soltar(coluna.nome, e)}
+                  >
                     {doAdvogado.filter((t) => t.status === coluna.nome).map((t) => (
-                      <div key={t.id} className="p-2.5 rounded-md text-sm" style={{ border: `1px solid ${COLORS.line}`, background: COLORS.paperRaised }}>
+                      <div
+                        key={t.id}
+                        draggable
+                        onDragStart={(e) => e.dataTransfer.setData("text/plain", t.id)}
+                        className="p-2.5 rounded-md text-sm cursor-grab active:cursor-grabbing"
+                        style={{ border: `1px solid ${COLORS.line}`, background: COLORS.paperRaised }}
+                      >
                         <p style={{ color: COLORS.ink }}>{t.titulo}</p>
                         {t.descricao && <p className="text-xs mt-1 whitespace-pre-wrap" style={{ color: COLORS.slate }}>{t.descricao}</p>}
                         <p className="text-xs mt-0.5" style={{ color: COLORS.slate }}>{t.processo?.numero ?? "—"}</p>
