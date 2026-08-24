@@ -21,6 +21,8 @@ export default function IntegracoesSection({ orgId }) {
   const [salvandoD4, setSalvandoD4] = useState(false);
   const [salvandoJus, setSalvandoJus] = useState(false);
   const [sincronizando, setSincronizando] = useState(false);
+  const [novaOab, setNovaOab] = useState({ nome: "", numero: "", uf: "" });
+  const [salvandoOab, setSalvandoOab] = useState(false);
 
   // carrega os valores salvos assim que a organização chega (fetch async)
   useEffect(() => {
@@ -50,18 +52,19 @@ export default function IntegracoesSection({ orgId }) {
     await refreshOrg();
   };
 
-  const adicionarOab = async () => {
-    const nome = prompt("Nome do advogado:");
-    if (!nome) return;
-    const numero = prompt("Número da OAB:");
-    if (!numero) return;
-    const uf = prompt("UF da OAB (ex.: SP):");
-    if (!uf) return;
-    const { error } = await supabase.functions.invoke("jusbrasil-monitorar-oab", { body: { nome, numero, uf: uf.toUpperCase(), orgId } });
+  const adicionarOab = async (e) => {
+    e.preventDefault();
+    if (!novaOab.nome.trim() || !novaOab.numero.trim() || !novaOab.uf.trim()) return;
+    setSalvandoOab(true);
+    const { error } = await supabase.functions.invoke("jusbrasil-monitorar-oab", {
+      body: { nome: novaOab.nome, numero: novaOab.numero, uf: novaOab.uf.toUpperCase(), orgId },
+    });
+    setSalvandoOab(false);
     if (error) {
       alert((await error.context?.json?.().catch(() => null))?.error ?? error.message);
       return;
     }
+    setNovaOab({ nome: "", numero: "", uf: "" });
     await refreshOabs();
   };
 
@@ -116,14 +119,27 @@ export default function IntegracoesSection({ orgId }) {
           </button>
         </form>
 
-        <div className="flex items-center gap-2 mb-2">
-          <button onClick={adicionarOab} className="flex items-center gap-1.5 px-3 py-2 rounded-md text-sm font-semibold" style={{ border: `1px solid ${COLORS.line}`, color: COLORS.ink }}>
-            <Plus size={14} /> Monitorar OAB
+        <form onSubmit={adicionarOab} className="flex flex-wrap items-end gap-2 mb-3">
+          <label className="flex flex-col gap-1 text-xs" style={{ color: COLORS.slate }}>
+            Nome do advogado
+            <input value={novaOab.nome} onChange={(e) => setNovaOab((v) => ({ ...v, nome: e.target.value }))} className="px-3 py-2 rounded-md text-sm" style={{ ...inputStyle, minWidth: 180 }} />
+          </label>
+          <label className="flex flex-col gap-1 text-xs" style={{ color: COLORS.slate }}>
+            Número OAB
+            <input value={novaOab.numero} onChange={(e) => setNovaOab((v) => ({ ...v, numero: e.target.value }))} className="px-3 py-2 rounded-md text-sm" style={{ ...inputStyle, width: 110 }} />
+          </label>
+          <label className="flex flex-col gap-1 text-xs" style={{ color: COLORS.slate }}>
+            UF
+            <input value={novaOab.uf} onChange={(e) => setNovaOab((v) => ({ ...v, uf: e.target.value }))} maxLength={2} placeholder="SP" className="px-3 py-2 rounded-md text-sm" style={{ ...inputStyle, width: 60 }} />
+          </label>
+          <button type="submit" disabled={salvandoOab} className="flex items-center gap-1.5 px-3 py-2 rounded-md text-sm font-semibold" style={{ background: COLORS.ink, color: "#fff", opacity: salvandoOab ? 0.6 : 1 }}>
+            <Plus size={14} /> {salvandoOab ? "Cadastrando..." : "Monitorar OAB"}
           </button>
-          <button onClick={sincronizarAgora} disabled={sincronizando} className="flex items-center gap-1.5 px-3 py-2 rounded-md text-sm font-semibold" style={{ border: `1px solid ${COLORS.line}`, color: COLORS.ink, opacity: sincronizando ? 0.6 : 1 }}>
-            <RefreshCw size={14} className={sincronizando ? "animate-spin" : ""} /> Sincronizar agora
-          </button>
-        </div>
+        </form>
+
+        <button onClick={sincronizarAgora} disabled={sincronizando} className="flex items-center gap-1.5 px-3 py-2 rounded-md text-sm font-semibold mb-2" style={{ border: `1px solid ${COLORS.line}`, color: COLORS.ink, opacity: sincronizando ? 0.6 : 1 }}>
+          <RefreshCw size={14} className={sincronizando ? "animate-spin" : ""} /> Sincronizar agora
+        </button>
         {oabs.length === 0 ? (
           <p className="text-sm" style={{ color: COLORS.slate }}>Nenhuma OAB monitorada ainda.</p>
         ) : (
