@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from "react";
 import { TrendingUp } from "lucide-react";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
 import Card from "../Card.jsx";
 import SectionTitle from "../SectionTitle.jsx";
 import { COLORS } from "../../lib/theme.js";
@@ -8,10 +8,11 @@ import { BRL } from "../../data/mockData.js";
 import { useSupabaseTable } from "../../hooks/useSupabaseTable.js";
 
 const MES_LABEL = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
+const STATUS_CORES = { "Em andamento": COLORS.success, "Aguardando decisão": COLORS.brass, "Suspenso": COLORS.slate, "Encerrado": COLORS.line };
 
 export default function ExecutivoTab({ orgId } = {}) {
   const orgEq = orgId ? ["org_id", orgId] : undefined;
-  const { data: processos, loading } = useSupabaseTable("processos", { select: "area, valor, status", eq: orgEq });
+  const { data: processos, loading } = useSupabaseTable("processos", { select: "area, valor, status, responsavel:profiles(nome)", eq: orgEq });
   const { data: clientes } = useSupabaseTable("clientes", { select: "id", eq: orgEq });
   const { data: honorarios, loading: loadingFinanceiro } = useSupabaseTable("honorarios", { select: "valor, status, vencimento", eq: orgEq });
   const [periodo, setPeriodo] = useState("mes"); // "mes" | "ano" — agrupamento do gráfico financeiro
@@ -24,6 +25,24 @@ export default function ExecutivoTab({ orgId } = {}) {
 
   const totalReceita = receitaPorArea.reduce((s, r) => s + r.valor, 0);
   const ativos = processos.filter((p) => p.status !== "Encerrado").length;
+
+  const processosPorStatus = useMemo(() => {
+    const porStatus = {};
+    for (const p of processos) porStatus[p.status] = (porStatus[p.status] ?? 0) + 1;
+    return Object.entries(porStatus).map(([status, total]) => ({ status, total }));
+  }, [processos]);
+
+  // Carga de trabalho por responsável — só processos ativos, senão advogado que encerrou
+  // tudo aparece "sobrecarregado" com casos que já acabaram.
+  const processosPorResponsavel = useMemo(() => {
+    const porResp = {};
+    for (const p of processos) {
+      if (p.status === "Encerrado") continue;
+      const nome = p.responsavel?.nome ?? "Sem responsável";
+      porResp[nome] = (porResp[nome] ?? 0) + 1;
+    }
+    return Object.entries(porResp).map(([nome, total]) => ({ nome, total })).sort((a, b) => b.total - a.total);
+  }, [processos]);
 
   // Mesmo critério do FinanceiroTab: "Pago" é recebido, qualquer outra situação (em aberto
   // ou vencido) ainda está a receber.
@@ -118,6 +137,44 @@ export default function ExecutivoTab({ orgId } = {}) {
           </div>
         )}
       </Card>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+        <Card>
+          <p className="text-sm font-semibold mb-4" style={{ color: COLORS.ink }}>Processos por situação</p>
+          {!loading && processosPorStatus.length === 0 ? (
+            <p className="text-sm" style={{ color: COLORS.slate }}>Sem processos cadastrados ainda.</p>
+          ) : (
+            <div style={{ width: "100%", height: 240 }}>
+              <ResponsiveContainer>
+                <PieChart>
+                  <Pie data={processosPorStatus} dataKey="total" nameKey="status" cx="50%" cy="50%" outerRadius={80} label={(d) => `${d.status} (${d.total})`}>
+                    {processosPorStatus.map((s) => <Cell key={s.status} fill={STATUS_CORES[s.status] ?? COLORS.slate} />)}
+                  </Pie>
+                  <Tooltip contentStyle={{ borderRadius: 8, border: `1px solid ${COLORS.line}`, fontFamily: "Inter" }} />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+        </Card>
+        <Card>
+          <p className="text-sm font-semibold mb-4" style={{ color: COLORS.ink }}>Carga de trabalho — processos ativos por responsável</p>
+          {!loading && processosPorResponsavel.length === 0 ? (
+            <p className="text-sm" style={{ color: COLORS.slate }}>Sem processos ativos.</p>
+          ) : (
+            <div style={{ width: "100%", height: 240 }}>
+              <ResponsiveContainer>
+                <BarChart data={processosPorResponsavel} layout="vertical" margin={{ top: 4, right: 16, left: 8, bottom: 4 }}>
+                  <CartesianGrid stroke={COLORS.line} horizontal={false} />
+                  <XAxis type="number" allowDecimals={false} tick={{ fill: COLORS.slate, fontSize: 12 }} axisLine={false} tickLine={false} />
+                  <YAxis type="category" dataKey="nome" width={110} tick={{ fill: COLORS.slate, fontSize: 12 }} axisLine={false} tickLine={false} />
+                  <Tooltip contentStyle={{ borderRadius: 8, border: `1px solid ${COLORS.line}`, fontFamily: "Inter" }} />
+                  <Bar dataKey="total" radius={[0, 4, 4, 0]} fill={COLORS.brass} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+        </Card>
+      </div>
 
       <Card>
         <p className="text-sm font-semibold mb-4" style={{ color: COLORS.ink }}>Valor em causas por área do direito</p>
