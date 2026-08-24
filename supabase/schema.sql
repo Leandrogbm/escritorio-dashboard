@@ -48,12 +48,7 @@ create table profiles (
   cargo text,
   horas_mes int not null default 0,
   meta_horas int not null default 160,
-  created_at timestamptz not null default now(),
-  -- OAB do colaborador (opcional) — quem tem preenchida entra na captação automática de
-  -- processo novo (Jusbrasil). jusbrasil_correlation_id é preenchido sozinho no 1º sync.
-  oab_numero int,
-  oab_uf text,
-  jusbrasil_correlation_id text
+  created_at timestamptz not null default now()
 );
 create index profiles_org_id_idx on profiles (org_id);
 
@@ -221,23 +216,6 @@ create table documentos_assinatura (
 );
 create index documentos_assinatura_org_id_idx on documentos_assinatura (org_id);
 
--- ── Jusbrasil (captação automática de processo por OAB) ─────────────────
--- Quem é monitorado é decidido pela OAB cadastrada em cada colaborador (profiles.oab_numero/
--- oab_uf, aba Equipe) — sem lista separada. jusbrasil_correlation_id (em profiles) guarda o
--- id que o Jusbrasil devolveu no 1º registro de monitoramento.
-alter table organizations add column if not exists jusbrasil_token text;
-
-create table processos_descobertos (
-  id uuid primary key default gen_random_uuid(),
-  org_id uuid not null references organizations(id),
-  colaborador_id uuid references profiles(id) on delete set null, -- de qual OAB veio a descoberta
-  numero_cnj text not null,
-  status text not null check (status in ('novo','importado','ignorado')) default 'novo',
-  created_at timestamptz not null default now(),
-  unique (org_id, numero_cnj)
-);
-create index processos_descobertos_org_id_idx on processos_descobertos (org_id);
-
 -- Os 3 planos e seus limites — fonte única de verdade (Edge Function admin-create-user e
 -- a policy processos_ins leem daqui). limite_usuarios/limite_processos null = sem limite.
 create table plan_limits (
@@ -266,8 +244,7 @@ alter table organizations add constraint organizations_plano_fkey foreign key (p
 -- Equipe — nem pro resto da equipe, nem pra ele mesmo, sem exceção.
 create view equipe_view with (security_invoker = true) as
   select p.id, p.org_id, p.nome, p.cargo, p.horas_mes as horas, p.meta_horas as meta,
-         count(pr.id) filter (where pr.status <> 'Encerrado') as ativos, p.role,
-         p.oab_numero, p.oab_uf
+         count(pr.id) filter (where pr.status <> 'Encerrado') as ativos, p.role
   from profiles p
   left join processos pr on pr.responsavel_id = p.id
   where p.id not in (select user_id from platform_admins)
@@ -571,14 +548,6 @@ create policy documentos_assinatura_sel on documentos_assinatura for select usin
 create trigger trg_audit_documentos_assinatura after insert or update or delete on documentos_assinatura for each row execute function log_platform_admin_write();
 -- sem policy de insert/update pro client: só d4sign-enviar/d4sign-webhook gravam
 -- (service_role) — status vem do lado da D4Sign, não é editável na mão.
-
-
-alter table processos_descobertos enable row level security;
-create trigger trg_set_org_id before insert on processos_descobertos for each row execute function set_org_id();
-create policy processos_descobertos_sel on processos_descobertos for select using ((org_id = auth_org_id() and has_module('processos')) or is_platform_admin());
-create policy processos_descobertos_upd on processos_descobertos for update
-  using ((org_id = auth_org_id() and has_module('processos')) or is_platform_admin()) with check (true);
-create trigger trg_audit_processos_descobertos after insert or update or delete on processos_descobertos for each row execute function log_platform_admin_write();
 
 -- Storage RLS por pasta "<org_id>/...": platform admin também sobe/apaga (modo suporte),
 -- por isso o "or is_platform_admin()" — sem ele, path do org alvo nunca bate com

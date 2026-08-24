@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from "react";
-import { Briefcase, Plus, AlertTriangle, RefreshCw, FileClock, ListTodo, Landmark, FileText, Radar, Check, X as XIcon } from "lucide-react";
+import { Briefcase, Plus, AlertTriangle, RefreshCw, FileClock, ListTodo, Landmark, FileText } from "lucide-react";
 import Card from "../Card.jsx";
 import SectionTitle from "../SectionTitle.jsx";
 import Stamp from "../Stamp.jsx";
@@ -39,9 +39,6 @@ export default function ProcessosTab({ currentRole, orgId, profile }) {
   // Sem módulo financeiro liberado pro perfil, a RLS de honorarios devolve vazio — o aviso
   // só aparece pra quem já enxerga essa informação de qualquer forma.
   const { data: honorarios } = useSupabaseTable("honorarios", { select: "cliente_id, status, vencimento", eq: orgEq });
-  const { data: descobertos, refresh: refreshDescobertos } = useSupabaseTable("processos_descobertos", { select: "id,numero_cnj,status", eq: orgEq });
-  const pendentes = descobertos.filter((d) => d.status === "novo");
-  const [descobertaOrigemId, setDescobertaOrigemId] = useState(null); // id de processos_descobertos sendo importado
   const [editing, setEditing] = useState(null);
   const [vendoAndamentos, setVendoAndamentos] = useState(null); // processo aberto no painel de andamentos
   const [vendoTarefas, setVendoTarefas] = useState(null); // processo aberto no kanban de tarefas
@@ -80,16 +77,6 @@ export default function ProcessosTab({ currentRole, orgId, profile }) {
     { key: "responsavel_id", label: "Responsável", type: "select", options: equipe.map((e) => ({ value: e.id, label: e.nome })), optional: true },
   ], [clientes, equipe]);
 
-  const importarDescoberta = (d) => {
-    setDescobertaOrigemId(d.id);
-    setEditing({ numero: d.numero_cnj, status: "Em andamento" });
-  };
-
-  const ignorarDescoberta = async (d) => {
-    await supabase.from("processos_descobertos").update({ status: "ignorado" }).eq("id", d.id);
-    await refreshDescobertos();
-  };
-
   const sincronizarDatajud = async () => {
     setSincronizando(true);
     const { data, error } = await supabase.functions.invoke("datajud-sync", { body: {} });
@@ -122,29 +109,6 @@ export default function ProcessosTab({ currentRole, orgId, profile }) {
           </div>
         }
       />
-      {pendentes.length > 0 && (
-        <Card className="mb-4" style={{ borderLeft: `4px solid ${COLORS.brass}` }}>
-          <p className="flex items-center gap-1.5 text-sm font-semibold mb-2" style={{ color: COLORS.ink }}>
-            <Radar size={15} color={COLORS.brass} /> {pendentes.length} processo(s) novo(s) encontrado(s) (Jusbrasil)
-          </p>
-          <div className="flex flex-col gap-1.5">
-            {pendentes.map((d) => (
-              <div key={d.id} className="flex items-center justify-between gap-3 text-sm">
-                <span style={{ fontFamily: "'IBM Plex Mono', monospace", color: COLORS.slate, fontSize: 12.5 }}>{d.numero_cnj}</span>
-                <div className="flex items-center gap-1 shrink-0">
-                  <button onClick={() => importarDescoberta(d)} className="flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold" style={{ background: COLORS.ink, color: "#fff" }}>
-                    <Check size={12} /> Importar
-                  </button>
-                  <button onClick={() => ignorarDescoberta(d)} className="flex items-center gap-1 px-2.5 py-1 rounded-md text-xs" style={{ border: `1px solid ${COLORS.line}`, color: COLORS.slate }}>
-                    <XIcon size={12} /> Ignorar
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        </Card>
-      )}
-
       {!loading && processosFiltrados.length === 0 && (
         <p className="text-sm" style={{ color: COLORS.slate }}>{busca ? "Nenhum processo encontrado." : "Nenhum processo cadastrado ainda."}</p>
       )}
@@ -199,19 +163,11 @@ export default function ProcessosTab({ currentRole, orgId, profile }) {
 
       <RecordFormModal
         open={editing !== null}
-        title={editing?.id ? "Editar processo" : descobertaOrigemId ? "Importar processo descoberto" : "Novo processo"}
+        title={editing?.id ? "Editar processo" : "Novo processo"}
         fields={fields}
         initialValues={editing}
-        onClose={() => { setEditing(null); setDescobertaOrigemId(null); }}
-        onSubmit={async (values) => {
-          if (editing?.id) return update(editing.id, values);
-          await insert(values);
-          if (descobertaOrigemId) {
-            await supabase.from("processos_descobertos").update({ status: "importado" }).eq("id", descobertaOrigemId);
-            await refreshDescobertos();
-            setDescobertaOrigemId(null);
-          }
-        }}
+        onClose={() => setEditing(null)}
+        onSubmit={(values) => (editing?.id ? update(editing.id, values) : insert(values))}
       />
 
       {vendoAndamentos && (
