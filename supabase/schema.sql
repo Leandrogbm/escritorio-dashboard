@@ -162,6 +162,25 @@ create table depositos_judiciais (
 create index depositos_judiciais_org_id_idx on depositos_judiciais (org_id);
 create index depositos_judiciais_processo_id_idx on depositos_judiciais (processo_id);
 
+-- GED básico: documento por processo. Bucket privado (diferente do org-logos, que é
+-- público) — metadado em tabela própria pra listar/buscar sem chamar a API de Storage.
+insert into storage.buckets (id, name, public) values ('documentos-processo', 'documentos-processo', false)
+  on conflict (id) do nothing;
+
+create table documentos_processo (
+  id uuid primary key default gen_random_uuid(),
+  org_id uuid not null references organizations(id),
+  processo_id uuid not null references processos(id) on delete cascade,
+  nome_arquivo text not null,
+  storage_path text not null, -- "<org_id>/<processo_id>/<uuid>-<nome>"
+  tamanho bigint,
+  tipo_mime text,
+  enviado_por uuid references profiles(id),
+  created_at timestamptz not null default now()
+);
+create index documentos_processo_org_id_idx on documentos_processo (org_id);
+create index documentos_processo_processo_id_idx on documentos_processo (processo_id);
+
 -- Os 3 planos e seus limites — fonte única de verdade (Edge Function admin-create-user e
 -- a policy processos_ins leem daqui). limite_usuarios/limite_processos null = sem limite.
 create table plan_limits (
@@ -471,6 +490,29 @@ create policy depositos_judiciais_upd on depositos_judiciais for update
   using ((org_id = auth_org_id() and has_module('financeiro')) or is_platform_admin()) with check (true);
 create policy depositos_judiciais_del on depositos_judiciais for delete using ((org_id = auth_org_id() and has_module('financeiro')) or is_platform_admin());
 create trigger trg_audit_depositos_judiciais after insert or update or delete on depositos_judiciais for each row execute function log_platform_admin_write();
+
+alter table documentos_processo enable row level security;
+create trigger trg_set_org_id before insert on documentos_processo for each row execute function set_org_id();
+create policy documentos_processo_sel on documentos_processo for select using ((org_id = auth_org_id() and has_module('processos')) or is_platform_admin());
+create policy documentos_processo_ins on documentos_processo for insert with check ((org_id = auth_org_id() and has_module('processos')) or is_platform_admin());
+create policy documentos_processo_del on documentos_processo for delete using ((org_id = auth_org_id() and has_module('processos')) or is_platform_admin());
+create trigger trg_audit_documentos_processo after insert or update or delete on documentos_processo for each row execute function log_platform_admin_write();
+
+-- Storage RLS por pasta "<org_id>/...": platform admin também sobe/apaga (modo suporte),
+-- por isso o "or is_platform_admin()" — sem ele, path do org alvo nunca bate com
+-- auth_org_id() (que resolve pra empresa do PRÓPRIO platform admin).
+create policy documentos_processo_storage_ins on storage.objects for insert
+  with check (bucket_id = 'documentos-processo' and (
+    ((storage.foldername(name))[1] = auth_org_id()::text and has_module('processos')) or is_platform_admin()
+  ));
+create policy documentos_processo_storage_sel on storage.objects for select
+  using (bucket_id = 'documentos-processo' and (
+    ((storage.foldername(name))[1] = auth_org_id()::text and has_module('processos')) or is_platform_admin()
+  ));
+create policy documentos_processo_storage_del on storage.objects for delete
+  using (bucket_id = 'documentos-processo' and (
+    ((storage.foldername(name))[1] = auth_org_id()::text and has_module('processos')) or is_platform_admin()
+  ));
 
 -- Excluir empresa por completo (colaboradores, clientes, processos, financeiro, a org em si)
 -- é a Edge Function platform-delete-org — precisa apagar cada Auth user via Admin API,

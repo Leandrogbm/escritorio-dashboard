@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from "react";
-import { Briefcase, Plus, AlertTriangle, RefreshCw, FileClock, ListTodo, Landmark } from "lucide-react";
+import { Briefcase, Plus, AlertTriangle, RefreshCw, FileClock, ListTodo, Landmark, FileText } from "lucide-react";
 import Card from "../Card.jsx";
 import SectionTitle from "../SectionTitle.jsx";
 import Stamp from "../Stamp.jsx";
@@ -8,6 +8,7 @@ import RecordFormModal from "../RecordFormModal.jsx";
 import MovimentacoesPanel from "../MovimentacoesPanel.jsx";
 import TarefasPanel from "../TarefasPanel.jsx";
 import DepositosPanel from "../DepositosPanel.jsx";
+import DocumentosPanel from "../DocumentosPanel.jsx";
 import SearchInput from "../SearchInput.jsx";
 import { COLORS } from "../../lib/theme.js";
 import { useSupabaseTable } from "../../hooks/useSupabaseTable.js";
@@ -25,7 +26,7 @@ const PRAZO_FIELDS = [
   { key: "alerta_dias_antes", label: "Avisar quantos dias úteis antes de vencer", type: "number", optional: true },
 ];
 
-export default function ProcessosTab({ currentRole, orgId }) {
+export default function ProcessosTab({ currentRole, orgId, profile }) {
   // orgId só vem preenchido quando o platform admin "entrou" numa empresa alheia — filtra
   // explicitamente porque a RLS libera geral pra ele, não fica restrita a uma org só.
   const orgEq = orgId ? ["org_id", orgId] : undefined;
@@ -42,6 +43,7 @@ export default function ProcessosTab({ currentRole, orgId }) {
   const [vendoAndamentos, setVendoAndamentos] = useState(null); // processo aberto no painel de andamentos
   const [vendoTarefas, setVendoTarefas] = useState(null); // processo aberto no kanban de tarefas
   const [vendoDepositos, setVendoDepositos] = useState(null); // processo aberto no painel de depósitos judiciais
+  const [vendoDocumentos, setVendoDocumentos] = useState(null); // processo aberto no painel de documentos
   const [registrandoPrazo, setRegistrandoPrazo] = useState(null); // {processo_id, movimentacao_origem_id, data_inicio, tipo}
   const [sincronizando, setSincronizando] = useState(false);
   const [busca, setBusca] = useState("");
@@ -145,6 +147,9 @@ export default function ProcessosTab({ currentRole, orgId }) {
                 <button onClick={() => setVendoDepositos(p)} className="flex items-center gap-1.5 text-xs underline" style={{ color: COLORS.slate }}>
                   <Landmark size={13} /> Depósitos
                 </button>
+                <button onClick={() => setVendoDocumentos(p)} className="flex items-center gap-1.5 text-xs underline" style={{ color: COLORS.slate }}>
+                  <FileText size={13} /> Documentos
+                </button>
               </div>
               <RowActions
                 onEdit={() => setEditing({ ...p, cliente_id: p.cliente?.id, responsavel_id: p.responsavel?.id })}
@@ -185,6 +190,10 @@ export default function ProcessosTab({ currentRole, orgId }) {
 
       {vendoDepositos && (
         <DepositosPanel processo={vendoDepositos} orgId={orgId} onClose={() => setVendoDepositos(null)} />
+      )}
+
+      {vendoDocumentos && (
+        <DocumentosPanel processo={vendoDocumentos} orgId={orgId} profile={profile} onClose={() => setVendoDocumentos(null)} />
       )}
 
       <RecordFormModal

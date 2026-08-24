@@ -104,7 +104,7 @@ export default function App() {
     if (!activeTab) return <EmptyState />;
     switch (activeTab) {
       case "prazos": return <PrazosTab orgId={orgId} />;
-      case "processos": return <ProcessosTab currentRole={currentRole} orgId={orgId} />;
+      case "processos": return <ProcessosTab currentRole={currentRole} orgId={orgId} profile={profile} />;
       case "financeiro": return <FinanceiroTab orgId={orgId} />;
       case "clientes": return <ClientesTab currentRole={currentRole} orgId={orgId} />;
       case "equipe": return <EquipeTab currentRole={currentRole} orgId={orgId} />;
