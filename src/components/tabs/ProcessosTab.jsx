@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from "react";
-import { Briefcase, Plus, AlertTriangle, RefreshCw, FileClock, ListTodo, Landmark, FileText } from "lucide-react";
+import { Briefcase, Plus, AlertTriangle, RefreshCw } from "lucide-react";
 import Card from "../Card.jsx";
 import SectionTitle from "../SectionTitle.jsx";
 import Stamp from "../Stamp.jsx";
@@ -9,6 +9,7 @@ import MovimentacoesPanel from "../MovimentacoesPanel.jsx";
 import TarefasPanel from "../TarefasPanel.jsx";
 import DepositosPanel from "../DepositosPanel.jsx";
 import DocumentosPanel from "../DocumentosPanel.jsx";
+import ProcessoDetalhe from "../ProcessoDetalhe.jsx";
 import ProcessoBell from "../ProcessoBell.jsx";
 import SearchInput from "../SearchInput.jsx";
 import { COLORS } from "../../lib/theme.js";
@@ -51,6 +52,7 @@ export default function ProcessosTab({ currentRole, orgId, profile }) {
     return map;
   }, [notificacoes]);
   const [editing, setEditing] = useState(null);
+  const [vendoDetalhe, setVendoDetalhe] = useState(null); // processo aberto na visão completa (card inteiro clicado)
   const [vendoAndamentos, setVendoAndamentos] = useState(null); // processo aberto no painel de andamentos
   const [vendoTarefas, setVendoTarefas] = useState(null); // processo aberto no kanban de tarefas
   const [vendoDepositos, setVendoDepositos] = useState(null); // processo aberto no painel de depósitos judiciais
@@ -127,13 +129,14 @@ export default function ProcessosTab({ currentRole, orgId, profile }) {
         {processosFiltrados.map((p) => {
           const atrasos = clientesInadimplentes.get(p.cliente?.id);
           return (
-          <Card key={p.id} hoverable>
+          <Card key={p.id} hoverable className="cursor-pointer" onClick={() => setVendoDetalhe(p)}>
             <div className="flex items-start justify-between gap-3">
               <div>
                 <p style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 12, color: COLORS.slate }}>{p.numero}</p>
                 <p className="mt-1 text-lg" style={{ fontFamily: "'Source Serif 4', serif", color: COLORS.ink, fontWeight: 600 }}>{p.cliente?.nome ?? "—"}</p>
               </div>
-              <div className="flex items-center gap-1.5">
+              <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+                {p.datajud_status === "erro" && <AlertTriangle size={14} color={COLORS.wine} />}
                 <ProcessoBell notificacoes={notificacoesPorProcesso.get(p.id) ?? []} onMudou={refreshNotificacoes} />
                 <Stamp tone={STATUS_TONE[p.status]}>{p.status}</Stamp>
               </div>
@@ -149,22 +152,7 @@ export default function ProcessosTab({ currentRole, orgId, profile }) {
               <span className="text-sm" style={{ color: COLORS.slate }}>{p.responsavel?.nome ?? "—"}</span>
               <span className="text-sm font-semibold" style={{ color: COLORS.ink }}>{p.valor ? p.valor.toLocaleString("pt-BR", { style: "currency", currency: "BRL" }) : "—"}</span>
             </div>
-            <div className="flex items-center justify-between mt-2">
-              <div className="flex items-center gap-3">
-                <button onClick={() => setVendoAndamentos(p)} className="flex items-center gap-1.5 text-xs underline" style={{ color: COLORS.slate }}>
-                  <FileClock size={13} /> Andamentos
-                  {p.datajud_status === "erro" && <AlertTriangle size={12} color={COLORS.wine} />}
-                </button>
-                <button onClick={() => setVendoTarefas(p)} className="flex items-center gap-1.5 text-xs underline" style={{ color: COLORS.slate }}>
-                  <ListTodo size={13} /> Tarefas
-                </button>
-                <button onClick={() => setVendoDepositos(p)} className="flex items-center gap-1.5 text-xs underline" style={{ color: COLORS.slate }}>
-                  <Landmark size={13} /> Depósitos
-                </button>
-                <button onClick={() => setVendoDocumentos(p)} className="flex items-center gap-1.5 text-xs underline" style={{ color: COLORS.slate }}>
-                  <FileText size={13} /> Documentos
-                </button>
-              </div>
+            <div className="flex items-center justify-end mt-2" onClick={(e) => e.stopPropagation()}>
               <RowActions
                 onEdit={() => setEditing({ ...p, cliente_id: p.cliente?.id, responsavel_id: p.responsavel?.id })}
                 onDelete={() => remove(p.id)}
@@ -183,6 +171,20 @@ export default function ProcessosTab({ currentRole, orgId, profile }) {
         onClose={() => setEditing(null)}
         onSubmit={(values) => (editing?.id ? update(editing.id, values) : insert(values))}
       />
+
+      {vendoDetalhe && (
+        <ProcessoDetalhe
+          processo={vendoDetalhe}
+          atrasos={clientesInadimplentes.get(vendoDetalhe.cliente?.id)}
+          onClose={() => setVendoDetalhe(null)}
+          onEditar={() => setEditing({ ...vendoDetalhe, cliente_id: vendoDetalhe.cliente?.id, responsavel_id: vendoDetalhe.responsavel?.id })}
+          onExcluir={() => { remove(vendoDetalhe.id); setVendoDetalhe(null); }}
+          onAbrirAndamentos={() => setVendoAndamentos(vendoDetalhe)}
+          onAbrirTarefas={() => setVendoTarefas(vendoDetalhe)}
+          onAbrirDepositos={() => setVendoDepositos(vendoDetalhe)}
+          onAbrirDocumentos={() => setVendoDocumentos(vendoDetalhe)}
+        />
+      )}
 
       {vendoAndamentos && (
         <MovimentacoesPanel
