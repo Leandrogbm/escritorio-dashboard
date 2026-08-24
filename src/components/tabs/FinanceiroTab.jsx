@@ -252,7 +252,7 @@ export default function FinanceiroTab({ orgId } = {}) {
                 </p>
               </div>
               <div className="flex items-center gap-2">
-                <button onClick={() => setEditing({ cliente_id: clienteAberto.id })} className="flex items-center gap-1.5 px-3 py-2 rounded-md text-sm font-semibold" style={{ background: COLORS.ink, color: "#fff" }}>
+                <button onClick={() => setEditing({ cliente_id: clienteAberto.id, ...(clienteAberto.tipo === "PJ" ? { parcelas: 12 } : {}) })} className="flex items-center gap-1.5 px-3 py-2 rounded-md text-sm font-semibold" style={{ background: COLORS.ink, color: "#fff" }}>
                   <Plus size={14} /> {clienteAberto.tipo === "PJ" ? "Mensalidade" : "Parcela"}
                 </button>
                 <button onClick={() => setSelecionado(null)} className="p-2 rounded hover:opacity-70" style={{ color: COLORS.slate }}><X size={18} /></button>
