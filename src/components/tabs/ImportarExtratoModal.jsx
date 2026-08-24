@@ -5,16 +5,44 @@ import { COLORS } from "../../lib/theme.js";
 import { BRL } from "../../data/mockData.js";
 import { parseExtrato } from "../../lib/extratoParser.js";
 
-// Casa entradas do extrato com cobranças pendentes por valor exato (±1 centavo) + vencimento
-// mais próximo da data da entrada — cada honorário só é usado uma vez (o de match mais
-// próximo "ganha" antes dos outros com o mesmo valor).
+// "João da Silva Pix" → "joao da silva pix" — sem acento, sem pontuação, pra comparar nome
+// de quem fez o PIX (memo do extrato) com o nome do cliente sem diferença boba de formatação.
+const ACENTOS = { á: "a", à: "a", ã: "a", â: "a", é: "e", ê: "e", í: "i", ó: "o", ô: "o", õ: "o", ú: "u", ü: "u", ç: "c" };
+function normalizarNome(s) {
+  return (s || "")
+    .toLowerCase()
+    .replace(/[áàãâéêíóôõúüç]/g, (c) => ACENTOS[c])
+    .replace(/[^a-z0-9\s]/g, "").trim();
+}
+
+// Quanto do nome do cliente aparece no memo do extrato (fração de palavras em comum,
+// ignorando conectivos curtos tipo "de"/"da") — 0 se não bate nada, até 1 se bate tudo.
+function pontuarNome(memo, nomeCliente) {
+  const memoNorm = normalizarNome(memo);
+  const palavrasCliente = normalizarNome(nomeCliente).split(/\s+/).filter((p) => p.length > 2);
+  if (!memoNorm || palavrasCliente.length === 0) return 0;
+  const bateram = palavrasCliente.filter((p) => memoNorm.includes(p)).length;
+  return bateram / palavrasCliente.length;
+}
+
+// Casa entradas do extrato com cobranças pendentes: valor exato (±1 centavo) é obrigatório;
+// entre os candidatos de mesmo valor, desempata por nome do PIX/depositante batendo com o
+// nome do cliente (peso maior) e data mais próxima do vencimento (peso menor) — cada
+// honorário só é usado uma vez (o de maior pontuação "ganha" antes dos outros).
 function casarComPendentes(entradas, pendentes) {
   const usados = new Set();
   return entradas.map((entrada) => {
     const candidatos = pendentes
       .filter((h) => !usados.has(h.id) && Math.abs(Number(h.valor) - entrada.valor) < 0.01)
-      .sort((a, b) => Math.abs(new Date(a.vencimento) - new Date(entrada.data)) - Math.abs(new Date(b.vencimento) - new Date(entrada.data)));
-    const match = candidatos[0] ?? null;
+      .map((h) => {
+        const diasDiferenca = Math.abs(new Date(h.vencimento) - new Date(entrada.data)) / 86400000;
+        const pontuacaoNome = pontuarNome(entrada.memo, h.cliente?.nome);
+        // nome batendo pesa muito mais que data — um match de valor+nome é bem mais confiável
+        // que valor+data (várias cobranças podem vencer perto uma da outra)
+        return { h, pontuacao: pontuacaoNome * 100 - diasDiferenca };
+      })
+      .sort((a, b) => b.pontuacao - a.pontuacao);
+    const match = candidatos[0]?.h ?? null;
     if (match) usados.add(match.id);
     return { ...entrada, match, confirmar: !!match };
   });

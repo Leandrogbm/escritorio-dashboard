@@ -9,6 +9,7 @@ import MovimentacoesPanel from "../MovimentacoesPanel.jsx";
 import TarefasPanel from "../TarefasPanel.jsx";
 import DepositosPanel from "../DepositosPanel.jsx";
 import DocumentosPanel from "../DocumentosPanel.jsx";
+import ProcessoBell from "../ProcessoBell.jsx";
 import SearchInput from "../SearchInput.jsx";
 import { COLORS } from "../../lib/theme.js";
 import { useSupabaseTable } from "../../hooks/useSupabaseTable.js";
@@ -39,6 +40,16 @@ export default function ProcessosTab({ currentRole, orgId, profile }) {
   // Sem módulo financeiro liberado pro perfil, a RLS de honorarios devolve vazio — o aviso
   // só aparece pra quem já enxerga essa informação de qualquer forma.
   const { data: honorarios } = useSupabaseTable("honorarios", { select: "cliente_id, status, vencimento", eq: orgEq });
+  const { data: notificacoes, refresh: refreshNotificacoes } = useSupabaseTable("notificacoes", { select: "id, processo_id, titulo, lida, created_at", eq: orgEq });
+  const notificacoesPorProcesso = useMemo(() => {
+    const map = new Map();
+    for (const n of notificacoes) {
+      if (!n.processo_id) continue;
+      if (!map.has(n.processo_id)) map.set(n.processo_id, []);
+      map.get(n.processo_id).push(n);
+    }
+    return map;
+  }, [notificacoes]);
   const [editing, setEditing] = useState(null);
   const [vendoAndamentos, setVendoAndamentos] = useState(null); // processo aberto no painel de andamentos
   const [vendoTarefas, setVendoTarefas] = useState(null); // processo aberto no kanban de tarefas
@@ -122,7 +133,10 @@ export default function ProcessosTab({ currentRole, orgId, profile }) {
                 <p style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 12, color: COLORS.slate }}>{p.numero}</p>
                 <p className="mt-1 text-lg" style={{ fontFamily: "'Source Serif 4', serif", color: COLORS.ink, fontWeight: 600 }}>{p.cliente?.nome ?? "—"}</p>
               </div>
-              <Stamp tone={STATUS_TONE[p.status]}>{p.status}</Stamp>
+              <div className="flex items-center gap-1.5">
+                <ProcessoBell notificacoes={notificacoesPorProcesso.get(p.id) ?? []} onMudou={refreshNotificacoes} />
+                <Stamp tone={STATUS_TONE[p.status]}>{p.status}</Stamp>
+              </div>
             </div>
             {atrasos > 0 && (
               <div className="flex items-center gap-1.5 mt-2 px-2.5 py-1.5 rounded-md text-xs" style={{ background: "rgba(155,28,28,0.08)", color: COLORS.wine }}>
