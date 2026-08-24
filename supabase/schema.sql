@@ -915,12 +915,17 @@ alter table prazos add column if not exists alerta_gerado boolean not null defau
 alter table prazos add column if not exists movimentacao_origem_id uuid references movimentacoes_processo(id);
 
 -- Se data_inicio/quantidade_dias vierem preenchidos, "data" é sempre recalculada a partir
--- deles — evita UI e banco divergirem sobre qual é a data real do prazo.
+-- deles — evita UI e banco divergirem sobre qual é a data real do prazo. E se o prazo nasce
+-- sem responsável explícito, herda o responsável já cadastrado no processo — sem isso, todo
+-- prazo lançado sem escolher alguém na mão nunca virava tarefa (pedido explícito do usuário).
 create or replace function set_prazo_data() returns trigger
-  language plpgsql set search_path = public as $$
+  language plpgsql security definer set search_path = public as $$
 begin
   if new.data_inicio is not null and new.quantidade_dias is not null then
     new.data := calcula_prazo(new.data_inicio, new.quantidade_dias, new.dias_uteis);
+  end if;
+  if tg_op = 'INSERT' and new.responsavel_id is null then
+    select responsavel_id into new.responsavel_id from processos where id = new.processo_id;
   end if;
   return new;
 end;
