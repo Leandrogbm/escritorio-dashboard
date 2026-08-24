@@ -130,6 +130,19 @@ create table notas_fiscais (
 );
 create index notas_fiscais_org_id_idx on notas_fiscais (org_id);
 
+-- Kanban de tarefas por processo (Processos → botão "Tarefas"). 3 colunas fixas.
+create table tarefas (
+  id uuid primary key default gen_random_uuid(),
+  org_id uuid not null references organizations(id),
+  processo_id uuid not null references processos(id) on delete cascade,
+  titulo text not null,
+  status text not null check (status in ('A fazer','Em andamento','Concluída')) default 'A fazer',
+  responsavel_id uuid references profiles(id),
+  created_at timestamptz not null default now()
+);
+create index tarefas_org_id_idx on tarefas (org_id);
+create index tarefas_processo_id_idx on tarefas (processo_id);
+
 -- Os 3 planos e seus limites — fonte única de verdade (Edge Function admin-create-user e
 -- a policy processos_ins leem daqui). limite_usuarios/limite_processos null = sem limite.
 create table plan_limits (
@@ -421,6 +434,15 @@ create policy notas_fiscais_sel on notas_fiscais for select using ((org_id = aut
 create policy notas_fiscais_ins on notas_fiscais for insert with check ((org_id = auth_org_id() and has_module('financeiro')) or is_platform_admin());
 create policy notas_fiscais_del on notas_fiscais for delete using ((org_id = auth_org_id() and has_module('financeiro')) or is_platform_admin());
 create trigger trg_audit_notas_fiscais after insert or update or delete on notas_fiscais for each row execute function log_platform_admin_write();
+
+alter table tarefas enable row level security;
+create trigger trg_set_org_id before insert on tarefas for each row execute function set_org_id();
+create policy tarefas_sel on tarefas for select using ((org_id = auth_org_id() and has_module('processos')) or is_platform_admin());
+create policy tarefas_ins on tarefas for insert with check ((org_id = auth_org_id() and has_module('processos')) or is_platform_admin());
+create policy tarefas_upd on tarefas for update
+  using ((org_id = auth_org_id() and has_module('processos')) or is_platform_admin()) with check (true);
+create policy tarefas_del on tarefas for delete using ((org_id = auth_org_id() and has_module('processos')) or is_platform_admin());
+create trigger trg_audit_tarefas after insert or update or delete on tarefas for each row execute function log_platform_admin_write();
 
 -- Excluir empresa por completo (colaboradores, clientes, processos, financeiro, a org em si)
 -- é a Edge Function platform-delete-org — precisa apagar cada Auth user via Admin API,

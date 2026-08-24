@@ -1,11 +1,12 @@
 import React, { useMemo, useState } from "react";
-import { Briefcase, Plus, AlertTriangle, RefreshCw, FileClock } from "lucide-react";
+import { Briefcase, Plus, AlertTriangle, RefreshCw, FileClock, ListTodo } from "lucide-react";
 import Card from "../Card.jsx";
 import SectionTitle from "../SectionTitle.jsx";
 import Stamp from "../Stamp.jsx";
 import RowActions from "../RowActions.jsx";
 import RecordFormModal from "../RecordFormModal.jsx";
 import MovimentacoesPanel from "../MovimentacoesPanel.jsx";
+import TarefasPanel from "../TarefasPanel.jsx";
 import SearchInput from "../SearchInput.jsx";
 import { COLORS } from "../../lib/theme.js";
 import { useSupabaseTable } from "../../hooks/useSupabaseTable.js";
@@ -38,6 +39,7 @@ export default function ProcessosTab({ currentRole, orgId }) {
   const { data: honorarios } = useSupabaseTable("honorarios", { select: "cliente_id, status, vencimento", eq: orgEq });
   const [editing, setEditing] = useState(null);
   const [vendoAndamentos, setVendoAndamentos] = useState(null); // processo aberto no painel de andamentos
+  const [vendoTarefas, setVendoTarefas] = useState(null); // processo aberto no kanban de tarefas
   const [registrandoPrazo, setRegistrandoPrazo] = useState(null); // {processo_id, movimentacao_origem_id, data_inicio, tipo}
   const [sincronizando, setSincronizando] = useState(false);
   const [busca, setBusca] = useState("");
@@ -130,10 +132,15 @@ export default function ProcessosTab({ currentRole, orgId }) {
               <span className="text-sm font-semibold" style={{ color: COLORS.ink }}>{p.valor ? p.valor.toLocaleString("pt-BR", { style: "currency", currency: "BRL" }) : "—"}</span>
             </div>
             <div className="flex items-center justify-between mt-2">
-              <button onClick={() => setVendoAndamentos(p)} className="flex items-center gap-1.5 text-xs underline" style={{ color: COLORS.slate }}>
-                <FileClock size={13} /> Andamentos
-                {p.datajud_status === "erro" && <AlertTriangle size={12} color={COLORS.wine} />}
-              </button>
+              <div className="flex items-center gap-3">
+                <button onClick={() => setVendoAndamentos(p)} className="flex items-center gap-1.5 text-xs underline" style={{ color: COLORS.slate }}>
+                  <FileClock size={13} /> Andamentos
+                  {p.datajud_status === "erro" && <AlertTriangle size={12} color={COLORS.wine} />}
+                </button>
+                <button onClick={() => setVendoTarefas(p)} className="flex items-center gap-1.5 text-xs underline" style={{ color: COLORS.slate }}>
+                  <ListTodo size={13} /> Tarefas
+                </button>
+              </div>
               <RowActions
                 onEdit={() => setEditing({ ...p, cliente_id: p.cliente?.id, responsavel_id: p.responsavel?.id })}
                 onDelete={() => remove(p.id)}
@@ -165,6 +172,10 @@ export default function ProcessosTab({ currentRole, orgId }) {
             tipo: mov.nome,
           })}
         />
+      )}
+
+      {vendoTarefas && (
+        <TarefasPanel processo={vendoTarefas} equipe={equipe} orgId={orgId} onClose={() => setVendoTarefas(null)} />
       )}
 
       <RecordFormModal
