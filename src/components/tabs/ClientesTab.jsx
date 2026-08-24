@@ -107,7 +107,12 @@ export default function ClientesTab({ currentRole, orgId }) {
               <tr><td colSpan={7} className="px-4 py-6 text-center text-sm" style={{ color: COLORS.slate }}>{busca ? "Nenhum cliente encontrado." : "Nenhum cliente cadastrado ainda."}</td></tr>
             )}
             {filtrados.map((c, i) => (
-              <tr key={c.id} style={{ borderTop: `1px solid ${COLORS.line}`, background: i % 2 ? "#FAF9F5" : COLORS.paperRaised }}>
+              <tr
+                key={c.id}
+                onClick={() => setEditing(c)}
+                className="cursor-pointer transition-colors hover:!bg-[rgba(165,121,59,0.06)]"
+                style={{ borderTop: `1px solid ${COLORS.line}`, background: i % 2 ? "#FAF9F5" : COLORS.paperRaised }}
+              >
                 <td className="px-4 py-3" style={{ color: COLORS.ink }}>{c.nome}</td>
                 <td className="px-4 py-3" style={{ color: COLORS.slate }}>{c.tipo}</td>
                 <td className="px-4 py-3" style={{ color: COLORS.slate }}>{c.documento ? formatDocumento(c.tipo, c.documento) : "—"}</td>
@@ -132,7 +137,7 @@ export default function ClientesTab({ currentRole, orgId }) {
                 </td>
                 <td className="px-4 py-3" style={{ color: COLORS.slate }}>{c.origem || "—"}</td>
                 <td className="px-4 py-3" style={{ color: COLORS.slate }}>{c.contrato_renovacao || "—"}</td>
-                <td className="px-4 py-3">
+                <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                   <div className="flex items-center gap-1">
                     {podeExcluir && (
                       temAcesso.has(c.id) ? (
