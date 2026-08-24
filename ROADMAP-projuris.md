@@ -46,9 +46,11 @@ terminar e sobe.
 
 - [ ] **WhatsApp com atendimento integrado** — precisa de WhatsApp Business API / Twilio /
   Z-API (provedor pago). Quando escolher um, volto e conecto.
-- [ ] **IA jurídica sobre o conteúdo** — resumo automático de andamento, geração de petição,
-  previsão de chance de êxito. GED (documento por processo) já está pronto — falta decidir
-  provedor de IA e custo por chamada.
+- [x→parcial] **IA jurídica** — resumo automático de andamento **pronto** (botão "Gerar
+  resumo" em Andamentos, usa Claude/Anthropic, testado com chave real). Geração de petição
+  e previsão de chance de êxito continuam fora: a segunda precisa de base de resultado
+  histórico que o sistema não guarda (e mesmo guardando, amostra de 1 escritório é pequena
+  demais pra estatística confiável).
 
 ## Fica de fora por enquanto (risco alto pra fazer com pressa)
 
