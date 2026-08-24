@@ -94,22 +94,26 @@ export default function FinanceiroTab({ orgId } = {}) {
 
   // Resumo por cliente — PF mostra como "parcelas", PJ como "mensalidade", mas o dado é o
   // mesmo (uma linha em honorarios por cobrança); só muda o texto na hora de criar/exibir.
-  // Mensalidade gera vários meses de uma vez (ver `parcelas` em `salvar`); meses ainda no
-  // futuro (vencimento > hoje) ficam cadastrados e aparecem na lista do cliente, mas não
-  // entram no Total/Pendente daqui — senão um cliente com 12 meses gerados de uma vez
-  // aparece "devendo" o ano inteiro em vez de só o que já venceu.
+  // Total/Recebido/Pendente na tabela são só do mês atual (mensalidade gera vários meses de
+  // uma vez — sem isso um cliente com 12 meses cadastrados aparecia "devendo" o ano
+  // inteiro). Atrasado é sempre geral (atraso não some só porque virou outro mês). Os
+  // totais all-time (pago/a receber) ficam pro painel de detalhe, clicando no cliente.
   const porCliente = useMemo(() => {
-    const map = new Map(clientes.map((c) => [c.id, { ...c, total: 0, recebido: 0, pendente: 0, atrasado: 0, itens: [] }]));
+    const map = new Map(clientes.map((c) => [c.id, {
+      ...c, total: 0, recebido: 0, pendente: 0, atrasado: 0, totalPago: 0, totalReceber: 0, itens: [],
+    }]));
     for (const h of honorarios) {
       const c = map.get(h.cliente?.id);
       if (!c) continue;
       c.itens.push(h);
-      const futuro = h.status !== "Pago" && !estaAtrasado(h) && h.vencimento > hojeStr;
-      if (futuro) continue;
-      c.total += h.valor;
-      if (h.status === "Pago") c.recebido += h.valor;
-      else if (estaAtrasado(h)) c.atrasado += h.valor;
-      else c.pendente += h.valor;
+      if (h.status === "Pago") c.totalPago += h.valor;
+      else c.totalReceber += h.valor;
+      if (estaAtrasado(h)) c.atrasado += h.valor;
+      if (h.vencimento?.slice(0, 7) === mesAtual) {
+        c.total += h.valor;
+        if (h.status === "Pago") c.recebido += h.valor;
+        else c.pendente += h.valor;
+      }
     }
     return [...map.values()];
   }, [clientes, honorarios]);
@@ -201,7 +205,7 @@ export default function FinanceiroTab({ orgId } = {}) {
         <table className="w-full text-sm">
           <thead>
             <tr style={{ background: COLORS.ink }}>
-              {["Cliente", "Tipo", "Total", "Recebido", "Pendente", "Atrasado"].map((h) => (
+              {["Cliente", "Tipo", "Total (mês)", "Recebido (mês)", "Pendente (mês)", "Atrasado"].map((h) => (
                 <th key={h} className="text-left px-4 py-3 font-semibold" style={{ color: COLORS.paper, fontSize: 11 }}>{h.toUpperCase()}</th>
               ))}
             </tr>
@@ -238,6 +242,11 @@ export default function FinanceiroTab({ orgId } = {}) {
               <div>
                 <p style={{ fontFamily: "'Source Serif 4', serif", fontWeight: 700, fontSize: 18, color: COLORS.ink }}>{clienteAberto.nome}</p>
                 <p className="text-xs" style={{ color: COLORS.slate }}>{clienteAberto.tipo === "PJ" ? "Mensalidade fixa" : "Parcelas"}</p>
+                <p className="text-xs mt-1">
+                  <span style={{ color: COLORS.success }}>Total pago: {BRL(clienteAberto.totalPago)}</span>
+                  {" · "}
+                  <span style={{ color: COLORS.brass }}>Total a receber: {BRL(clienteAberto.totalReceber)}</span>
+                </p>
               </div>
               <div className="flex items-center gap-2">
                 <button onClick={() => setEditing({ cliente_id: clienteAberto.id })} className="flex items-center gap-1.5 px-3 py-2 rounded-md text-sm font-semibold" style={{ background: COLORS.ink, color: "#fff" }}>
