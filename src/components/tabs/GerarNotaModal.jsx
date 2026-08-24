@@ -4,12 +4,14 @@ import Card from "../Card.jsx";
 import { COLORS } from "../../lib/theme.js";
 import { BRL } from "../../data/mockData.js";
 import { supabase } from "../../lib/supabaseClient.js";
+import { useEscClose } from "../../hooks/useEscClose.js";
 
 // Ainda não existe emissor fiscal real conectado (falta escolher provedor — Focus NFe/eNotas/
 // PlugNotas — e certificado digital A1 da empresa). Isso aqui só organiza os dados e deixa o
 // registro em notas_fiscais como "pendente", pronto pra virar emissão de verdade no dia que
 // a integração entrar — não transmite nada pra prefeitura ainda.
 export default function GerarNotaModal({ honorario, org, onGerada, onClose }) {
+  useEscClose(onClose);
   const cliente = honorario.cliente;
   const mesRef = new Date(`${honorario.vencimento}T00:00:00`).toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
   const [descricao, setDescricao] = useState(

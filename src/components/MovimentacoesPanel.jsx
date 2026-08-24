@@ -3,6 +3,7 @@ import { X, AlertTriangle, Clock, Sparkles } from "lucide-react";
 import Card from "./Card.jsx";
 import { COLORS } from "../lib/theme.js";
 import { useSupabaseTable } from "../hooks/useSupabaseTable.js";
+import { useEscClose } from "../hooks/useEscClose.js";
 import { supabase } from "../lib/supabaseClient.js";
 
 // Andamentos trazidos do DataJud pro processo. Só leitura (vem da fonte oficial) — a ação
@@ -10,6 +11,7 @@ import { supabase } from "../lib/supabaseClient.js";
 // já que o DataJud não traz o prazo pronto (só avisa que algo aconteceu no processo), e
 // pedir um resumo por IA (cacheado em processos.resumo_ia, só reprocessa quando pedido).
 export default function MovimentacoesPanel({ processo, onClose, onRegistrarPrazo }) {
+  useEscClose(onClose);
   const { data: movimentacoes, loading } = useSupabaseTable("movimentacoes_processo", {
     select: "*", orderBy: "data_hora", ascending: false, eq: ["processo_id", processo.id],
   });

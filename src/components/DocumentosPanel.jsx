@@ -4,6 +4,7 @@ import Card from "./Card.jsx";
 import Stamp from "./Stamp.jsx";
 import { COLORS } from "../lib/theme.js";
 import { useSupabaseTable } from "../hooks/useSupabaseTable.js";
+import { useEscClose } from "../hooks/useEscClose.js";
 import { supabase } from "../lib/supabaseClient.js";
 
 const ASSINATURA_TONE = { enviado: "warn", assinado_parcial: "warn", finalizado: "ok", cancelado: "urgent" };
@@ -18,6 +19,7 @@ function formatTamanho(bytes) {
 
 // Bucket privado — link de download é uma URL assinada (expira), não link público direto.
 export default function DocumentosPanel({ processo, orgId, profile, onClose }) {
+  useEscClose(onClose);
   const orgEq = orgId ? ["org_id", orgId] : undefined;
   const { data: documentos, insert, remove, refresh } = useSupabaseTable("documentos_processo", {
     select: "*", eq: orgEq, orderBy: "created_at", ascending: false,

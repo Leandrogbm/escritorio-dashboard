@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { COLORS } from "../lib/theme.js";
+import { useEscClose } from "../hooks/useEscClose.js";
 
 // Modal de criar/editar reaproveitado por Clientes/Processos/Prazos/Honorários.
 // `fields`: [{ key, label, type: "text"|"number"|"date"|"select"|"datalist", options?: [{value,label}],
@@ -13,6 +14,7 @@ import { COLORS } from "../lib/theme.js";
 //   "(11) 91234-5678"); recebe o form inteiro pra quando a máscara depende de outro campo
 //   (ex.: CPF vs CNPJ conforme o tipo escolhido) }]
 export default function RecordFormModal({ open, title, fields, initialValues, onSubmit, onClose }) {
+  useEscClose(onClose, open);
   const dialogRef = useRef(null);
   const [values, setValues] = useState({});
   const [saving, setSaving] = useState(false);

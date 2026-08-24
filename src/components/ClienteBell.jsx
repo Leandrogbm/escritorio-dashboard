@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { Bell, ThumbsUp, ThumbsDown } from "lucide-react";
 import { COLORS } from "../lib/theme.js";
 import { supabase } from "../lib/supabaseClient.js";
+import { useEscClose } from "../hooks/useEscClose.js";
 
 // Sino de "possível pagamento" por cliente (Financeiro) — igual ao ProcessoBell, mas aqui
 // tipo pagamento_possivel tem ação própria (confirmar/rejeitar) em vez de só marcar lida.
@@ -9,6 +10,7 @@ import { supabase } from "../lib/supabaseClient.js";
 // específico demais do fluxo financeiro pra misturar com movimentação/prazo.
 export default function ClienteBell({ notificacoes, onMudou }) {
   const [aberto, setAberto] = useState(false);
+  useEscClose(() => setAberto(false), aberto);
   if (notificacoes.length === 0) return null;
 
   const confirmar = async (n) => {

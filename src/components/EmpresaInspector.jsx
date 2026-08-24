@@ -4,6 +4,7 @@ import Card from "./Card.jsx";
 import { COLORS } from "../lib/theme.js";
 import { BRL } from "../data/mockData.js";
 import { useSupabaseTable } from "../hooks/useSupabaseTable.js";
+import { useEscClose } from "../hooks/useEscClose.js";
 import { supabase } from "../lib/supabaseClient.js";
 
 // Acesso de suporte do platform admin. Processos/honorários continuam só-leitura (corrigir
@@ -44,6 +45,7 @@ function Bloco({ titulo, cols, rows, render, onDelete }) {
 }
 
 export default function EmpresaInspector({ orgId, orgNome, onClose }) {
+  useEscClose(onClose);
   const { data: colaboradores, refresh: refreshColaboradores } = useSupabaseTable("profiles", { select: "id,nome,role,cargo", eq: ["org_id", orgId] });
   const { data: clientes, refresh: refreshClientes } = useSupabaseTable("clientes", { select: "id,nome,tipo,origem", eq: ["org_id", orgId] });
   const { data: processos } = useSupabaseTable("processos", { select: "id,numero,area,status", eq: ["org_id", orgId] });

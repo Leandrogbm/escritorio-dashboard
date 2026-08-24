@@ -5,6 +5,7 @@ import { COLORS } from "../../lib/theme.js";
 import { BRL } from "../../data/mockData.js";
 import { parseExtrato } from "../../lib/extratoParser.js";
 import { useSupabaseTable } from "../../hooks/useSupabaseTable.js";
+import { useEscClose } from "../../hooks/useEscClose.js";
 
 // "João da Silva Pix" → "joao da silva pix" — sem acento, sem pontuação, pra comparar nome
 // de quem fez o PIX (memo do extrato) com o nome do cliente sem diferença boba de formatação.
@@ -52,6 +53,7 @@ function casarComPendentes(entradas, pendentes) {
 // Não confirma pagamento aqui na hora — cada match vira uma notificação "Possível pagamento"
 // (sino, tipo pagamento_possivel), pra confirmar/rejeitar com calma dali, com 👍/👎.
 export default function ImportarExtratoModal({ honorarios, orgId, onClose }) {
+  useEscClose(onClose);
   const orgEq = orgId ? ["org_id", orgId] : undefined;
   const { insert: insertNotificacao } = useSupabaseTable("notificacoes", { eq: orgEq });
   const pendentes = useMemo(() => honorarios.filter((h) => h.status !== "Pago"), [honorarios]);

@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { Bell } from "lucide-react";
 import { COLORS } from "../lib/theme.js";
 import { supabase } from "../lib/supabaseClient.js";
+import { useEscClose } from "../hooks/useEscClose.js";
 
 // Sino individual por processo — mesma tabela `notificacoes` do sino geral (NotificacoesBell),
 // só filtrada por processo_id. Não faz fetch próprio: recebe as notificações desse processo
@@ -9,6 +10,7 @@ import { supabase } from "../lib/supabaseClient.js";
 // disparar 1 query por card.
 export default function ProcessoBell({ notificacoes, onMudou }) {
   const [aberto, setAberto] = useState(false);
+  useEscClose(() => setAberto(false), aberto);
   const naoLidas = notificacoes.filter((n) => !n.lida);
 
   const marcarLida = async (id) => {

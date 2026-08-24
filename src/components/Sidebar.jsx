@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { Settings, Home, ChevronsLeft, ChevronsRight, X } from "lucide-react";
 import { COLORS } from "../lib/theme.js";
 import { MODULES } from "../config/permissions.js";
+import { useEscClose } from "../hooks/useEscClose.js";
 
 // Iniciais do nome da empresa pro badge do topo (ex.: "Gimenes & Pires" → "GP")
 function iniciais(nome) {
@@ -19,6 +20,7 @@ function iniciais(nome) {
 // da TopBar — sem "recolher" aqui, é aberta (tela toda) ou fechada (fora da tela).
 export default function Sidebar({ allowedModules, activeTab, setActiveTab, currentRole, emSuporte, orgNome, mobileAberto, fecharMobile }) {
   const [recolhida, setRecolhida] = useState(() => localStorage.getItem("sidebarRecolhida") === "1");
+  useEscClose(fecharMobile, mobileAberto);
   const alternar = () => {
     setRecolhida((v) => {
       localStorage.setItem("sidebarRecolhida", v ? "0" : "1");

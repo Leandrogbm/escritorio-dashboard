@@ -7,6 +7,7 @@ import RecordFormModal from "./RecordFormModal.jsx";
 import { COLORS } from "../lib/theme.js";
 import { BRL } from "../data/mockData.js";
 import { useSupabaseTable } from "../hooks/useSupabaseTable.js";
+import { useEscClose } from "../hooks/useEscClose.js";
 
 const TIPOS = ["Recursal", "Garantia de execução", "Penhora", "Caução", "Outro"];
 const STATUS_TONE = { "Depositado": "warn", "Liberado": "ok", "Convertido em renda": "neutral" };
@@ -25,6 +26,7 @@ const FIELDS = [
 // diferente da importação de extrato (Financeiro), que bate honorário com o banco DO
 // escritório. Aqui é só acompanhar o ciclo de vida (depositado → liberado/convertido).
 export default function DepositosPanel({ processo, orgId, onClose }) {
+  useEscClose(onClose);
   const orgEq = orgId ? ["org_id", orgId] : undefined;
   const { data: depositos, insert, update, remove } = useSupabaseTable("depositos_judiciais", {
     select: "*", eq: orgEq, orderBy: "data_deposito", ascending: false,

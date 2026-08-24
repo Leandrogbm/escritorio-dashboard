@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { Bell, AlertTriangle } from "lucide-react";
 import { COLORS } from "../lib/theme.js";
 import { useSupabaseTable } from "../hooks/useSupabaseTable.js";
+import { useEscClose } from "../hooks/useEscClose.js";
 import { supabase } from "../lib/supabaseClient.js";
 
 // Painel de notificações (movimentação nova do DataJud + alerta de prazo vencendo). Possível
@@ -13,6 +14,7 @@ export default function NotificacoesBell() {
   const { data: todas, refresh } = useSupabaseTable("notificacoes", { select: "*", orderBy: "created_at", ascending: false });
   const notificacoes = todas.filter((n) => n.tipo !== "pagamento_possivel");
   const [aberto, setAberto] = useState(false);
+  useEscClose(() => setAberto(false), aberto);
 
   const naoLidas = notificacoes.filter((n) => !n.lida);
 

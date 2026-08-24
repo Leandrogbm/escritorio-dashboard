@@ -3,6 +3,7 @@ import { X, Plus, ChevronRight, ChevronLeft, Trash2 } from "lucide-react";
 import Card from "./Card.jsx";
 import { COLORS } from "../lib/theme.js";
 import { useSupabaseTable } from "../hooks/useSupabaseTable.js";
+import { useEscClose } from "../hooks/useEscClose.js";
 
 // Kanban de tarefas do processo — 3 colunas fixas. Mover é um update de status, disparado por
 // arrastar o card (mouse, HTML5 drag nativo) OU pelos botões "→"/"←" (mantidos pra touch, onde
@@ -10,6 +11,7 @@ import { useSupabaseTable } from "../hooks/useSupabaseTable.js";
 const COLUNAS = ["A fazer", "Em andamento", "Concluída"];
 
 export default function TarefasPanel({ processo, equipe, orgId, onClose }) {
+  useEscClose(onClose);
   const orgEq = orgId ? ["org_id", orgId] : undefined;
   const { data: tarefas, insert, update, remove } = useSupabaseTable("tarefas", {
     select: "*, responsavel:profiles(id,nome)", eq: orgEq, orderBy: "created_at", ascending: true,

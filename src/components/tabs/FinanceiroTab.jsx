@@ -11,6 +11,7 @@ import ClienteBell from "../ClienteBell.jsx";
 import { COLORS } from "../../lib/theme.js";
 import { BRL } from "../../data/mockData.js";
 import { useSupabaseTable } from "../../hooks/useSupabaseTable.js";
+import { useEscClose } from "../../hooks/useEscClose.js";
 
 const STATUS_OPTIONS = [
   { value: "Em aberto", label: "Em aberto" },
@@ -56,6 +57,7 @@ export default function FinanceiroTab({ orgId } = {}) {
   const [selecionado, setSelecionado] = useState(null); // cliente_id aberto no painel de detalhe
   const [busca, setBusca] = useState("");
   const [importando, setImportando] = useState(false); // abre o modal de importar extrato
+  useEscClose(() => setSelecionado(null), !!selecionado);
 
   // Resumo por cliente — PF mostra como "parcelas", PJ como "mensalidade", mas o dado é o
   // mesmo (uma linha em honorarios por cobrança); só muda o texto na hora de criar/exibir.
