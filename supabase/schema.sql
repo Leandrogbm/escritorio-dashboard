@@ -211,7 +211,10 @@ create table tarefas (
   descricao text,
   status text not null check (status in ('A fazer','Em andamento','Concluída')) default 'A fazer',
   responsavel_id uuid references profiles(id),
-  created_at timestamptz not null default now()
+  created_at timestamptz not null default now(),
+  -- Prazo com responsável (Prazos → campo Responsável) gera essa tarefa sozinho, ver
+  -- sync_prazo_tarefa() — on delete cascade: apagar o prazo apaga a tarefa gerada dele junto.
+  prazo_origem_id uuid references prazos(id) on delete cascade unique
 );
 create index tarefas_org_id_idx on tarefas (org_id);
 create index tarefas_processo_id_idx on tarefas (processo_id);
@@ -924,6 +927,43 @@ end;
 $$;
 create trigger trg_set_prazo_data before insert or update on prazos
   for each row execute function set_prazo_data();
+
+-- Prazo com responsável vira tarefa "A fazer" sozinho no Kanban dele (pedido explícito do
+-- usuário: "lançar um prazo com responsável tem que aparecer como tarefa no Kanban dele").
+-- security definer: roda com o dono da função, não com o papel de quem lançou o prazo — sem
+-- isso, um cargo que tem módulo "prazos" mas não "processos" travaria no insert de tarefas
+-- (RLS de tarefas exige has_module('processos')), quebrando o prazo junto por tabela.
+-- Tira o responsável → apaga a tarefa gerada (não faz sentido tarefa sem dono); excluir o
+-- prazo apaga a tarefa via on delete cascade (ver tarefas.prazo_origem_id).
+create or replace function sync_prazo_tarefa() returns trigger
+  language plpgsql security definer set search_path = public as $$
+declare
+  titulo_tarefa text;
+  tarefa_id uuid;
+begin
+  select id into tarefa_id from tarefas where prazo_origem_id = new.id;
+
+  if new.responsavel_id is null then
+    if tarefa_id is not null then
+      delete from tarefas where id = tarefa_id;
+    end if;
+    return new;
+  end if;
+
+  titulo_tarefa := format('Prazo: %s (vence %s)', new.tipo, to_char(new.data, 'DD/MM/YYYY'));
+
+  if tarefa_id is null then
+    insert into tarefas (org_id, processo_id, titulo, status, responsavel_id, prazo_origem_id)
+    values (new.org_id, new.processo_id, titulo_tarefa, 'A fazer', new.responsavel_id, new.id);
+  else
+    update tarefas set titulo = titulo_tarefa, responsavel_id = new.responsavel_id where id = tarefa_id;
+  end if;
+
+  return new;
+end;
+$$;
+create trigger trg_sync_prazo_tarefa after insert or update on prazos
+  for each row execute function sync_prazo_tarefa();
 
 -- Gera notificação quando faltam <= alerta_dias_antes dias úteis pro vencimento (ou já
 -- venceu) e ainda não foi alertado. Agendada 1x/dia via cron abaixo.
