@@ -139,17 +139,22 @@ export default function IntegracoesSection({ orgId }) {
         </div>
       )}
 
-      <div className="mt-8 pt-6" style={{ borderTop: `1px solid ${COLORS.line}` }}>
-        <p className="flex items-center gap-2 text-sm font-semibold mb-1" style={{ color: COLORS.ink }}>
-          <MapPin size={16} color={COLORS.brass} /> Captação de leads no site
-        </p>
-        <p className="text-xs mb-3" style={{ color: COLORS.slate }}>
-          Cole esse código no site do escritório (numa página ou seção de contato) pra mostrar o formulário de captação — os contatos aparecem em "Captação de Leads" no menu.
-        </p>
-        <pre className="px-3 py-3 rounded-md text-xs overflow-x-auto max-w-md" style={{ background: COLORS.paperRaised, border: `1px solid ${COLORS.line}`, color: COLORS.ink }}>
+      {/* ponytail: Captação de Leads (formulário público + mapa) construída e testada, mas
+          em back log a pedido do usuário — escondida junto com o módulo "leads_captacao"
+          (permissions.js) e o formulário público (App.jsx). Reativar: tirar o "false &&". */}
+      {false && (
+        <div className="mt-8 pt-6" style={{ borderTop: `1px solid ${COLORS.line}` }}>
+          <p className="flex items-center gap-2 text-sm font-semibold mb-1" style={{ color: COLORS.ink }}>
+            <MapPin size={16} color={COLORS.brass} /> Captação de leads no site
+          </p>
+          <p className="text-xs mb-3" style={{ color: COLORS.slate }}>
+            Cole esse código no site do escritório (numa página ou seção de contato) pra mostrar o formulário de captação — os contatos aparecem em "Captação de Leads" no menu.
+          </p>
+          <pre className="px-3 py-3 rounded-md text-xs overflow-x-auto max-w-md" style={{ background: COLORS.paperRaised, border: `1px solid ${COLORS.line}`, color: COLORS.ink }}>
 {`<iframe src="${window.location.origin}/?leadform=1&org=${orgId}" width="100%" height="640" style="border:0"></iframe>`}
-        </pre>
-      </div>
+          </pre>
+        </div>
+      )}
     </div>
   );
 }

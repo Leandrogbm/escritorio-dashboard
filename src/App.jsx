@@ -25,11 +25,11 @@ import LeadsCaptacaoTab from "./components/tabs/LeadsCaptacaoTab.jsx";
 import LeadForm from "./components/LeadForm.jsx";
 
 export default function App() {
-  // Formulário público de captação (?leadform=1&org=...) — embutido via <iframe> no site do
-  // escritório, fora deste app autenticado. Intercepta ANTES de qualquer coisa que dependa
-  // de sessão/login: é a única tela do sistema que um visitante anônimo acessa.
+  // ponytail: Captação de Leads em back log a pedido do usuário (ver ROADMAP-comparativo.md)
+  // — formulário público (?leadform=1&org=...) desativado junto com o módulo/tela. Reativar:
+  // trocar "false" por "paramsPublicos.get('leadform') === '1'" de novo.
   const paramsPublicos = new URLSearchParams(window.location.search);
-  if (paramsPublicos.get("leadform") === "1") {
+  if (false && paramsPublicos.get("leadform") === "1") {
     return <LeadForm orgId={paramsPublicos.get("org")} />;
   }
 

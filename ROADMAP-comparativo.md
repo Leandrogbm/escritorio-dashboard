@@ -142,6 +142,13 @@ Pergunta do usuário: "o que falta pra plataforma ser também um ERP bom" — re
 faltava o lado de contas a pagar/fluxo de caixa/DRE (só existia contas a receber). Construída
 a peça mínima que destrava o resto, sem virar ERP genérico (isso é outro produto):
 
+- [x→back log] **Captação de Leads (formulário público + mapa)** — construída e testada de
+  ponta a ponta (insert público, geocoding, mascaramento de contato por cargo, atualização de
+  status). Usuário pediu busca ativa de gente com dúvida jurídica (redes sociais, fóruns) pra
+  contatar direto — recusado, mesma linha ética do que já tinha sido recusado antes (captação
+  de causa/angariação de clientela, vedado pelo Código de Ética OAB arts. 5º-7º/39-41,
+  independente da fonte ser processo público ou post em rede social). Sem essa parte a
+  feature perdeu prioridade pro usuário — **segurada em back log junto com o resto**.
 - [x] **Nova aba "ERP"** — tabela `despesas` (contas a pagar: descrição, categoria, valor,
   vencimento, situação), mesmo padrão de `honorarios`. Cards de resumo (pago/a pagar/
   atrasado), gráfico de fluxo de caixa (entrada de honorário x saída de despesa, por mês) e
