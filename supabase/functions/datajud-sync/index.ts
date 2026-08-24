@@ -1,6 +1,11 @@
 // Sincroniza andamentos processuais via API pública do DataJud (CNJ) pros processos
-// cadastrados, e gera notificação pra cada andamento novo (marcando "requer atenção"
-// quando bate em algum termo de termos_atencao — intimação, prazo, sentença, etc.).
+// cadastrados, e gera notificação pra cada andamento novo. "requer atenção" é decidido por
+// DUAS camadas, que se somam (uma marca true, já é true — prefere alarme falso a perder
+// prazo): (1) lista de palavras de termos_atencao (sempre roda); (2) se ANTHROPIC_API_KEY
+// tiver configurada, a IA lê o TEOR de cada movimentação nova e decide se exige ação —
+// pega caso que a lista de palavras não cobre (ex.: nome de movimentação incomum que não
+// bate nenhum termo, mas o conteúdo deixa claro que é urgente). Se a IA falhar/não estiver
+// configurada, cai só na camada 1 (comportamento de sempre, nunca quebra o sync por isso).
 //
 // Dois jeitos de chamar:
 //  1. Cron (pg_cron, via header x-cron-secret === DATAJUD_CRON_SECRET) — sincroniza TODOS
@@ -15,7 +20,8 @@
 // Deploy: supabase functions deploy datajud-sync --no-verify-jwt
 // (--no-verify-jwt porque o cron chama sem JWT de usuário — a checagem de quem pode chamar
 // é feita na mão dentro da function, via x-cron-secret OU um JWT de usuário válido)
-// Secrets: DATAJUD_API_KEY (chave pública do CNJ), DATAJUD_CRON_SECRET (string aleatória sua)
+// Secrets: DATAJUD_API_KEY (chave pública do CNJ), DATAJUD_CRON_SECRET (string aleatória sua),
+// ANTHROPIC_API_KEY (opcional — sem ela, só a camada de palavra-chave roda)
 
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { extrairTribunalAlias, numeroCnjValido } from "./tribunais.ts";
@@ -58,7 +64,35 @@ async function consultaDataJud(alias: string, numero: string, apiKey: string) {
   }
 }
 
-async function sincronizarProcesso(admin: ReturnType<typeof createClient>, processo: any, apiKey: string, termos: string[]) {
+// Pede pra IA classificar, de uma vez, TODAS as movimentações novas de um processo —
+// 1 chamada por processo (não 1 por movimentação), pra não multiplicar custo/latência.
+// Retorna null em qualquer falha (JSON inválido, API fora, timeout) — quem chama já sabe
+// cair pra camada de palavra-chave nesse caso, nunca deixa o sync quebrar por isso.
+async function classificarUrgenciaIA(nomes: string[], anthropicKey: string): Promise<boolean[] | null> {
+  try {
+    const lista = nomes.map((n, i) => `${i}: ${n}`).join("\n");
+    const prompt = `Você é assistente jurídico brasileiro. Pra cada movimentação processual abaixo, diga se ela EXIGE ação/atenção do advogado em breve (ex.: intimação, prazo, decisão, sentença, despacho que pede manifestação) ou é só trâmite burocrático de rotina (ex.: juntada de documento, conclusão, distribuição, remessa). Responda SOMENTE um array JSON de true/false, na mesma ordem e mesma quantidade da lista, sem nenhum texto antes ou depois. Ex.: [true,false,false]\n\nMovimentações:\n${lista}`;
+
+    const res = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: { "x-api-key": anthropicKey, "anthropic-version": "2023-06-01", "content-type": "application/json" },
+      body: JSON.stringify({ model: "claude-sonnet-5", max_tokens: 500, messages: [{ role: "user", content: prompt }] }),
+    });
+    if (!res.ok) return null;
+
+    const body = await res.json();
+    const texto = (body.content ?? []).filter((b: { type: string }) => b.type === "text").map((b: { text: string }) => b.text).join("");
+    const match = texto.match(/\[[\s\S]*\]/); // pega só o array, ignora qualquer texto extra que a IA cole em volta
+    if (!match) return null;
+    const resultado = JSON.parse(match[0]);
+    if (!Array.isArray(resultado) || resultado.length !== nomes.length) return null;
+    return resultado.map(Boolean);
+  } catch {
+    return null;
+  }
+}
+
+async function sincronizarProcesso(admin: ReturnType<typeof createClient>, processo: any, apiKey: string, termos: string[], anthropicKey: string | undefined) {
   const numeroLimpo = limparNumero(processo.numero);
 
   if (!numeroCnjValido(processo.numero)) {
@@ -95,10 +129,19 @@ async function sincronizarProcesso(admin: ReturnType<typeof createClient>, proce
       .map((m) => ({ ...m, _key: dedupKey(m.nome ?? "", m.dataHora ?? "") }))
       .filter((m) => !jaConhecidos.has(m._key));
 
+    // 1 chamada de IA pra todas as movimentações novas DESSE processo de uma vez, não uma
+    // por movimentação — resultado null (sem chave, ou a IA falhou) cai pra só palavra-chave.
+    const nomesNovos = novos.map((m) => m.nome ?? "Movimentação sem nome");
+    const classificacaoIA = anthropicKey && nomesNovos.length > 0
+      ? await classificarUrgenciaIA(nomesNovos, anthropicKey)
+      : null;
+
     let novosMovimentos = 0;
-    for (const m of novos) {
+    for (let i = 0; i < novos.length; i++) {
+      const m = novos[i];
       const nome: string = m.nome ?? "Movimentação sem nome";
-      const requerAtencao = termos.some((t) => nome.toLowerCase().includes(t.toLowerCase()));
+      const requerAtencaoPalavraChave = termos.some((t) => nome.toLowerCase().includes(t.toLowerCase()));
+      const requerAtencao = requerAtencaoPalavraChave || (classificacaoIA?.[i] ?? false);
 
       const { data: inserted, error: insErr } = await admin.from("movimentacoes_processo").insert({
         org_id: processo.org_id,
@@ -154,6 +197,7 @@ Deno.serve(async (req) => {
     if (!apiKey) {
       return new Response(JSON.stringify({ error: "DATAJUD_API_KEY não configurada." }), { status: 500, headers: corsHeaders });
     }
+    const anthropicKey = Deno.env.get("ANTHROPIC_API_KEY"); // opcional — sem ela, só palavra-chave
 
     const cronSecret = req.headers.get("x-cron-secret");
     const chamadaPorCron = cronSecret && cronSecret === Deno.env.get("DATAJUD_CRON_SECRET");
@@ -182,7 +226,7 @@ Deno.serve(async (req) => {
 
     const resultados = [];
     for (const p of processos ?? []) {
-      resultados.push(await sincronizarProcesso(admin, p, apiKey, termos));
+      resultados.push(await sincronizarProcesso(admin, p, apiKey, termos, anthropicKey));
     }
 
     const resumo = {
