@@ -33,17 +33,20 @@ terminar e sobe.
   inicial" no Android/iOS abre em tela cheia como app. Não é app nativo em loja (Apple/
   Google) — isso é projeto à parte (conta de desenvolvedor, build nativo, revisão).
 
+- [x] **Assinatura eletrônica (D4Sign)** e **Captação automática de processo (Jusbrasil)**
+  — construídos a partir da documentação oficial de cada provedor, cada escritório usa a
+  PRÓPRIA conta (credencial por empresa). ⚠️ Sem teste contra conta real (não temos
+  credencial) — testei tudo que dava sem conta (erro amigável faltando credencial, RLS de
+  leitura/atualização); o caminho que fala com D4Sign/Jusbrasil de verdade só valida na
+  primeira tentativa real de vocês. Ver commit pra detalhe completo do que foi/não foi testado.
+
 ## Bloqueados por decisão de negócio (provedor pago) — não são gap técnico, são compra a fazer
 
 - [ ] **WhatsApp com atendimento integrado** — precisa de WhatsApp Business API / Twilio /
   Z-API (provedor pago). Quando escolher um, volto e conecto.
-- [ ] **Assinatura eletrônica integrada** — precisa de Clicksign/D4Sign/DocuSign (provedor
-  pago). Mesma situação.
 - [ ] **IA jurídica sobre o conteúdo** — resumo automático de andamento, geração de petição,
   previsão de chance de êxito. GED (documento por processo) já está pronto — falta decidir
   provedor de IA e custo por chamada.
-- [ ] **Captação automática de processo novo** — API pública do DataJud não tem campo de
-  advogado/OAB (confirmado no glossário oficial); precisa de provedor pago (Judit, Escavador).
 
 ## Fica de fora por enquanto (risco alto pra fazer com pressa)
 
