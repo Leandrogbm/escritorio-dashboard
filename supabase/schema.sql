@@ -254,6 +254,26 @@ create table documentos_processo (
 create index documentos_processo_org_id_idx on documentos_processo (org_id);
 create index documentos_processo_processo_id_idx on documentos_processo (processo_id);
 
+-- GED do cliente (contrato assinado, procuração, documento pessoal etc.) — mesmo padrão do
+-- GED de processo acima, só que preso ao cliente em vez de a um processo específico (um
+-- cliente pode ter vários processos, mas o contrato de honorários é só um, por exemplo).
+insert into storage.buckets (id, name, public) values ('documentos-cliente', 'documentos-cliente', false)
+  on conflict (id) do nothing;
+
+create table documentos_cliente (
+  id uuid primary key default gen_random_uuid(),
+  org_id uuid not null references organizations(id),
+  cliente_id uuid not null references clientes(id) on delete cascade,
+  nome_arquivo text not null,
+  storage_path text not null, -- "<org_id>/<cliente_id>/<uuid>-<nome>"
+  tamanho bigint,
+  tipo_mime text,
+  enviado_por uuid references profiles(id),
+  created_at timestamptz not null default now()
+);
+create index documentos_cliente_org_id_idx on documentos_cliente (org_id);
+create index documentos_cliente_cliente_id_idx on documentos_cliente (cliente_id);
+
 -- API pública (Configurações → API pública): chave pra integração externa (ERP/CRM) usar
 -- a Edge Function api-gateway em vez de sessão de usuário. Guarda só o hash — a chave em
 -- texto puro só existe uma vez, na resposta de api-keys-create.
@@ -647,6 +667,13 @@ create policy documentos_processo_ins on documentos_processo for insert with che
 create policy documentos_processo_del on documentos_processo for delete using ((org_id = auth_org_id() and has_module('processos')) or is_platform_admin());
 create trigger trg_audit_documentos_processo after insert or update or delete on documentos_processo for each row execute function log_platform_admin_write();
 
+alter table documentos_cliente enable row level security;
+create trigger trg_set_org_id before insert on documentos_cliente for each row execute function set_org_id();
+create policy documentos_cliente_sel on documentos_cliente for select using ((org_id = auth_org_id() and has_module('clientes')) or is_platform_admin());
+create policy documentos_cliente_ins on documentos_cliente for insert with check ((org_id = auth_org_id() and has_module('clientes')) or is_platform_admin());
+create policy documentos_cliente_del on documentos_cliente for delete using ((org_id = auth_org_id() and has_module('clientes')) or is_platform_admin());
+create trigger trg_audit_documentos_cliente after insert or update or delete on documentos_cliente for each row execute function log_platform_admin_write();
+
 alter table api_keys enable row level security;
 create policy api_keys_sel on api_keys for select using ((org_id = auth_org_id() and auth_role() in ('admin','socio')) or is_platform_admin());
 create policy api_keys_del on api_keys for delete using ((org_id = auth_org_id() and auth_role() in ('admin','socio')) or is_platform_admin());
@@ -674,6 +701,19 @@ create policy documentos_processo_storage_sel on storage.objects for select
 create policy documentos_processo_storage_del on storage.objects for delete
   using (bucket_id = 'documentos-processo' and (
     ((storage.foldername(name))[1] = auth_org_id()::text and has_module('processos')) or is_platform_admin()
+  ));
+
+create policy documentos_cliente_storage_ins on storage.objects for insert
+  with check (bucket_id = 'documentos-cliente' and (
+    ((storage.foldername(name))[1] = auth_org_id()::text and has_module('clientes')) or is_platform_admin()
+  ));
+create policy documentos_cliente_storage_sel on storage.objects for select
+  using (bucket_id = 'documentos-cliente' and (
+    ((storage.foldername(name))[1] = auth_org_id()::text and has_module('clientes')) or is_platform_admin()
+  ));
+create policy documentos_cliente_storage_del on storage.objects for delete
+  using (bucket_id = 'documentos-cliente' and (
+    ((storage.foldername(name))[1] = auth_org_id()::text and has_module('clientes')) or is_platform_admin()
   ));
 
 -- Excluir empresa por completo (colaboradores, clientes, processos, financeiro, a org em si)

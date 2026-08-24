@@ -133,7 +133,7 @@ export default function App() {
       case "erp": return <ErpTab orgId={orgId} />;
       case "leads": return <LeadsTab orgId={orgId} />;
       case "leads_captacao": return <LeadsCaptacaoTab orgId={orgId} currentRole={currentRole} />;
-      case "clientes": return <ClientesTab currentRole={currentRole} orgId={orgId} />;
+      case "clientes": return <ClientesTab currentRole={currentRole} orgId={orgId} profile={profile} />;
       case "equipe": return <EquipeTab currentRole={currentRole} orgId={orgId} />;
       case "executivo": return <ExecutivoTab orgId={orgId} />;
       default: return <EmptyState />;

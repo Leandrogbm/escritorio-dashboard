@@ -1,9 +1,10 @@
 import React, { useMemo, useState } from "react";
-import { Users, Plus, MessageCircle, UserCheck, KeyRound } from "lucide-react";
+import { Users, Plus, MessageCircle, UserCheck, KeyRound, FolderOpen } from "lucide-react";
 import Card from "../Card.jsx";
 import SectionTitle from "../SectionTitle.jsx";
 import RowActions from "../RowActions.jsx";
 import RecordFormModal from "../RecordFormModal.jsx";
+import DocumentosClientePanel from "../DocumentosClientePanel.jsx";
 import SearchInput from "../SearchInput.jsx";
 import { COLORS } from "../../lib/theme.js";
 import { useSupabaseTable } from "../../hooks/useSupabaseTable.js";
@@ -42,12 +43,13 @@ const FIELDS = [
   { key: "contrato_renovacao", label: "Início do contrato", type: "date", optional: true },
 ];
 
-export default function ClientesTab({ currentRole, orgId }) {
+export default function ClientesTab({ currentRole, orgId, profile }) {
   const orgEq = orgId ? ["org_id", orgId] : undefined;
   const { data: clientes, loading, insert, update, remove } = useSupabaseTable("clientes", { orderBy: "nome", ascending: true, eq: orgEq });
   const { data: acessosPortal, refresh: refreshAcessos } = useSupabaseTable("cliente_logins", { select: "cliente_id", eq: orgEq });
   const temAcesso = useMemo(() => new Set(acessosPortal.map((a) => a.cliente_id)), [acessosPortal]);
   const [editing, setEditing] = useState(null); // null = fechado, {} = novo, {...} = editando
+  const [vendoDocumentos, setVendoDocumentos] = useState(null); // cliente aberto na pasta de documentos
   const [busca, setBusca] = useState("");
   const podeExcluir = currentRole === "admin" || currentRole === "socio"; // RLS (clientes_del) já barra no banco — isso só esconde o botão
 
@@ -139,6 +141,9 @@ export default function ClientesTab({ currentRole, orgId }) {
                 <td className="px-4 py-3" style={{ color: COLORS.slate }}>{c.contrato_renovacao || "—"}</td>
                 <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                   <div className="flex items-center gap-1">
+                    <button onClick={() => setVendoDocumentos(c)} aria-label="Documentos do cliente" title="Documentos do cliente" className="p-1.5 rounded hover:opacity-70" style={{ color: COLORS.brass }}>
+                      <FolderOpen size={14} />
+                    </button>
                     {podeExcluir && (
                       temAcesso.has(c.id) ? (
                         <span title="Já tem acesso ao Portal do Cliente" className="p-1.5" style={{ color: COLORS.success }}><UserCheck size={14} /></span>
@@ -166,6 +171,10 @@ export default function ClientesTab({ currentRole, orgId }) {
         onClose={() => setEditing(null)}
         onSubmit={(values) => (editing?.id ? update(editing.id, values) : insert(values))}
       />
+
+      {vendoDocumentos && (
+        <DocumentosClientePanel cliente={vendoDocumentos} orgId={orgId} profile={profile} onClose={() => setVendoDocumentos(null)} />
+      )}
     </div>
   );
 }
