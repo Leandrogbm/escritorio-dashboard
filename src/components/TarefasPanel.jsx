@@ -1,9 +1,10 @@
 import React, { useState } from "react";
-import { X, Plus, ChevronRight, ChevronLeft, Trash2 } from "lucide-react";
+import { X, Plus, ChevronRight, ChevronLeft, Trash2, Sparkles } from "lucide-react";
 import Card from "./Card.jsx";
 import { COLORS } from "../lib/theme.js";
 import { useSupabaseTable } from "../hooks/useSupabaseTable.js";
 import { useEscClose } from "../hooks/useEscClose.js";
+import { supabase } from "../lib/supabaseClient.js";
 
 // Kanban de tarefas do processo — 3 colunas fixas. Mover é um update de status, disparado por
 // arrastar o card (mouse, HTML5 drag nativo) OU pelos botões "→"/"←" (mantidos pra touch, onde
@@ -21,6 +22,36 @@ export default function TarefasPanel({ processo, equipe, orgId, onClose }) {
   const [novoTitulo, setNovoTitulo] = useState("");
   const [novaDescricao, setNovaDescricao] = useState("");
   const [novoResponsavel, setNovoResponsavel] = useState("");
+  const [checklist, setChecklist] = useState(null); // array de strings sugeridas pela IA, ou null
+  const [checklistMarcadas, setChecklistMarcadas] = useState(new Set());
+  const [sugerindo, setSugerindo] = useState(false);
+  const [erroChecklist, setErroChecklist] = useState("");
+
+  const sugerirChecklist = async () => {
+    setSugerindo(true);
+    setErroChecklist("");
+    const { data, error } = await supabase.functions.invoke("sugerir-checklist", { body: { area: processo.area, numero: processo.numero } });
+    setSugerindo(false);
+    if (error) {
+      setErroChecklist((await error.context?.json?.().catch(() => null))?.error ?? error.message);
+      return;
+    }
+    setChecklist(data.checklist);
+    setChecklistMarcadas(new Set(data.checklist.map((_, i) => i)));
+  };
+
+  const alternarMarcada = (i) => setChecklistMarcadas((s) => {
+    const novo = new Set(s);
+    if (novo.has(i)) novo.delete(i); else novo.add(i);
+    return novo;
+  });
+
+  const adicionarChecklist = async () => {
+    const titulos = checklist.filter((_, i) => checklistMarcadas.has(i));
+    if (titulos.length === 0) return setChecklist(null);
+    await insert(titulos.map((titulo) => ({ processo_id: processo.id, titulo })));
+    setChecklist(null);
+  };
 
   const criar = async (e) => {
     e.preventDefault();
@@ -56,11 +87,43 @@ export default function TarefasPanel({ processo, equipe, orgId, onClose }) {
             <button onClick={onClose} className="p-1 rounded hover:opacity-70" style={{ color: COLORS.slate }}><X size={18} /></button>
           </div>
 
-          {!formAberto ? (
-            <button onClick={() => setFormAberto(true)} className="flex items-center gap-1.5 px-3 py-2 rounded-md text-sm font-semibold mb-5" style={{ background: COLORS.ink, color: "#fff" }}>
-              <Plus size={14} /> Nova tarefa
-            </button>
-          ) : (
+          {!formAberto && !checklist && (
+            <div className="flex flex-wrap items-center gap-2 mb-2">
+              <button onClick={() => setFormAberto(true)} className="flex items-center gap-1.5 px-3 py-2 rounded-md text-sm font-semibold" style={{ background: COLORS.ink, color: "#fff" }}>
+                <Plus size={14} /> Nova tarefa
+              </button>
+              {doProcesso.length === 0 && (
+                <button onClick={sugerirChecklist} disabled={sugerindo} className="flex items-center gap-1.5 px-3 py-2 rounded-md text-sm font-semibold" style={{ border: `1px solid ${COLORS.line}`, color: COLORS.ink, opacity: sugerindo ? 0.6 : 1 }}>
+                  <Sparkles size={14} color={COLORS.brass} /> {sugerindo ? "Gerando..." : "Sugerir checklist (IA)"}
+                </button>
+              )}
+            </div>
+          )}
+          {erroChecklist && <p className="text-xs mb-3" style={{ color: COLORS.wine }}>{erroChecklist}</p>}
+
+          {checklist && (
+            <Card className="mb-5" style={{ background: "rgba(165,121,59,0.06)", borderColor: "rgba(165,121,59,0.3)" }}>
+              <div className="flex items-center justify-between mb-2">
+                <p className="flex items-center gap-1.5 text-xs font-semibold" style={{ color: COLORS.ink }}>
+                  <Sparkles size={13} color={COLORS.brass} /> Checklist sugerido — desmarque o que não quiser adicionar
+                </p>
+                <button onClick={() => setChecklist(null)} className="p-1 rounded hover:opacity-70" style={{ color: COLORS.slate }}><X size={16} /></button>
+              </div>
+              <div className="flex flex-col gap-1.5 mb-3">
+                {checklist.map((item, i) => (
+                  <label key={i} className="flex items-center gap-2 text-sm" style={{ color: COLORS.ink }}>
+                    <input type="checkbox" checked={checklistMarcadas.has(i)} onChange={() => alternarMarcada(i)} />
+                    {item}
+                  </label>
+                ))}
+              </div>
+              <button onClick={adicionarChecklist} className="flex items-center gap-1.5 px-3 py-2 rounded-md text-sm font-semibold" style={{ background: COLORS.ink, color: "#fff" }}>
+                <Plus size={14} /> Adicionar {checklistMarcadas.size} tarefa(s)
+              </button>
+            </Card>
+          )}
+
+          {formAberto && (
             <form onSubmit={criar} className="flex flex-col gap-2 mb-5 p-3 rounded-md" style={{ border: `1px solid ${COLORS.line}` }}>
               <div className="flex items-center justify-between">
                 <p className="text-sm font-semibold" style={{ color: COLORS.ink }}>Nova tarefa</p>
