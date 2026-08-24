@@ -75,16 +75,34 @@ function extrairDeLinhas(linhasTexto) {
   return out;
 }
 
-// Foto de extrato (celular) — OCR client-side via Tesseract.js, sem servidor/custo. Precisão
-// de foto é bem mais baixa que PDF/OFX (ângulo, luz, fonte do banco) — por isso o mesmo filtro
-// rígido acima (só linha com 1 valor certeiro) é ainda mais importante aqui: prefere ficar de
-// fora do que virar um match errado.
+// Comprovante avulso (print de Pix/TED) — layout de "rótulo numa linha, valor/data na linha
+// de baixo" (ex.: "Valor pago" / "R$ 1.650,00"), não tabela — por isso extrairDeLinhas (que
+// exige data E valor na MESMA linha) não acha nada nesse formato. Fallback: pega o primeiro
+// valor em R$ e a primeira data do texto inteiro — só 1 comprovante por foto, então "o
+// primeiro valor que aparece" já é o valor pago na prática (layout desses apps é sempre
+// "Valor pago" logo no topo do comprovante).
+function extrairComprovanteUnico(texto) {
+  const valorMatch = texto.match(VALOR_RE);
+  const dataMatch = texto.match(DATA_RE);
+  if (!valorMatch || !dataMatch) return [];
+  const valor = normalizarValor(valorMatch[0]);
+  const data = normalizarData(dataMatch[1]);
+  if (!data || valor == null) return [];
+  return [{ data, valor, memo: "" }];
+}
+
+// Foto de extrato ou comprovante (celular) — OCR client-side via Tesseract.js, sem
+// servidor/custo. Precisão de foto é bem mais baixa que PDF/OFX (ângulo, luz, fonte do
+// banco) — por isso o filtro rígido de extrairDeLinhas (só linha com 1 valor certeiro) é
+// ainda mais importante aqui: prefere ficar de fora do que virar um match errado. Tenta
+// primeiro como extrato em tabela; se não achar nada, tenta como comprovante avulso.
 async function parseImagem(file) {
   const { createWorker } = await import("tesseract.js");
   const worker = await createWorker("por");
   try {
     const { data } = await worker.recognize(file);
-    return extrairDeLinhas(data.text.split(/\r?\n/));
+    const porLinha = extrairDeLinhas(data.text.split(/\r?\n/));
+    return porLinha.length > 0 ? porLinha : extrairComprovanteUnico(data.text);
   } finally {
     await worker.terminate();
   }

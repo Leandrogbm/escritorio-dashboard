@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useRef, useState } from "react";
 import { DollarSign, Plus, X, Upload, Wallet } from "lucide-react";
 import Card from "../Card.jsx";
 import SectionTitle from "../SectionTitle.jsx";
@@ -78,8 +78,19 @@ export default function FinanceiroTab({ orgId } = {}) {
   const [editing, setEditing] = useState(null); // {} = novo (do topo), {cliente_id} = novo já com cliente, {...} = editando
   const [selecionado, setSelecionado] = useState(null); // cliente_id aberto no painel de detalhe
   const [busca, setBusca] = useState("");
-  const [importando, setImportando] = useState(false); // abre o modal de importar extrato
+  const [arquivoExtrato, setArquivoExtrato] = useState(null); // File escolhido — abre o toast de resultado
+  const fileInputRef = useRef(null);
   useEscClose(() => setSelecionado(null), !!selecionado);
+
+  // Seletor de arquivo dispara direto no clique do botão (dentro do próprio handler, gesto
+  // síncrono do usuário) — sem popup no meio pra escolher de novo, e funciona no Safari/iOS,
+  // que exige o seletor nativo aberto no mesmo tick do clique real.
+  const escolherArquivoExtrato = () => fileInputRef.current?.click();
+  const arquivoExtratoEscolhido = (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = ""; // permite escolher o mesmo arquivo de novo depois
+    if (file) setArquivoExtrato(file);
+  };
 
   // Resumo por cliente — PF mostra como "parcelas", PJ como "mensalidade", mas o dado é o
   // mesmo (uma linha em honorarios por cobrança); só muda o texto na hora de criar/exibir.
@@ -148,9 +159,10 @@ export default function FinanceiroTab({ orgId } = {}) {
         action={
           <div className="flex flex-wrap items-center gap-2">
             <SearchInput value={busca} onChange={setBusca} placeholder="Buscar cliente..." />
-            <button onClick={() => setImportando(true)} className="flex items-center gap-1.5 px-3 py-2 rounded-md text-sm font-semibold" style={{ border: `1px solid ${COLORS.line}`, color: COLORS.ink }}>
+            <button onClick={escolherArquivoExtrato} className="flex items-center gap-1.5 px-3 py-2 rounded-md text-sm font-semibold" style={{ border: `1px solid ${COLORS.line}`, color: COLORS.ink }}>
               <Upload size={14} /> Importar extrato
             </button>
+            <input ref={fileInputRef} type="file" accept=".ofx,.csv,.txt,.pdf,image/*" className="hidden" onChange={arquivoExtratoEscolhido} />
             <button onClick={() => setEditing({})} className="flex items-center gap-1.5 px-3 py-2 rounded-md text-sm font-semibold" style={{ background: COLORS.ink, color: "#fff" }}>
               <Plus size={14} /> Novo
             </button>
@@ -293,8 +305,8 @@ export default function FinanceiroTab({ orgId } = {}) {
         onSubmit={salvar}
       />
 
-      {importando && (
-        <ImportarExtratoModal honorarios={honorarios} orgId={orgId} onClose={() => setImportando(false)} />
+      {arquivoExtrato && (
+        <ImportarExtratoModal arquivo={arquivoExtrato} honorarios={honorarios} orgId={orgId} onClose={() => setArquivoExtrato(null)} />
       )}
     </div>
   );
