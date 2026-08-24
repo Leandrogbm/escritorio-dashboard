@@ -24,9 +24,13 @@ export default function QuadroTab({ orgId, currentRole, profile }) {
   const { data: equipe } = useSupabaseTable("profiles", { select: "id,nome", orderBy: "nome", ascending: true, eq: orgEq });
   const { data: processos } = useSupabaseTable("processos", { select: "id,numero", orderBy: "numero", ascending: true, eq: orgEq });
 
-  const vejaTudo = currentRole === "admin" || currentRole === "socio";
+  // Só sócio vê o quadro geral (todo mundo) — admin, mesmo enxergando tudo no resto do
+  // sistema, aqui é tratado como "mais um da equipe" e só vê as próprias tarefas, igual
+  // qualquer outro cargo. Pedido explícito do usuário.
+  const vejaTudo = currentRole === "socio";
 
   const [novoTitulo, setNovoTitulo] = useState("");
+  const [novaDescricao, setNovaDescricao] = useState("");
   const [novoResponsavel, setNovoResponsavel] = useState(vejaTudo ? "" : (profile?.id ?? ""));
   const [novoProcesso, setNovoProcesso] = useState("");
 
@@ -45,8 +49,9 @@ export default function QuadroTab({ orgId, currentRole, profile }) {
   const criar = async (e) => {
     e.preventDefault();
     if (!novoTitulo.trim() || !novoProcesso) return;
-    await insert({ processo_id: novoProcesso, titulo: novoTitulo.trim(), responsavel_id: novoResponsavel || null });
+    await insert({ processo_id: novoProcesso, titulo: novoTitulo.trim(), descricao: novaDescricao.trim() || null, responsavel_id: novoResponsavel || null });
     setNovoTitulo("");
+    setNovaDescricao("");
     if (vejaTudo) setNovoResponsavel("");
     setNovoProcesso("");
   };
@@ -63,27 +68,37 @@ export default function QuadroTab({ orgId, currentRole, profile }) {
       <SectionTitle icon={Trello} title="Quadro de tarefas" subtitle={vejaTudo ? "Atividades da equipe, por advogado" : "Suas atividades"} />
 
       <Card className="mb-5">
-        <form onSubmit={criar} className="flex flex-wrap items-center gap-2">
-          <input
-            value={novoTitulo}
-            onChange={(e) => setNovoTitulo(e.target.value)}
-            placeholder="Nova tarefa..."
-            className="flex-1 min-w-[160px] px-3 py-2 rounded-md text-sm"
+        <form onSubmit={criar} className="flex flex-col gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <input
+              value={novoTitulo}
+              onChange={(e) => setNovoTitulo(e.target.value)}
+              placeholder="Nova tarefa..."
+              className="flex-1 min-w-[160px] px-3 py-2 rounded-md text-sm"
+              style={{ border: `1px solid ${COLORS.line}`, color: COLORS.ink }}
+            />
+            <select value={novoProcesso} onChange={(e) => setNovoProcesso(e.target.value)} required className="px-3 py-2 rounded-md text-sm" style={{ border: `1px solid ${COLORS.line}`, color: COLORS.ink }}>
+              <option value="">Processo...</option>
+              {processos.map((p) => <option key={p.id} value={p.id}>{p.numero}</option>)}
+            </select>
+            {vejaTudo && (
+              <select value={novoResponsavel} onChange={(e) => setNovoResponsavel(e.target.value)} className="px-3 py-2 rounded-md text-sm" style={{ border: `1px solid ${COLORS.line}`, color: COLORS.ink }}>
+                <option value="">Sem responsável</option>
+                {equipe.map((e) => <option key={e.id} value={e.id}>{e.nome}</option>)}
+              </select>
+            )}
+            <button type="submit" className="flex items-center gap-1.5 px-3 py-2 rounded-md text-sm font-semibold" style={{ background: COLORS.ink, color: "#fff" }}>
+              <Plus size={14} /> Adicionar
+            </button>
+          </div>
+          <textarea
+            value={novaDescricao}
+            onChange={(e) => setNovaDescricao(e.target.value)}
+            placeholder="Descrição (opcional)..."
+            rows={2}
+            className="w-full px-3 py-2 rounded-md text-sm resize-y"
             style={{ border: `1px solid ${COLORS.line}`, color: COLORS.ink }}
           />
-          <select value={novoProcesso} onChange={(e) => setNovoProcesso(e.target.value)} required className="px-3 py-2 rounded-md text-sm" style={{ border: `1px solid ${COLORS.line}`, color: COLORS.ink }}>
-            <option value="">Processo...</option>
-            {processos.map((p) => <option key={p.id} value={p.id}>{p.numero}</option>)}
-          </select>
-          {vejaTudo && (
-            <select value={novoResponsavel} onChange={(e) => setNovoResponsavel(e.target.value)} className="px-3 py-2 rounded-md text-sm" style={{ border: `1px solid ${COLORS.line}`, color: COLORS.ink }}>
-              <option value="">Sem responsável</option>
-              {equipe.map((e) => <option key={e.id} value={e.id}>{e.nome}</option>)}
-            </select>
-          )}
-          <button type="submit" className="flex items-center gap-1.5 px-3 py-2 rounded-md text-sm font-semibold" style={{ background: COLORS.ink, color: "#fff" }}>
-            <Plus size={14} /> Adicionar
-          </button>
         </form>
       </Card>
 
@@ -105,6 +120,7 @@ export default function QuadroTab({ orgId, currentRole, profile }) {
                     {doAdvogado.filter((t) => t.status === coluna.nome).map((t) => (
                       <div key={t.id} className="p-2.5 rounded-md text-sm" style={{ border: `1px solid ${COLORS.line}`, background: COLORS.paperRaised }}>
                         <p style={{ color: COLORS.ink }}>{t.titulo}</p>
+                        {t.descricao && <p className="text-xs mt-1 whitespace-pre-wrap" style={{ color: COLORS.slate }}>{t.descricao}</p>}
                         <p className="text-xs mt-0.5" style={{ color: COLORS.slate }}>{t.processo?.numero ?? "—"}</p>
                         <div className="flex items-center justify-between mt-2">
                           <div className="flex items-center gap-1">

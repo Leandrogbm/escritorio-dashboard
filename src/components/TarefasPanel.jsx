@@ -15,13 +15,15 @@ export default function TarefasPanel({ processo, equipe, orgId, onClose }) {
   });
   const doProcesso = tarefas.filter((t) => t.processo_id === processo.id);
   const [novoTitulo, setNovoTitulo] = useState("");
+  const [novaDescricao, setNovaDescricao] = useState("");
   const [novoResponsavel, setNovoResponsavel] = useState("");
 
   const criar = async (e) => {
     e.preventDefault();
     if (!novoTitulo.trim()) return;
-    await insert({ processo_id: processo.id, titulo: novoTitulo.trim(), responsavel_id: novoResponsavel || null });
+    await insert({ processo_id: processo.id, titulo: novoTitulo.trim(), descricao: novaDescricao.trim() || null, responsavel_id: novoResponsavel || null });
     setNovoTitulo("");
+    setNovaDescricao("");
     setNovoResponsavel("");
   };
 
@@ -43,26 +45,36 @@ export default function TarefasPanel({ processo, equipe, orgId, onClose }) {
             <button onClick={onClose} className="p-1 rounded hover:opacity-70" style={{ color: COLORS.slate }}><X size={18} /></button>
           </div>
 
-          <form onSubmit={criar} className="flex flex-wrap items-center gap-2 mb-5">
-            <input
-              value={novoTitulo}
-              onChange={(e) => setNovoTitulo(e.target.value)}
-              placeholder="Nova tarefa..."
-              className="flex-1 min-w-[160px] px-3 py-2 rounded-md text-sm"
+          <form onSubmit={criar} className="flex flex-col gap-2 mb-5">
+            <div className="flex flex-wrap items-center gap-2">
+              <input
+                value={novoTitulo}
+                onChange={(e) => setNovoTitulo(e.target.value)}
+                placeholder="Nova tarefa..."
+                className="flex-1 min-w-[160px] px-3 py-2 rounded-md text-sm"
+                style={{ border: `1px solid ${COLORS.line}`, color: COLORS.ink }}
+              />
+              <select
+                value={novoResponsavel}
+                onChange={(e) => setNovoResponsavel(e.target.value)}
+                className="px-3 py-2 rounded-md text-sm"
+                style={{ border: `1px solid ${COLORS.line}`, color: COLORS.ink }}
+              >
+                <option value="">Sem responsável</option>
+                {equipe.map((e) => <option key={e.id} value={e.id}>{e.nome}</option>)}
+              </select>
+              <button type="submit" className="flex items-center gap-1.5 px-3 py-2 rounded-md text-sm font-semibold" style={{ background: COLORS.ink, color: "#fff" }}>
+                <Plus size={14} /> Adicionar
+              </button>
+            </div>
+            <textarea
+              value={novaDescricao}
+              onChange={(e) => setNovaDescricao(e.target.value)}
+              placeholder="Descrição (opcional)..."
+              rows={2}
+              className="w-full px-3 py-2 rounded-md text-sm resize-y"
               style={{ border: `1px solid ${COLORS.line}`, color: COLORS.ink }}
             />
-            <select
-              value={novoResponsavel}
-              onChange={(e) => setNovoResponsavel(e.target.value)}
-              className="px-3 py-2 rounded-md text-sm"
-              style={{ border: `1px solid ${COLORS.line}`, color: COLORS.ink }}
-            >
-              <option value="">Sem responsável</option>
-              {equipe.map((e) => <option key={e.id} value={e.id}>{e.nome}</option>)}
-            </select>
-            <button type="submit" className="flex items-center gap-1.5 px-3 py-2 rounded-md text-sm font-semibold" style={{ background: COLORS.ink, color: "#fff" }}>
-              <Plus size={14} /> Adicionar
-            </button>
           </form>
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -75,6 +87,7 @@ export default function TarefasPanel({ processo, equipe, orgId, onClose }) {
                   {doProcesso.filter((t) => t.status === coluna).map((t) => (
                     <div key={t.id} className="p-2.5 rounded-md text-sm" style={{ border: `1px solid ${COLORS.line}`, background: COLORS.paperRaised }}>
                       <p style={{ color: COLORS.ink }}>{t.titulo}</p>
+                      {t.descricao && <p className="text-xs mt-1 whitespace-pre-wrap" style={{ color: COLORS.slate }}>{t.descricao}</p>}
                       <p className="text-xs mt-0.5" style={{ color: COLORS.slate }}>{t.responsavel?.nome ?? "Sem responsável"}</p>
                       <div className="flex items-center justify-between mt-2">
                         <div className="flex items-center gap-1">

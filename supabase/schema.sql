@@ -136,6 +136,7 @@ create table tarefas (
   org_id uuid not null references organizations(id),
   processo_id uuid not null references processos(id) on delete cascade,
   titulo text not null,
+  descricao text,
   status text not null check (status in ('A fazer','Em andamento','Concluída')) default 'A fazer',
   responsavel_id uuid references profiles(id),
   created_at timestamptz not null default now()
