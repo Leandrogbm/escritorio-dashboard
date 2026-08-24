@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from "react";
-import { Trello, Plus, ChevronRight, ChevronLeft, Trash2 } from "lucide-react";
+import { Trello, Plus, ChevronRight, ChevronLeft, Trash2, X } from "lucide-react";
 import Card from "../Card.jsx";
 import SectionTitle from "../SectionTitle.jsx";
 import { COLORS } from "../../lib/theme.js";
@@ -29,6 +29,7 @@ export default function QuadroTab({ orgId, currentRole, profile }) {
   // qualquer outro cargo. Pedido explícito do usuário.
   const vejaTudo = currentRole === "socio";
 
+  const [formAberto, setFormAberto] = useState(false);
   const [novoTitulo, setNovoTitulo] = useState("");
   const [novaDescricao, setNovaDescricao] = useState("");
   const [novoResponsavel, setNovoResponsavel] = useState(vejaTudo ? "" : (profile?.id ?? ""));
@@ -54,6 +55,7 @@ export default function QuadroTab({ orgId, currentRole, profile }) {
     setNovaDescricao("");
     if (vejaTudo) setNovoResponsavel("");
     setNovoProcesso("");
+    setFormAberto(false);
   };
 
   const nomesColunas = COLUNAS.map((c) => c.nome);
@@ -71,42 +73,58 @@ export default function QuadroTab({ orgId, currentRole, profile }) {
 
   return (
     <div>
-      <SectionTitle icon={Trello} title="Quadro de tarefas" subtitle={vejaTudo ? "Atividades da equipe, por advogado" : "Suas atividades"} />
+      <SectionTitle
+        icon={Trello}
+        title="Quadro de tarefas"
+        subtitle={vejaTudo ? "Atividades da equipe, por advogado" : "Suas atividades"}
+        action={!formAberto && (
+          <button onClick={() => setFormAberto(true)} className="flex items-center gap-1.5 px-3 py-2 rounded-md text-sm font-semibold" style={{ background: COLORS.ink, color: "#fff" }}>
+            <Plus size={14} /> Nova tarefa
+          </button>
+        )}
+      />
 
-      <Card className="mb-5">
-        <form onSubmit={criar} className="flex flex-col gap-2">
-          <div className="flex flex-wrap items-center gap-2">
-            <input
-              value={novoTitulo}
-              onChange={(e) => setNovoTitulo(e.target.value)}
-              placeholder="Nova tarefa..."
-              className="flex-1 min-w-[160px] px-3 py-2 rounded-md text-sm"
+      {formAberto && (
+        <Card className="mb-5">
+          <form onSubmit={criar} className="flex flex-col gap-2">
+            <div className="flex items-center justify-between">
+              <p className="text-sm font-semibold" style={{ color: COLORS.ink }}>Nova tarefa</p>
+              <button type="button" onClick={() => setFormAberto(false)} className="p-1 rounded hover:opacity-70" style={{ color: COLORS.slate }}><X size={16} /></button>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <input
+                value={novoTitulo}
+                onChange={(e) => setNovoTitulo(e.target.value)}
+                placeholder="Título da tarefa..."
+                autoFocus
+                className="flex-1 min-w-[160px] px-3 py-2 rounded-md text-sm"
+                style={{ border: `1px solid ${COLORS.line}`, color: COLORS.ink }}
+              />
+              <select value={novoProcesso} onChange={(e) => setNovoProcesso(e.target.value)} required className="px-3 py-2 rounded-md text-sm" style={{ border: `1px solid ${COLORS.line}`, color: COLORS.ink }}>
+                <option value="">Processo...</option>
+                {processos.map((p) => <option key={p.id} value={p.id}>{p.numero}</option>)}
+              </select>
+              {vejaTudo && (
+                <select value={novoResponsavel} onChange={(e) => setNovoResponsavel(e.target.value)} className="px-3 py-2 rounded-md text-sm" style={{ border: `1px solid ${COLORS.line}`, color: COLORS.ink }}>
+                  <option value="">Sem responsável</option>
+                  {equipe.map((e) => <option key={e.id} value={e.id}>{e.nome}</option>)}
+                </select>
+              )}
+            </div>
+            <textarea
+              value={novaDescricao}
+              onChange={(e) => setNovaDescricao(e.target.value)}
+              placeholder="Descrição (opcional)..."
+              rows={2}
+              className="w-full px-3 py-2 rounded-md text-sm resize-y"
               style={{ border: `1px solid ${COLORS.line}`, color: COLORS.ink }}
             />
-            <select value={novoProcesso} onChange={(e) => setNovoProcesso(e.target.value)} required className="px-3 py-2 rounded-md text-sm" style={{ border: `1px solid ${COLORS.line}`, color: COLORS.ink }}>
-              <option value="">Processo...</option>
-              {processos.map((p) => <option key={p.id} value={p.id}>{p.numero}</option>)}
-            </select>
-            {vejaTudo && (
-              <select value={novoResponsavel} onChange={(e) => setNovoResponsavel(e.target.value)} className="px-3 py-2 rounded-md text-sm" style={{ border: `1px solid ${COLORS.line}`, color: COLORS.ink }}>
-                <option value="">Sem responsável</option>
-                {equipe.map((e) => <option key={e.id} value={e.id}>{e.nome}</option>)}
-              </select>
-            )}
-            <button type="submit" className="flex items-center gap-1.5 px-3 py-2 rounded-md text-sm font-semibold" style={{ background: COLORS.ink, color: "#fff" }}>
+            <button type="submit" className="self-end flex items-center gap-1.5 px-3 py-2 rounded-md text-sm font-semibold" style={{ background: COLORS.ink, color: "#fff" }}>
               <Plus size={14} /> Adicionar
             </button>
-          </div>
-          <textarea
-            value={novaDescricao}
-            onChange={(e) => setNovaDescricao(e.target.value)}
-            placeholder="Descrição (opcional)..."
-            rows={2}
-            className="w-full px-3 py-2 rounded-md text-sm resize-y"
-            style={{ border: `1px solid ${COLORS.line}`, color: COLORS.ink }}
-          />
-        </form>
-      </Card>
+          </form>
+        </Card>
+      )}
 
       <div className="flex flex-col gap-5">
         {porAdvogado.length === 0 && (

@@ -15,6 +15,7 @@ export default function TarefasPanel({ processo, equipe, orgId, onClose }) {
     select: "*, responsavel:profiles(id,nome)", eq: orgEq, orderBy: "created_at", ascending: true,
   });
   const doProcesso = tarefas.filter((t) => t.processo_id === processo.id);
+  const [formAberto, setFormAberto] = useState(false);
   const [novoTitulo, setNovoTitulo] = useState("");
   const [novaDescricao, setNovaDescricao] = useState("");
   const [novoResponsavel, setNovoResponsavel] = useState("");
@@ -26,6 +27,7 @@ export default function TarefasPanel({ processo, equipe, orgId, onClose }) {
     setNovoTitulo("");
     setNovaDescricao("");
     setNovoResponsavel("");
+    setFormAberto(false);
   };
 
   const mover = (tarefa, delta) => {
@@ -52,37 +54,48 @@ export default function TarefasPanel({ processo, equipe, orgId, onClose }) {
             <button onClick={onClose} className="p-1 rounded hover:opacity-70" style={{ color: COLORS.slate }}><X size={18} /></button>
           </div>
 
-          <form onSubmit={criar} className="flex flex-col gap-2 mb-5">
-            <div className="flex flex-wrap items-center gap-2">
-              <input
-                value={novoTitulo}
-                onChange={(e) => setNovoTitulo(e.target.value)}
-                placeholder="Nova tarefa..."
-                className="flex-1 min-w-[160px] px-3 py-2 rounded-md text-sm"
+          {!formAberto ? (
+            <button onClick={() => setFormAberto(true)} className="flex items-center gap-1.5 px-3 py-2 rounded-md text-sm font-semibold mb-5" style={{ background: COLORS.ink, color: "#fff" }}>
+              <Plus size={14} /> Nova tarefa
+            </button>
+          ) : (
+            <form onSubmit={criar} className="flex flex-col gap-2 mb-5 p-3 rounded-md" style={{ border: `1px solid ${COLORS.line}` }}>
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-semibold" style={{ color: COLORS.ink }}>Nova tarefa</p>
+                <button type="button" onClick={() => setFormAberto(false)} className="p-1 rounded hover:opacity-70" style={{ color: COLORS.slate }}><X size={16} /></button>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <input
+                  value={novoTitulo}
+                  onChange={(e) => setNovoTitulo(e.target.value)}
+                  placeholder="Título da tarefa..."
+                  autoFocus
+                  className="flex-1 min-w-[160px] px-3 py-2 rounded-md text-sm"
+                  style={{ border: `1px solid ${COLORS.line}`, color: COLORS.ink }}
+                />
+                <select
+                  value={novoResponsavel}
+                  onChange={(e) => setNovoResponsavel(e.target.value)}
+                  className="px-3 py-2 rounded-md text-sm"
+                  style={{ border: `1px solid ${COLORS.line}`, color: COLORS.ink }}
+                >
+                  <option value="">Sem responsável</option>
+                  {equipe.map((e) => <option key={e.id} value={e.id}>{e.nome}</option>)}
+                </select>
+              </div>
+              <textarea
+                value={novaDescricao}
+                onChange={(e) => setNovaDescricao(e.target.value)}
+                placeholder="Descrição (opcional)..."
+                rows={2}
+                className="w-full px-3 py-2 rounded-md text-sm resize-y"
                 style={{ border: `1px solid ${COLORS.line}`, color: COLORS.ink }}
               />
-              <select
-                value={novoResponsavel}
-                onChange={(e) => setNovoResponsavel(e.target.value)}
-                className="px-3 py-2 rounded-md text-sm"
-                style={{ border: `1px solid ${COLORS.line}`, color: COLORS.ink }}
-              >
-                <option value="">Sem responsável</option>
-                {equipe.map((e) => <option key={e.id} value={e.id}>{e.nome}</option>)}
-              </select>
-              <button type="submit" className="flex items-center gap-1.5 px-3 py-2 rounded-md text-sm font-semibold" style={{ background: COLORS.ink, color: "#fff" }}>
+              <button type="submit" className="self-end flex items-center gap-1.5 px-3 py-2 rounded-md text-sm font-semibold" style={{ background: COLORS.ink, color: "#fff" }}>
                 <Plus size={14} /> Adicionar
               </button>
-            </div>
-            <textarea
-              value={novaDescricao}
-              onChange={(e) => setNovaDescricao(e.target.value)}
-              placeholder="Descrição (opcional)..."
-              rows={2}
-              className="w-full px-3 py-2 rounded-md text-sm resize-y"
-              style={{ border: `1px solid ${COLORS.line}`, color: COLORS.ink }}
-            />
-          </form>
+            </form>
+          )}
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             {COLUNAS.map((coluna, ci) => (
