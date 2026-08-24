@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from "react";
-import { Calculator, Plus } from "lucide-react";
+import { Calculator, Plus, Copy, Check } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
 import Card from "../Card.jsx";
 import SectionTitle from "../SectionTitle.jsx";
@@ -10,6 +10,15 @@ import { COLORS } from "../../lib/theme.js";
 import { BRL } from "../../data/mockData.js";
 import { useSupabaseTable } from "../../hooks/useSupabaseTable.js";
 import { CATEGORIAS_DESPESA_COMUNS } from "../../config/categoriasDespesa.js";
+import { FORNECEDORES_COMUNS } from "../../config/fornecedoresComuns.js";
+
+// Um mês certinho depois — mesma lógica do FinanceiroTab (honorarios), pra "repetir
+// mensalmente" gerar uma conta recorrente (CPFL, SEMAE, aluguel...) de uma vez só.
+function addMonths(dateStr, n) {
+  const d = new Date(`${dateStr}T00:00:00`);
+  d.setMonth(d.getMonth() + n);
+  return d.toISOString().slice(0, 10);
+}
 
 const STATUS_OPTIONS = [
   { value: "Em aberto", label: "Em aberto" },
@@ -30,6 +39,15 @@ export default function ErpTab({ orgId }) {
   const { data: honorarios } = useSupabaseTable("honorarios", { select: "valor, status, vencimento", eq: orgEq });
   const [editing, setEditing] = useState(null);
   const [busca, setBusca] = useState("");
+  const [copiado, setCopiado] = useState(null); // id da despesa cujo código acabou de ser copiado
+
+  const copiarCodigo = async (d) => {
+    const codigo = d.pix_copia_cola || d.linha_digitavel;
+    if (!codigo) return;
+    await navigator.clipboard.writeText(codigo);
+    setCopiado(d.id);
+    setTimeout(() => setCopiado((c) => (c === d.id ? null : c)), 2000);
+  };
 
   const despesasFiltradas = despesas.filter((d) => d.descricao.toLowerCase().includes(busca.trim().toLowerCase()));
 
@@ -62,13 +80,31 @@ export default function ErpTab({ orgId }) {
   const despesaTotal = totalPago;
   const resultado = receitaTotal - despesaTotal;
 
-  const fields = [
-    { key: "descricao", label: "Descrição" },
-    { key: "categoria", label: "Categoria", type: "datalist", options: CATEGORIAS_DESPESA_COMUNS.map((c) => ({ value: c })), optional: true },
-    { key: "valor", label: "Valor (R$)", type: "number" },
-    { key: "vencimento", label: "Vencimento", type: "date" },
-    { key: "status", label: "Situação", type: "select", options: STATUS_OPTIONS },
-  ];
+  const fields = useMemo(() => {
+    const base = [
+      { key: "descricao", label: "Descrição" },
+      { key: "fornecedor", label: "Fornecedor (quem cobra — ex: CPFL, SEMAE)", type: "datalist", options: FORNECEDORES_COMUNS.map((f) => ({ value: f })), optional: true },
+      { key: "categoria", label: "Categoria", type: "datalist", options: CATEGORIAS_DESPESA_COMUNS.map((c) => ({ value: c })), optional: true },
+      { key: "valor", label: "Valor (R$)", type: "number" },
+      { key: "vencimento", label: editing?.id ? "Vencimento" : "Vencimento (da 1ª conta, se repetir)", type: "date" },
+    ];
+    if (!editing?.id) {
+      base.push({ key: "parcelas", label: "Conta que se repete todo mês? Gerar quantos meses de uma vez? (1 = avulsa)", type: "number", optional: true });
+    }
+    base.push(
+      { key: "status", label: "Situação", type: "select", options: STATUS_OPTIONS },
+      { key: "linha_digitavel", label: "Código de barras do boleto (linha digitável)", optional: true },
+      { key: "pix_copia_cola", label: "Pix copia-e-cola", optional: true },
+    );
+    return base;
+  }, [editing]);
+
+  const salvar = ({ parcelas, ...values }) => {
+    if (editing?.id) return update(editing.id, values);
+    const n = Math.min(60, Math.max(1, parseInt(parcelas, 10) || 1)); // teto de 5 anos
+    const linhas = n === 1 ? values : Array.from({ length: n }, (_, i) => ({ ...values, vencimento: addMonths(values.vencimento, i) }));
+    return insert(linhas);
+  };
 
   return (
     <div>
@@ -149,7 +185,7 @@ export default function ErpTab({ orgId }) {
           <table className="w-full text-sm">
             <thead>
               <tr style={{ background: COLORS.ink }}>
-                {["Descrição", "Categoria", "Valor", "Vencimento", "Situação"].map((h) => (
+                {["Descrição", "Fornecedor", "Categoria", "Valor", "Vencimento", "Situação"].map((h) => (
                   <th key={h} className="text-left px-4 py-3 font-semibold" style={{ color: COLORS.paper, fontSize: 11 }}>{h.toUpperCase()}</th>
                 ))}
                 <th style={{ background: COLORS.ink }}></th>
@@ -157,11 +193,12 @@ export default function ErpTab({ orgId }) {
             </thead>
             <tbody>
               {!loading && despesasFiltradas.length === 0 && (
-                <tr><td colSpan={6} className="px-4 py-6 text-center text-sm" style={{ color: COLORS.slate }}>{busca ? "Nenhuma despesa encontrada." : "Nenhuma despesa cadastrada ainda."}</td></tr>
+                <tr><td colSpan={7} className="px-4 py-6 text-center text-sm" style={{ color: COLORS.slate }}>{busca ? "Nenhuma despesa encontrada." : "Nenhuma despesa cadastrada ainda."}</td></tr>
               )}
               {despesasFiltradas.map((d, i) => (
                 <tr key={d.id} style={{ borderTop: `1px solid ${COLORS.line}`, background: i % 2 ? "#FAF9F5" : COLORS.paperRaised }}>
                   <td className="px-4 py-3" style={{ color: COLORS.ink, fontWeight: 600 }}>{d.descricao}</td>
+                  <td className="px-4 py-3" style={{ color: COLORS.slate }}>{d.fornecedor || "—"}</td>
                   <td className="px-4 py-3" style={{ color: COLORS.slate }}>{d.categoria || "—"}</td>
                   <td className="px-4 py-3" style={{ color: COLORS.ink }}>{BRL(d.valor)}</td>
                   <td className="px-4 py-3" style={{ color: COLORS.slate }}>{new Date(`${d.vencimento}T00:00:00`).toLocaleDateString("pt-BR")}</td>
@@ -174,7 +211,14 @@ export default function ErpTab({ orgId }) {
                     />
                   </td>
                   <td className="px-2 py-3">
-                    <RowActions onEdit={() => setEditing(d)} onDelete={() => remove(d.id)} />
+                    <div className="flex items-center gap-1">
+                      {(d.pix_copia_cola || d.linha_digitavel) && (
+                        <button onClick={() => copiarCodigo(d)} aria-label="Copiar código de pagamento" title="Copiar código de pagamento (Pix/boleto) pra colar no app do banco" className="p-1.5 rounded hover:opacity-70" style={{ color: copiado === d.id ? COLORS.success : COLORS.brass }}>
+                          {copiado === d.id ? <Check size={14} /> : <Copy size={14} />}
+                        </button>
+                      )}
+                      <RowActions onEdit={() => setEditing(d)} onDelete={() => remove(d.id)} />
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -189,7 +233,7 @@ export default function ErpTab({ orgId }) {
         fields={fields}
         initialValues={editing}
         onClose={() => setEditing(null)}
-        onSubmit={(values) => (editing?.id ? update(editing.id, values) : insert(values))}
+        onSubmit={salvar}
       />
     </div>
   );

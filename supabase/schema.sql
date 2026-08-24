@@ -123,9 +123,12 @@ create table despesas (
   org_id uuid not null references organizations(id),
   descricao text not null,
   categoria text, -- texto livre com sugestões (datalist), ver CATEGORIAS_DESPESA_COMUNS
+  fornecedor text, -- quem cobra (CPFL, SEMAE, imobiliária...) — separado de categoria (tipo de gasto)
   valor numeric(14,2) not null,
   vencimento date not null,
   status text not null check (status in ('Em aberto','Vencido','Pago')) default 'Em aberto',
+  linha_digitavel text, -- código de barras do boleto — botão "copiar código" na tela
+  pix_copia_cola text, -- string do Pix copia-e-cola, mesma ideia
   created_at timestamptz not null default now()
 );
 create index despesas_org_id_idx on despesas (org_id);
