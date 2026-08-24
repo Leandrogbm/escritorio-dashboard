@@ -89,8 +89,14 @@ html, body {
   animation: balanca-swing 0.7s cubic-bezier(0.45, 0, 0.55, 1) infinite;
   transform-origin: 50% 15%; /* gira em torno do "pino" do topo da balança, não do centro do ícone */
 }
+/* "backwards" (não "both"!) de propósito: um transform que continua aplicado depois da
+   animação acabar — mesmo "translateY(0)", que parece neutro — cria um novo "containing
+   block" pra filho `position: fixed`, e todo popup dentro da aba (modal, ImportarExtrato
+   etc.) nasce relativo a essa div em vez da tela inteira, aparecendo lá embaixo da página
+   comprida em vez de centralizado. "backwards" garante que o transform some de verdade
+   (volta a computar `none`) assim que os 260ms terminam. */
 .tab-fade-in {
-  animation: tab-fade-in 260ms ease both;
+  animation: tab-fade-in 260ms ease backwards;
 }
 @keyframes tab-fade-in {
   from { opacity: 0; transform: translateY(4px); }
