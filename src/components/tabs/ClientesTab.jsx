@@ -4,7 +4,7 @@ import Card from "../Card.jsx";
 import SectionTitle from "../SectionTitle.jsx";
 import RowActions from "../RowActions.jsx";
 import RecordFormModal from "../RecordFormModal.jsx";
-import DocumentosClientePanel from "../DocumentosClientePanel.jsx";
+import ClienteDocumentosPagina from "../ClienteDocumentosPagina.jsx";
 import SearchInput from "../SearchInput.jsx";
 import { COLORS } from "../../lib/theme.js";
 import { useSupabaseTable } from "../../hooks/useSupabaseTable.js";
@@ -74,6 +74,10 @@ export default function ClientesTab({ currentRole, orgId, profile }) {
       || (c.email || "").toLowerCase().includes(q)
       || (c.documento || "").replace(/\D/g, "").includes(q.replace(/\D/g, ""));
   });
+
+  if (vendoDocumentos) {
+    return <ClienteDocumentosPagina cliente={vendoDocumentos} orgId={orgId} profile={profile} onVoltar={() => setVendoDocumentos(null)} />;
+  }
 
   return (
     <div>
@@ -171,10 +175,6 @@ export default function ClientesTab({ currentRole, orgId, profile }) {
         onClose={() => setEditing(null)}
         onSubmit={(values) => (editing?.id ? update(editing.id, values) : insert(values))}
       />
-
-      {vendoDocumentos && (
-        <DocumentosClientePanel cliente={vendoDocumentos} orgId={orgId} profile={profile} onClose={() => setVendoDocumentos(null)} />
-      )}
     </div>
   );
 }
