@@ -21,8 +21,18 @@ import ExecutivoTab from "./components/tabs/ExecutivoTab.jsx";
 import ConfigTab from "./components/tabs/ConfigTab.jsx";
 import MinhaEmpresaTab from "./components/tabs/MinhaEmpresaTab.jsx";
 import PortalCliente from "./components/PortalCliente.jsx";
+import LeadsCaptacaoTab from "./components/tabs/LeadsCaptacaoTab.jsx";
+import LeadForm from "./components/LeadForm.jsx";
 
 export default function App() {
+  // Formulário público de captação (?leadform=1&org=...) — embutido via <iframe> no site do
+  // escritório, fora deste app autenticado. Intercepta ANTES de qualquer coisa que dependa
+  // de sessão/login: é a única tela do sistema que um visitante anônimo acessa.
+  const paramsPublicos = new URLSearchParams(window.location.search);
+  if (paramsPublicos.get("leadform") === "1") {
+    return <LeadForm orgId={paramsPublicos.get("org")} />;
+  }
+
   const { session, profile, clienteAcesso, isPlatformAdmin, loading, recovery, clearRecovery, signOut, refreshProfile } = useAuth();
   // orgOverride: platform admin "entrou" como admin de uma empresa alheia (linha de
   // platform_org_metrics, tem org_id/nome/suspenso etc.) — null no uso normal.
@@ -112,6 +122,7 @@ export default function App() {
       case "financeiro": return <FinanceiroTab orgId={orgId} />;
       case "erp": return <ErpTab orgId={orgId} />;
       case "leads": return <LeadsTab orgId={orgId} />;
+      case "leads_captacao": return <LeadsCaptacaoTab orgId={orgId} currentRole={currentRole} />;
       case "clientes": return <ClientesTab currentRole={currentRole} orgId={orgId} />;
       case "equipe": return <EquipeTab currentRole={currentRole} orgId={orgId} />;
       case "executivo": return <ExecutivoTab orgId={orgId} />;

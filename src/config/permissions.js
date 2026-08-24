@@ -1,4 +1,4 @@
-import { Clock, Briefcase, DollarSign, Users, Building2, TrendingUp, Trello, Calculator } from "lucide-react";
+import { Clock, Briefcase, DollarSign, Users, Building2, TrendingUp, Trello, Calculator, MapPin } from "lucide-react";
 
 export const ROLES = [
   { key: "socio", label: "Sócio(a)" },
@@ -12,6 +12,7 @@ export const ROLES = [
 // usuário — não subir pro cliente ainda (ver ROADMAP-comparativo.md). Tirar do array esconde
 // a aba inteira (sidebar + permissões) sem apagar LeadsTab.jsx nem a tabela `leads`.
 export const MODULES = [
+  { key: "leads_captacao", label: "Captação de Leads", icon: MapPin },
   { key: "clientes", label: "Clientes", icon: Users },
   { key: "processos", label: "Processos", icon: Briefcase },
   { key: "quadro", label: "Quadro de tarefas", icon: Trello },

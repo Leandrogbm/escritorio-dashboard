@@ -55,7 +55,10 @@ create index profiles_org_id_idx on profiles (org_id);
 create table role_permissions (
   org_id uuid not null references organizations(id),
   role text not null check (role in ('socio','advogado','financeiro','recepcao','admin')),
-  module text not null check (module in ('prazos','processos','financeiro','clientes','equipe','executivo')),
+  -- ⚠️ mantém em sincronia com as `key` de MODULES (src/config/permissions.js) — módulo
+  -- novo lá também precisa entrar aqui, senão o toggle em Configurações falha silenciosamente
+  -- pra qualquer role que não seja admin (admin ignora essa tabela, só quem não é admin sente).
+  module text not null check (module in ('prazos','processos','financeiro','clientes','equipe','executivo','quadro','erp','leads','leads_captacao')),
   primary key (org_id, role, module)
 );
 
@@ -164,6 +167,40 @@ create table leads (
   created_at timestamptz not null default now()
 );
 create index leads_org_id_idx on leads (org_id);
+
+-- Captação de leads por formulário público (embutido no site do escritório, fora deste
+-- painel) — diferente do funil `leads` acima (esse aqui é a "porta de entrada" crua, direto
+-- do visitante do site, sem revisão humana ainda; vira card no funil só se/quando alguém
+-- decidir seguir com o contato). Mapa por área do direito no painel (LeadsCaptacaoTab).
+-- Gravado só pela Edge Function pública leads-captacao-publico (service role) — usuário
+-- comum do dashboard não tem policy de insert, só leitura/atualização de status.
+create table leads_captacao (
+  id uuid primary key default gen_random_uuid(),
+  org_id uuid not null references organizations(id),
+  nome text not null,
+  contato text not null, -- telefone/whatsapp
+  area_direito text not null check (area_direito in ('trabalhista','familia','tributario','civel','penal','empresarial')),
+  cidade text,
+  latitude float8,
+  longitude float8,
+  status text not null check (status in ('quente','morno','frio')) default 'morno',
+  origem text default 'formulario_site',
+  consentimento_lgpd boolean not null default false,
+  consentimento_at timestamptz,
+  created_at timestamptz not null default now()
+);
+create index leads_captacao_org_id_idx on leads_captacao (org_id);
+create index leads_captacao_area_idx on leads_captacao (org_id, area_direito);
+
+-- Mascara "contato" (telefone/whatsapp) pra quem não é admin/sócio — resto da equipe vê o
+-- lead (área, cidade, status) mas não o telefone direto. security_invoker respeita a RLS de
+-- select da tabela base (any org member com módulo liberado já pode ver a linha; a máscara
+-- aqui é só sobre a coluna sensível).
+create view leads_captacao_view with (security_invoker = true) as
+  select id, org_id, nome,
+    case when auth_role() in ('admin','socio') or is_platform_admin() then contato else null end as contato,
+    area_direito, cidade, latitude, longitude, status, origem, created_at
+  from leads_captacao;
 
 -- Kanban de tarefas por processo (Processos → botão "Tarefas"). 3 colunas fixas.
 create table tarefas (
@@ -574,6 +611,16 @@ create policy leads_upd on leads for update
   using ((org_id = auth_org_id() and has_module('leads')) or is_platform_admin()) with check (true);
 create policy leads_del on leads for delete using ((org_id = auth_org_id() and has_module('leads')) or is_platform_admin());
 create trigger trg_audit_leads after insert or update or delete on leads for each row execute function log_platform_admin_write();
+
+alter table leads_captacao enable row level security;
+create trigger trg_set_org_id before insert on leads_captacao for each row execute function set_org_id();
+create policy leads_captacao_sel on leads_captacao for select using ((org_id = auth_org_id() and has_module('leads_captacao')) or is_platform_admin());
+create policy leads_captacao_upd on leads_captacao for update
+  using ((org_id = auth_org_id() and has_module('leads_captacao')) or is_platform_admin()) with check (true);
+create policy leads_captacao_del on leads_captacao for delete using ((org_id = auth_org_id() and has_module('leads_captacao')) or is_platform_admin());
+-- sem policy de insert pro client: só a Edge Function leads-captacao-publico grava
+-- (service_role) — formulário público não usa a anon key direto na tabela.
+create trigger trg_audit_leads_captacao after insert or update or delete on leads_captacao for each row execute function log_platform_admin_write();
 
 alter table tarefas enable row level security;
 create trigger trg_set_org_id before insert on tarefas for each row execute function set_org_id();
