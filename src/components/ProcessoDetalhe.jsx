@@ -22,8 +22,8 @@ export default function ProcessoDetalhe({ processo: p, atrasos, onClose, onEdita
   ];
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.4)" }} onClick={onClose}>
-      <div className="w-full max-w-xl max-h-[85vh] overflow-y-auto rounded-lg p-6" style={{ background: COLORS.paper }} onClick={(e) => e.stopPropagation()}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="w-full max-w-xl max-h-[85vh] overflow-y-auto rounded-lg p-6" style={{ background: COLORS.paper, border: `1px solid ${COLORS.line}`, boxShadow: "0 20px 48px rgba(22,35,59,0.22)" }} onClick={(e) => e.stopPropagation()}>
         <div className="flex items-start justify-between gap-3 mb-5">
           <div>
             <p style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 12, color: COLORS.slate }}>{p.numero}</p>
