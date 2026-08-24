@@ -1,6 +1,8 @@
-// Resume as movimentações de um processo em linguagem simples, usando a API da Anthropic
-// (Claude). Cacheado em processos.resumo_ia — só reprocessa quando o usuário pede de novo
-// (botão "Atualizar resumo"), pra não gastar chamada de API sozinho a cada sync do DataJud.
+// Resume as movimentações de um processo em linguagem simples, e sugere o próximo passo
+// processual provável, usando a API da Anthropic (Claude) — 1 chamada só, os dois campos
+// pedidos em JSON. Cacheado em processos.resumo_ia/proximo_passo_ia — só reprocessa quando o
+// usuário pede de novo (botão "Atualizar resumo"), pra não gastar chamada de API sozinho a
+// cada sync do DataJud. Próximo passo é sugestão pro advogado avaliar, não decisão automática.
 //
 // Deploy: supabase functions deploy resumir-andamentos
 // Secret necessário: supabase secrets set ANTHROPIC_API_KEY=sk-ant-...
@@ -67,7 +69,13 @@ Deno.serve(async (req) => {
       .join("\n");
     const aviso = movimentacoes.length > MAX_MOVIMENTACOES ? `\n\n(Só as ${MAX_MOVIMENTACOES} movimentações mais recentes de ${movimentacoes.length} no total.)` : "";
 
-    const prompt = `Você é assistente de um escritório de advocacia brasileiro. Resuma o andamento processual abaixo (processo ${processo.numero}) em linguagem simples e direta, em português, pra um advogado ler em segundos e entender rápido o que aconteceu e o que está pendente. No máximo 4-5 frases. Não invente informação que não está na lista.\n\nMovimentações:\n${listaMovimentacoes}${aviso}`;
+    const prompt = `Você é assistente de um escritório de advocacia brasileiro. Olhando o andamento processual abaixo (processo ${processo.numero}), responda SOMENTE um objeto JSON, sem nenhum texto antes ou depois, com dois campos:
+- "resumo": resumo em linguagem simples e direta, em português, pra um advogado ler em segundos e entender rápido o que aconteceu e o que está pendente. No máximo 4-5 frases.
+- "proximo_passo": sugestão curta (1-2 frases) do próximo passo processual provável — é só sugestão pra avaliação do advogado, nunca decisão automática. Se não der pra sugerir nada com segurança pelas movimentações disponíveis, use null.
+Não invente informação que não está na lista. Exemplo de formato: {"resumo":"...","proximo_passo":"..." ou null}
+
+Movimentações:
+${listaMovimentacoes}${aviso}`;
 
     const claudeRes = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
@@ -78,7 +86,7 @@ Deno.serve(async (req) => {
       },
       body: JSON.stringify({
         model: "claude-sonnet-5",
-        max_tokens: 700,
+        max_tokens: 800,
         messages: [{ role: "user", content: prompt }],
       }),
     });
@@ -91,12 +99,12 @@ Deno.serve(async (req) => {
     const claudeBody = await claudeRes.json();
     // .text pode vir em qualquer bloco de content (às vezes tem mais de um) — junta todos
     // que forem do tipo "text" em vez de assumir que é sempre o primeiro item.
-    const resumo = (claudeBody.content ?? [])
+    const texto = (claudeBody.content ?? [])
       .filter((b: { type: string }) => b.type === "text")
       .map((b: { text: string }) => b.text)
       .join("\n")
       .trim();
-    if (!resumo) {
+    if (!texto) {
       // Devolve o corpo cru (cortado) — sem isso, "não devolveu texto" não dá pra debugar
       // sem acesso a log, e no Windows/CLI a gente não tem `supabase functions logs`.
       const corpoCru = JSON.stringify(claudeBody).slice(0, 500);
@@ -105,9 +113,28 @@ Deno.serve(async (req) => {
       }), { status: 502, headers: corsHeaders });
     }
 
-    await admin.from("processos").update({ resumo_ia: resumo, resumo_ia_gerado_em: new Date().toISOString() }).eq("id", processoId);
+    // Pega só o objeto JSON, ignora qualquer texto extra que a IA cole em volta.
+    const match = texto.match(/\{[\s\S]*\}/);
+    let resumo = "";
+    let proximoPasso: string | null = null;
+    if (match) {
+      try {
+        const parsed = JSON.parse(match[0]);
+        resumo = typeof parsed.resumo === "string" ? parsed.resumo.trim() : "";
+        proximoPasso = typeof parsed.proximo_passo === "string" ? parsed.proximo_passo.trim() : null;
+      } catch {
+        // JSON malformado — cai no fallback abaixo (usa o texto cru como resumo)
+      }
+    }
+    if (!resumo) resumo = texto; // fallback: IA não seguiu o formato JSON pedido, usa o texto puro como resumo mesmo
 
-    return new Response(JSON.stringify({ ok: true, resumo }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    await admin.from("processos").update({
+      resumo_ia: resumo,
+      resumo_ia_gerado_em: new Date().toISOString(),
+      proximo_passo_ia: proximoPasso,
+    }).eq("id", processoId);
+
+    return new Response(JSON.stringify({ ok: true, resumo, proximoPasso }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
   } catch (err) {
     return new Response(JSON.stringify({ error: (err as Error).message ?? "Erro inesperado." }), { status: 500, headers: corsHeaders });
   }

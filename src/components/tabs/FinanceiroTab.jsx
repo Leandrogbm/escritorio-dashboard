@@ -38,6 +38,7 @@ export default function FinanceiroTab({ orgId } = {}) {
     select: "*, cliente:clientes(id,nome,tipo)", eq: orgEq,
   });
   const { data: clientes } = useSupabaseTable("clientes", { select: "id,nome,tipo", orderBy: "nome", ascending: true, eq: orgEq });
+  const { data: processos } = useSupabaseTable("processos", { select: "id,numero,area,cliente_id", orderBy: "numero", ascending: true, eq: orgEq });
   const { data: notificacoesTodas, refresh: refreshNotificacoesPagamento } = useSupabaseTable("notificacoes", { select: "id, tipo, honorario_id, titulo, texto", eq: orgEq });
   // Notificação não guarda cliente_id direto — só honorario_id — então casa pelo mapa
   // honorario→cliente que já vem de `honorarios` (join que já buscamos de qualquer jeito).
@@ -87,9 +88,15 @@ export default function FinanceiroTab({ orgId } = {}) {
   const clienteParaForm = editing?.cliente_id ? clientes.find((c) => c.id === editing.cliente_id) : null;
   const ehPJ = clienteParaForm?.tipo === "PJ";
 
+  const processosDoCliente = editing?.cliente_id ? processos.filter((p) => p.cliente_id === editing.cliente_id) : [];
+
   const fields = useMemo(() => {
     const base = [
       { key: "cliente_id", label: "Cliente", type: "select", options: clientes.map((c) => ({ value: c.id, label: `${c.nome} (${c.tipo})` })) },
+      {
+        key: "processo_id", label: "Processo (opcional — pra entrar na rentabilidade por área)", type: "select", optional: true,
+        options: processosDoCliente.map((p) => ({ value: p.id, label: `${p.numero} — ${p.area}` })),
+      },
       { key: "valor", label: editing?.id ? "Valor (R$)" : ehPJ ? "Valor da mensalidade (R$)" : "Valor de cada parcela (R$)", type: "number" },
       { key: "vencimento", label: editing?.id ? "Vencimento" : "Vencimento da 1ª cobrança", type: "date" },
     ];
@@ -102,7 +109,7 @@ export default function FinanceiroTab({ orgId } = {}) {
     }
     base.push({ key: "status", label: "Situação", type: "select", options: STATUS_OPTIONS });
     return base;
-  }, [clientes, editing, ehPJ]);
+  }, [clientes, editing, ehPJ, processosDoCliente]);
 
   const salvar = ({ parcelas, ...values }) => {
     if (editing?.id) return update(editing.id, values);

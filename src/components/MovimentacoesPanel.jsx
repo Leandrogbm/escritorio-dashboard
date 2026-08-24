@@ -16,6 +16,7 @@ export default function MovimentacoesPanel({ processo, onClose, onRegistrarPrazo
     select: "*", orderBy: "data_hora", ascending: false, eq: ["processo_id", processo.id],
   });
   const [resumo, setResumo] = useState(processo.resumo_ia ?? null);
+  const [proximoPasso, setProximoPasso] = useState(processo.proximo_passo_ia ?? null);
   const [resumoGeradoEm, setResumoGeradoEm] = useState(processo.resumo_ia_gerado_em ?? null);
   const [resumindo, setResumindo] = useState(false);
   const [erroResumo, setErroResumo] = useState("");
@@ -30,6 +31,7 @@ export default function MovimentacoesPanel({ processo, onClose, onRegistrarPrazo
       return;
     }
     setResumo(data.resumo);
+    setProximoPasso(data.proximoPasso ?? null);
     setResumoGeradoEm(new Date().toISOString());
   };
 
@@ -56,6 +58,11 @@ export default function MovimentacoesPanel({ processo, onClose, onRegistrarPrazo
           {resumo ? (
             <>
               <p className="text-sm" style={{ color: COLORS.ink }}>{resumo}</p>
+              {proximoPasso && (
+                <p className="text-sm mt-2 pt-2" style={{ color: COLORS.ink, borderTop: `1px solid ${COLORS.line}` }}>
+                  <span style={{ fontWeight: 600 }}>Próximo passo sugerido: </span>{proximoPasso}
+                </p>
+              )}
               {resumoGeradoEm && <p className="text-xs mt-1.5" style={{ color: COLORS.slate }}>Gerado em {new Date(resumoGeradoEm).toLocaleString("pt-BR")}</p>}
             </>
           ) : (

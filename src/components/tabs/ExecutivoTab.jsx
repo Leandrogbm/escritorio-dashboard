@@ -14,7 +14,7 @@ export default function ExecutivoTab({ orgId } = {}) {
   const orgEq = orgId ? ["org_id", orgId] : undefined;
   const { data: processos, loading } = useSupabaseTable("processos", { select: "area, valor, status, responsavel:profiles(nome)", eq: orgEq });
   const { data: clientes } = useSupabaseTable("clientes", { select: "id", eq: orgEq });
-  const { data: honorarios, loading: loadingFinanceiro } = useSupabaseTable("honorarios", { select: "valor, status, vencimento", eq: orgEq });
+  const { data: honorarios, loading: loadingFinanceiro } = useSupabaseTable("honorarios", { select: "valor, status, vencimento, processo:processos(area)", eq: orgEq });
   const [periodo, setPeriodo] = useState("mes"); // "mes" | "ano" — agrupamento do gráfico financeiro
 
   const receitaPorArea = useMemo(() => {
@@ -49,6 +49,23 @@ export default function ExecutivoTab({ orgId } = {}) {
   const totalHonorarios = honorarios.reduce((s, h) => s + Number(h.valor ?? 0), 0);
   const recebido = honorarios.filter((h) => h.status === "Pago").reduce((s, h) => s + Number(h.valor ?? 0), 0);
   const aReceber = totalHonorarios - recebido;
+
+  // Rentabilidade por área do direito: só honorários com processo_id vinculado entram aqui
+  // (cobrança avulsa sem processo, tipo consultoria solta, não tem área pra atribuir) —
+  // "recebido" é o que já entrou de verdade, "aReceber" ainda tá pendente/atrasado.
+  const rentabilidadePorArea = useMemo(() => {
+    const map = new Map();
+    for (const h of honorarios) {
+      const area = h.processo?.area;
+      if (!area) continue;
+      if (!map.has(area)) map.set(area, { area, recebido: 0, aReceber: 0 });
+      const bucket = map.get(area);
+      if (h.status === "Pago") bucket.recebido += Number(h.valor ?? 0);
+      else bucket.aReceber += Number(h.valor ?? 0);
+    }
+    return [...map.values()].sort((a, b) => (b.recebido + b.aReceber) - (a.recebido + a.aReceber));
+  }, [honorarios]);
+  const semVinculoDeArea = honorarios.length > 0 && rentabilidadePorArea.length === 0;
 
   // Agrupa por mês (vencimento.slice(0,7)) ou por ano (slice(0,4)); dentro de cada período
   // separa recebido x a receber pro gráfico empilhado.
@@ -189,6 +206,29 @@ export default function ExecutivoTab({ orgId } = {}) {
                 <YAxis tick={{ fill: COLORS.slate, fontSize: 12 }} axisLine={false} tickLine={false} tickFormatter={(v) => `${v / 1000}k`} />
                 <Tooltip formatter={(v) => BRL(v)} contentStyle={{ borderRadius: 8, border: `1px solid ${COLORS.line}`, fontFamily: "Inter" }} />
                 <Bar dataKey="valor" radius={[4, 4, 0, 0]} fill={COLORS.wine} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        )}
+      </Card>
+      <Card className="mt-6">
+        <p className="text-sm font-semibold mb-1" style={{ color: COLORS.ink }}>Rentabilidade por área do direito</p>
+        <p className="text-xs mb-4" style={{ color: COLORS.slate }}>Honorários recebidos e a receber, só de cobranças vinculadas a um processo (campo "Processo" opcional em Financeiro → nova cobrança).</p>
+        {!loadingFinanceiro && rentabilidadePorArea.length === 0 ? (
+          <p className="text-sm" style={{ color: COLORS.slate }}>
+            {semVinculoDeArea ? "Nenhuma cobrança vinculada a um processo ainda — vincule ao criar uma cobrança em Financeiro pra aparecer aqui." : "Sem cobranças cadastradas ainda."}
+          </p>
+        ) : (
+          <div style={{ width: "100%", height: 260 }}>
+            <ResponsiveContainer>
+              <BarChart data={rentabilidadePorArea} margin={{ top: 4, right: 8, left: 0, bottom: 4 }}>
+                <CartesianGrid stroke={COLORS.line} vertical={false} />
+                <XAxis dataKey="area" tick={{ fill: COLORS.slate, fontSize: 12 }} axisLine={{ stroke: COLORS.line }} tickLine={false} />
+                <YAxis tick={{ fill: COLORS.slate, fontSize: 12 }} axisLine={false} tickLine={false} tickFormatter={(v) => `${v / 1000}k`} />
+                <Tooltip formatter={(v) => BRL(v)} contentStyle={{ borderRadius: 8, border: `1px solid ${COLORS.line}`, fontFamily: "Inter" }} />
+                <Legend wrapperStyle={{ fontSize: 12 }} formatter={(v) => (v === "recebido" ? "Recebido" : "A receber")} />
+                <Bar dataKey="recebido" stackId="v" radius={[0, 0, 0, 0]} fill={COLORS.success} />
+                <Bar dataKey="aReceber" stackId="v" radius={[4, 4, 0, 0]} fill={COLORS.brass} />
               </BarChart>
             </ResponsiveContainer>
           </div>

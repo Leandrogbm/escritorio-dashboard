@@ -101,6 +101,9 @@ create table honorarios (
   id uuid primary key default gen_random_uuid(),
   org_id uuid not null references organizations(id),
   cliente_id uuid not null references clientes(id),
+  processo_id uuid references processos(id) on delete set null, -- opcional: vincula a cobrança a
+  -- um processo específico do cliente, pra dar rentabilidade por área (Visão Executiva). Cliente
+  -- pode ter honorário sem processo vinculado (ex.: consultoria avulsa) — fica de fora do gráfico.
   valor numeric(14,2) not null,
   vencimento date not null,
   status text not null check (status in ('Em aberto','Vencido','Pago')) default 'Em aberto',
@@ -589,6 +592,9 @@ alter table processos add column if not exists datajud_erro text;
 -- Andamentos. Cacheado aqui, só reprocessa quando pedido (não gera sozinho a cada sync).
 alter table processos add column if not exists resumo_ia text;
 alter table processos add column if not exists resumo_ia_gerado_em timestamptz;
+-- Próximo passo sugerido — mesma chamada de IA do resumo (1 prompt só, pede os dois campos em
+-- JSON), não é decisão automática, só sugestão pro advogado avaliar.
+alter table processos add column if not exists proximo_passo_ia text;
 
 create table movimentacoes_processo (
   id uuid primary key default gen_random_uuid(),
