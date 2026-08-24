@@ -116,21 +116,22 @@ com uma fonte de dados real por trás — senão é enfeite arriscado.
 
 ## Prioridade sugerida geral (impacto × esforço)
 
-- [x] **Asaas** — cobrança automática (boleto/Pix/cartão, webhook marca "Pago" sozinho).
-  Conta própria por escritório (Configurações → Cobrança automática), ambiente sandbox/
-  produção. ⚠️ Sem teste contra conta real (não temos credencial) — testado tudo que dava
-  sem conta (erro amigável faltando credencial) e o webhook isoladamente (simulado, sem
-  precisar de conta Asaas de verdade); o caminho que fala com a Asaas de verdade só valida
-  na primeira tentativa real de vocês.
 - [x] **IA — próximo passo sugerido** — junto com o resumo automático de andamento (1
-  chamada só). Testado contra processo real de produção.
-- [x] **LiderHub — Kanban de funil de leads** (sem WhatsApp automático, só o board manual).
-  Testado de ponta a ponta com empresa descartável.
-- [x] **AdvBox — rentabilidade por tipo de ação** — gráfico na Visão Executiva, só
-  honorários vinculados a processo entram (campo "Processo" opcional na cobrança).
+  chamada só). Testado contra processo real de produção. **No ar.**
 - [x] **IA — checklist padrão por área** — botão "Sugerir checklist (IA)" no Kanban de
   tarefas do processo, só aparece quando ainda não tem nenhuma tarefa. Testado direto
-  contra a function.
+  contra a function. **No ar.**
+- [x→back log] **Asaas** — cobrança automática (boleto/Pix/cartão, webhook marca "Pago"
+  sozinho). Construído e testado (tudo que dava sem conta real: erro amigável faltando
+  credencial, webhook simulado confirmando que marca Pago). **Usuário pediu pra segurar,
+  não subir ainda** — código intacto, UI escondida (ver comentários "ponytail" em
+  IntegracoesSection.jsx e FinanceiroTab.jsx).
+- [x→back log] **LiderHub — Kanban de funil de leads** — construído e testado de ponta a
+  ponta com empresa descartável. **Usuário pediu pra segurar** — tirado do array MODULES,
+  LeadsTab.jsx e tabela `leads` continuam existindo.
+- [x→back log] **AdvBox — rentabilidade por tipo de ação** — gráfico pronto, mas depende do
+  campo "Processo" no honorário (também escondido). **Usuário pediu pra segurar** junto
+  com o Asaas.
 - [ ] ZapSign / contingenciamento / IA-estratégia — ficam de standby, só entram se surgir
   necessidade concreta (D4Sign falhar, cliente pedir provisionamento, base de
   jurisprudência aparecer)
