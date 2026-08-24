@@ -1,6 +1,6 @@
 {
-  "name": "mysaldo — Escritório Dashboard",
-  "short_name": "mysaldo",
+  "name": "Actum",
+  "short_name": "Actum",
   "description": "Gestão jurídica: processos, prazos, clientes e financeiro.",
   "start_url": "/",
   "display": "standalone",
