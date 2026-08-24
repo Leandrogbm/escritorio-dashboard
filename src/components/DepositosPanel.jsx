@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { X, Plus } from "lucide-react";
 import Card from "./Card.jsx";
-import Stamp from "./Stamp.jsx";
+import StatusPicker from "./StatusPicker.jsx";
 import RowActions from "./RowActions.jsx";
 import RecordFormModal from "./RecordFormModal.jsx";
 import { COLORS } from "../lib/theme.js";
@@ -73,7 +73,7 @@ export default function DepositosPanel({ processo, orgId, onClose, embutido = fa
                   </p>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
-                  <Stamp tone={STATUS_TONE[d.status]}>{d.status}</Stamp>
+                  <StatusPicker value={d.status} options={Object.keys(STATUS_TONE)} tone={STATUS_TONE} onChange={(status) => update(d.id, { status })} />
                   <RowActions onEdit={() => setEditing(d)} onDelete={() => remove(d.id)} />
                 </div>
               </div>

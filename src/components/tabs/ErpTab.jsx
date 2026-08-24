@@ -3,7 +3,7 @@ import { Calculator, Plus } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
 import Card from "../Card.jsx";
 import SectionTitle from "../SectionTitle.jsx";
-import Stamp from "../Stamp.jsx";
+import StatusPicker from "../StatusPicker.jsx";
 import RowActions from "../RowActions.jsx";
 import RecordFormModal from "../RecordFormModal.jsx";
 import { COLORS } from "../../lib/theme.js";
@@ -165,7 +165,14 @@ export default function ErpTab({ orgId }) {
                   <td className="px-4 py-3" style={{ color: COLORS.slate }}>{d.categoria || "—"}</td>
                   <td className="px-4 py-3" style={{ color: COLORS.ink }}>{BRL(d.valor)}</td>
                   <td className="px-4 py-3" style={{ color: COLORS.slate }}>{new Date(`${d.vencimento}T00:00:00`).toLocaleDateString("pt-BR")}</td>
-                  <td className="px-4 py-3"><Stamp tone={estaAtrasado(d) ? "urgent" : d.status === "Pago" ? "ok" : "warn"}>{d.status}</Stamp></td>
+                  <td className="px-4 py-3">
+                    <StatusPicker
+                      value={d.status}
+                      options={STATUS_OPTIONS.map((s) => s.value)}
+                      tone={{ "Em aberto": estaAtrasado(d) ? "urgent" : "warn", Vencido: "urgent", Pago: "ok" }}
+                      onChange={(status) => update(d.id, { status })}
+                    />
+                  </td>
                   <td className="px-2 py-3">
                     <RowActions onEdit={() => setEditing(d)} onDelete={() => remove(d.id)} />
                   </td>

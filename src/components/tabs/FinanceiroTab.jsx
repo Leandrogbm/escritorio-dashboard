@@ -2,7 +2,7 @@ import React, { useMemo, useState } from "react";
 import { DollarSign, Plus, X, Upload, Wallet } from "lucide-react";
 import Card from "../Card.jsx";
 import SectionTitle from "../SectionTitle.jsx";
-import Stamp from "../Stamp.jsx";
+import StatusPicker from "../StatusPicker.jsx";
 import RowActions from "../RowActions.jsx";
 import RecordFormModal from "../RecordFormModal.jsx";
 import SearchInput from "../SearchInput.jsx";
@@ -249,8 +249,13 @@ export default function FinanceiroTab({ orgId } = {}) {
                     <tr key={h.id} style={{ borderTop: `1px solid ${COLORS.line}` }}>
                       <td className="px-4 py-2 font-semibold" style={{ color: COLORS.ink }}>{BRL(h.valor)}</td>
                       <td className="px-4 py-2" style={{ color: COLORS.slate }}>{new Date(`${h.vencimento}T00:00:00`).toLocaleDateString("pt-BR")}</td>
-                      <td className="px-4 py-2">
-                        <Stamp tone={estaAtrasado(h) ? "urgent" : h.status === "Pago" ? "ok" : "warn"}>{h.status}</Stamp>
+                      <td className="px-4 py-2" onClick={(e) => e.stopPropagation()}>
+                        <StatusPicker
+                          value={h.status}
+                          options={STATUS_OPTIONS.map((s) => s.value)}
+                          tone={{ "Em aberto": estaAtrasado(h) ? "urgent" : "warn", Vencido: "urgent", Pago: "ok" }}
+                          onChange={(status) => update(h.id, { status })}
+                        />
                         {asaasConectado && h.status !== "Pago" && (
                           h.asaas_invoice_url ? (
                             <a href={h.asaas_invoice_url} target="_blank" rel="noreferrer" className="flex items-center gap-1 text-xs underline mt-1" style={{ color: COLORS.brass }}>
