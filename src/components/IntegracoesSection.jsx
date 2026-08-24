@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { PenTool, Radar, RefreshCw } from "lucide-react";
+import { PenTool, Radar, RefreshCw, ListChecks } from "lucide-react";
 import { COLORS } from "../lib/theme.js";
 import { useSupabaseTable } from "../hooks/useSupabaseTable.js";
 import { supabase } from "../lib/supabaseClient.js";
@@ -8,7 +8,25 @@ import { supabase } from "../lib/supabaseClient.js";
 // dele) — ficam salvas em organizations, mesmas colunas que Minha Empresa já usa pro resto
 // do perfil. Sem teste contra conta real dessas duas (não temos credencial) — construído a
 // partir da documentação oficial de cada uma.
+//
+// Rótulo em linguagem simples pra quem não é técnico + o termo original entre parênteses
+// (assim quem olhar a tela do provedor sabe qual campo bate com qual) + passo a passo de
+// onde achar cada dado — pedido explícito do usuário depois de mostrar isso pra um cliente
+// não-técnico que não reconheceu "tokenAPI"/"cryptKey".
 const inputStyle = { border: `1px solid ${COLORS.line}`, color: COLORS.ink };
+const labelStyle = { color: COLORS.ink, fontWeight: 600 };
+const hintStyle = { color: COLORS.slate, fontWeight: 400 };
+
+function ComoConseguir({ passos }) {
+  return (
+    <div className="mb-4 px-3 py-3 rounded-md text-xs max-w-md" style={{ background: "rgba(165,121,59,0.08)", color: COLORS.ink }}>
+      <p className="flex items-center gap-1.5 font-semibold mb-1.5"><ListChecks size={13} color={COLORS.brass} /> Onde encontrar isso</p>
+      <ol className="list-decimal pl-4 flex flex-col gap-1">
+        {passos.map((p, i) => <li key={i} style={{ color: COLORS.slate }}>{p}</li>)}
+      </ol>
+    </div>
+  );
+}
 
 export default function IntegracoesSection({ orgId }) {
   const orgEq = orgId ? ["org_id", orgId] : undefined;
@@ -69,15 +87,32 @@ export default function IntegracoesSection({ orgId }) {
     <div className="flex flex-col gap-8 mt-8 pt-6" style={{ borderTop: `1px solid ${COLORS.line}` }}>
       <div>
         <p className="flex items-center gap-2 text-sm font-semibold mb-1" style={{ color: COLORS.ink }}>
-          <PenTool size={16} color={COLORS.brass} /> Assinatura eletrônica (D4Sign)
+          <PenTool size={16} color={COLORS.brass} /> Assinatura eletrônica
         </p>
         <p className="text-xs mb-3" style={{ color: COLORS.slate }}>
-          Precisa de uma conta D4Sign própria — crie um "cofre" (safe) lá e cole as credenciais aqui (menu "Dev API" da conta D4Sign).
+          Pra mandar documento pra assinar sem sair do mysaldo, conecte a conta D4Sign do escritório aqui embaixo — são 3 códigos, você pega tudo dentro da conta D4Sign de vocês.
         </p>
-        <form onSubmit={salvarD4} className="flex flex-col gap-2 max-w-md">
-          <input value={d4.d4sign_token} onChange={(e) => setD4((v) => ({ ...v, d4sign_token: e.target.value }))} placeholder="tokenAPI" className="px-3 py-2 rounded-md text-sm" style={inputStyle} />
-          <input value={d4.d4sign_crypt_key} onChange={(e) => setD4((v) => ({ ...v, d4sign_crypt_key: e.target.value }))} placeholder="cryptKey" className="px-3 py-2 rounded-md text-sm" style={inputStyle} />
-          <input value={d4.d4sign_safe_uuid} onChange={(e) => setD4((v) => ({ ...v, d4sign_safe_uuid: e.target.value }))} placeholder="UUID do cofre (safe)" className="px-3 py-2 rounded-md text-sm" style={inputStyle} />
+
+        <ComoConseguir passos={[
+          <>Entre em <strong>secure.d4sign.com.br</strong> com o login de administrador da conta D4Sign do escritório.</>,
+          <>No menu, procure por <strong>"Dev API"</strong> (ou "Integrações"). Lá aparecem dois códigos: um chamado <strong>Token</strong> e outro <strong>Crypt Key</strong> — copie os dois.</>,
+          <>Se essa tela não aparecer, mande um email pra <strong>suporte@d4sign.com.br</strong> pedindo pra liberar o acesso via API da conta — eles respondem com os códigos.</>,
+          <>Depois, vá em <strong>"Cofres"</strong> (ou "Safes"), abra a pasta onde os documentos vão ficar guardados (ou crie uma nova) e copie o código dela.</>,
+        ]} />
+
+        <form onSubmit={salvarD4} className="flex flex-col gap-3 max-w-md">
+          <label className="flex flex-col gap-1 text-xs" style={hintStyle}>
+            <span style={labelStyle}>Código de acesso</span> <span>(chamado de "Token" na D4Sign)</span>
+            <input value={d4.d4sign_token} onChange={(e) => setD4((v) => ({ ...v, d4sign_token: e.target.value }))} className="px-3 py-2 rounded-md text-sm" style={inputStyle} />
+          </label>
+          <label className="flex flex-col gap-1 text-xs" style={hintStyle}>
+            <span style={labelStyle}>Chave de segurança</span> <span>(chamada de "Crypt Key" na D4Sign)</span>
+            <input value={d4.d4sign_crypt_key} onChange={(e) => setD4((v) => ({ ...v, d4sign_crypt_key: e.target.value }))} className="px-3 py-2 rounded-md text-sm" style={inputStyle} />
+          </label>
+          <label className="flex flex-col gap-1 text-xs" style={hintStyle}>
+            <span style={labelStyle}>Código da pasta de documentos</span> <span>(UUID do "Cofre"/"Safe" na D4Sign)</span>
+            <input value={d4.d4sign_safe_uuid} onChange={(e) => setD4((v) => ({ ...v, d4sign_safe_uuid: e.target.value }))} className="px-3 py-2 rounded-md text-sm" style={inputStyle} />
+          </label>
           <button type="submit" disabled={salvandoD4} className="self-start px-3.5 py-2 rounded-md text-sm font-semibold" style={{ background: COLORS.ink, color: "#fff", opacity: salvandoD4 ? 0.6 : 1 }}>
             {salvandoD4 ? "Salvando..." : "Salvar"}
           </button>
@@ -86,15 +121,24 @@ export default function IntegracoesSection({ orgId }) {
 
       <div>
         <p className="flex items-center gap-2 text-sm font-semibold mb-1" style={{ color: COLORS.ink }}>
-          <Radar size={16} color={COLORS.brass} /> Captação automática de processo (Jusbrasil)
+          <Radar size={16} color={COLORS.brass} /> Captação automática de processo
         </p>
         <p className="text-xs mb-3" style={{ color: COLORS.slate }}>
-          Precisa de token do Jusbrasil Soluções (módulo de monitoramento por OAB — fale com o comercial deles pra habilitar).
-          Quem é monitorado é decidido pela OAB cadastrada em cada colaborador (aba Equipe → editar) — não tem lista separada aqui.
+          Avisa sozinho quando aparece processo novo em nome de um advogado do escritório. Quem é monitorado é decidido pela OAB cadastrada em cada colaborador (aba Equipe → editar) — não tem cadastro separado aqui.
         </p>
-        <form onSubmit={salvarJus} className="flex flex-wrap items-center gap-2 max-w-md mb-4">
-          <input value={jusToken} onChange={(e) => setJusToken(e.target.value)} placeholder="Token do Jusbrasil" className="flex-1 min-w-[160px] px-3 py-2 rounded-md text-sm" style={inputStyle} />
-          <button type="submit" disabled={salvandoJus} className="px-3.5 py-2 rounded-md text-sm font-semibold" style={{ background: COLORS.ink, color: "#fff", opacity: salvandoJus ? 0.6 : 1 }}>
+
+        <ComoConseguir passos={[
+          <>Fale com o time comercial do <strong>Jusbrasil Soluções</strong> (jusbrasil.com.br) e contrate o módulo <strong>"Monitoramento por OAB"</strong>, se o escritório ainda não tiver.</>,
+          <>Peça pra eles te passarem o <strong>token de acesso à API</strong> da conta.</>,
+          <>Cole esse código no campo abaixo.</>,
+        ]} />
+
+        <form onSubmit={salvarJus} className="flex flex-col gap-2 max-w-md mb-4">
+          <label className="flex flex-col gap-1 text-xs" style={hintStyle}>
+            <span style={labelStyle}>Código de acesso</span> <span>(token da API do Jusbrasil)</span>
+            <input value={jusToken} onChange={(e) => setJusToken(e.target.value)} className="px-3 py-2 rounded-md text-sm" style={inputStyle} />
+          </label>
+          <button type="submit" disabled={salvandoJus} className="self-start px-3.5 py-2 rounded-md text-sm font-semibold" style={{ background: COLORS.ink, color: "#fff", opacity: salvandoJus ? 0.6 : 1 }}>
             {salvandoJus ? "Salvando..." : "Salvar"}
           </button>
         </form>
