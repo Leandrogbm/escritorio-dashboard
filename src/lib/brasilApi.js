@@ -19,6 +19,7 @@ export async function buscarEmpresaPorCnpj(documentoDigitado) {
       uf: data.uf || undefined,
       email: data.email || undefined,
       celular: data.ddd_telefone_1 || undefined,
+      celular2: data.ddd_telefone_2 || undefined,
     };
   } catch {
     return null; // sem internet ou BrasilAPI fora do ar — usuário preenche na mão, sem travar o form

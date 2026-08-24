@@ -35,6 +35,7 @@ const FIELDS = [
     onBlur: buscarEmpresaPorCnpj,
   },
   { key: "celular", label: "Celular", optional: true, placeholder: "(00) 00000-0000", mask: formatCelular },
+  { key: "celular2", label: "2º telefone (opcional)", optional: true, placeholder: "(00) 00000-0000", mask: formatCelular },
   { key: "email", label: "Email", type: "email", optional: true },
   { key: "cep", label: "CEP", optional: true, onBlur: buscarEnderecoPorCep },
   { key: "logradouro", label: "Endereço", optional: true },
@@ -127,23 +128,26 @@ export default function ClientesTab({ currentRole, orgId, profile }) {
                 <td className="px-4 py-3" style={{ color: COLORS.slate }}>{c.tipo}</td>
                 <td className="px-4 py-3" style={{ color: COLORS.slate }}>{c.documento ? formatDocumento(c.tipo, c.documento) : "—"}</td>
                 <td className="px-4 py-3" style={{ color: COLORS.slate }}>
-                  <div className="flex items-center gap-2">
-                    <span>{c.celular ? formatCelular(c.celular) : "—"}</span>
-                    {linkWhatsApp(c.celular) && (
-                      <a
-                        href={linkWhatsApp(c.celular)}
-                        target="_blank"
-                        rel="noreferrer"
-                        onClick={(e) => e.stopPropagation()}
-                        aria-label="Abrir conversa no WhatsApp"
-                        title="Abrir conversa no WhatsApp"
-                        className="p-1 rounded hover:opacity-70"
-                        style={{ color: "#25D366" }}
-                      >
-                        <MessageCircle size={16} />
-                      </a>
-                    )}
-                  </div>
+                  {[c.celular, c.celular2].filter(Boolean).length === 0 && "—"}
+                  {[c.celular, c.celular2].filter(Boolean).map((tel) => (
+                    <div key={tel} className="flex items-center gap-2">
+                      <span>{formatCelular(tel)}</span>
+                      {linkWhatsApp(tel) && (
+                        <a
+                          href={linkWhatsApp(tel)}
+                          target="_blank"
+                          rel="noreferrer"
+                          onClick={(e) => e.stopPropagation()}
+                          aria-label="Abrir conversa no WhatsApp"
+                          title="Abrir conversa no WhatsApp"
+                          className="p-1 rounded hover:opacity-70"
+                          style={{ color: "#25D366" }}
+                        >
+                          <MessageCircle size={16} />
+                        </a>
+                      )}
+                    </div>
+                  ))}
                 </td>
                 <td className="px-4 py-3" style={{ color: COLORS.slate }}>{c.origem || "—"}</td>
                 <td className="px-4 py-3" style={{ color: COLORS.slate }}>{c.contrato_renovacao || "—"}</td>

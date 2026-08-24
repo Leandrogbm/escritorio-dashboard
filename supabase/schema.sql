@@ -309,6 +309,7 @@ alter table organizations add column if not exists d4sign_safe_uuid text;
 alter table organizations add column if not exists asaas_token text;
 alter table organizations add column if not exists asaas_ambiente text not null default 'sandbox' check (asaas_ambiente in ('sandbox','producao'));
 alter table clientes add column if not exists asaas_customer_id text;
+alter table clientes add column if not exists celular2 text; -- segundo telefone, quando o cliente tem mais de um contato
 alter table honorarios add column if not exists asaas_charge_id text;
 alter table honorarios add column if not exists asaas_invoice_url text; -- link de pagamento (boleto+Pix) pra mandar ao cliente
 
