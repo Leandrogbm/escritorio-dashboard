@@ -10,6 +10,7 @@ import { COLORS } from "../../lib/theme.js";
 import { useSupabaseTable } from "../../hooks/useSupabaseTable.js";
 import { supabase } from "../../lib/supabaseClient.js";
 import { buscarEnderecoPorCep } from "../../lib/viaCep.js";
+import { buscarEmpresaPorCnpj } from "../../lib/brasilApi.js";
 import { formatCelular } from "../../lib/celular.js";
 import { formatDocumento } from "../../lib/documento.js";
 
@@ -29,6 +30,9 @@ const FIELDS = [
     key: "documento", label: "CPF/CNPJ", optional: true,
     placeholder: "000.000.000-00",
     mask: (raw, values) => formatDocumento(values?.tipo, raw),
+    // Só dispara pra CNPJ (14 dígitos) — buscarEmpresaPorCnpj ignora CPF sozinha. Preenche
+    // razão social/endereço/contato direto da Receita, sem precisar digitar tudo na mão.
+    onBlur: buscarEmpresaPorCnpj,
   },
   { key: "celular", label: "Celular", optional: true, placeholder: "(00) 00000-0000", mask: formatCelular },
   { key: "email", label: "Email", type: "email", optional: true },
