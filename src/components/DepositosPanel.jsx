@@ -63,7 +63,7 @@ export default function DepositosPanel({ processo, orgId, onClose, embutido = fa
               <p className="text-sm text-center py-6" style={{ color: COLORS.slate }}>Nenhum depósito registrado ainda.</p>
             )}
             {doProcesso.map((d) => (
-              <div key={d.id} className="flex items-center justify-between gap-3 px-3 py-2.5 rounded-md" style={{ border: `1px solid ${COLORS.line}` }}>
+              <div key={d.id} onClick={() => setEditing(d)} className="flex items-center justify-between gap-3 px-3 py-2.5 rounded-md cursor-pointer" style={{ border: `1px solid ${COLORS.line}` }}>
                 <div className="min-w-0">
                   <p className="text-sm" style={{ color: COLORS.ink, fontWeight: 600 }}>{BRL(d.valor)} — {d.tipo}</p>
                   <p className="text-xs truncate" style={{ color: COLORS.slate }}>
@@ -72,7 +72,7 @@ export default function DepositosPanel({ processo, orgId, onClose, embutido = fa
                     {d.numero_comprovante && ` · comprovante ${d.numero_comprovante}`}
                   </p>
                 </div>
-                <div className="flex items-center gap-2 shrink-0">
+                <div className="flex items-center gap-2 shrink-0" onClick={(e) => e.stopPropagation()}>
                   <StatusPicker value={d.status} options={Object.keys(STATUS_TONE)} tone={STATUS_TONE} onChange={(status) => update(d.id, { status })} />
                   <RowActions onEdit={() => setEditing(d)} onDelete={() => remove(d.id)} />
                 </div>

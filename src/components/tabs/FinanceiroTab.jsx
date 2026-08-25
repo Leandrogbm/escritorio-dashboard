@@ -39,6 +39,9 @@ export default function FinanceiroTab({ orgId } = {}) {
     select: "*, cliente:clientes(id,nome,tipo)", eq: orgEq,
   });
   const { data: clientes } = useSupabaseTable("clientes", { select: "id,nome,tipo", orderBy: "nome", ascending: true, eq: orgEq });
+  // Só pro Importar extrato casar saída (débito) com despesa a pagar, na mesma leitura que já
+  // casa entrada com honorário — funciona igual daqui ou do ERP (ver ImportarExtratoModal.jsx).
+  const { data: despesas } = useSupabaseTable("despesas", { select: "id, fornecedor, descricao, valor, vencimento, status", eq: orgEq });
   const { data: processos } = useSupabaseTable("processos", { select: "id,numero,area,cliente_id", orderBy: "numero", ascending: true, eq: orgEq });
   const { data: orgRows } = useSupabaseTable("organizations", { select: "asaas_token", eq: orgId ? ["id", orgId] : undefined });
   // ponytail: Asaas construído e testado, mas segurado em back log a pedido do usuário —
@@ -324,7 +327,7 @@ export default function FinanceiroTab({ orgId } = {}) {
       />
 
       {arquivoExtrato && (
-        <ImportarExtratoModal arquivo={arquivoExtrato} honorarios={honorarios} orgId={orgId} onClose={() => setArquivoExtrato(null)} />
+        <ImportarExtratoModal arquivo={arquivoExtrato} honorarios={honorarios} despesas={despesas} orgId={orgId} onClose={() => setArquivoExtrato(null)} />
       )}
     </div>
   );

@@ -133,15 +133,17 @@ async function parsePdf(file) {
   return extrairDeLinhas(linhasTexto);
 }
 
-// Só entradas (créditos) interessam pra achar pagamento recebido — TRNAMT/valor negativo é saída.
+// Valor mantém o sinal: positivo = entrada (crédito, casa com honorário recebido),
+// negativo = saída (débito, casa com despesa paga) — quem chama (ImportarExtratoModal)
+// separa os dois e casa cada um com sua tabela.
 export async function parseExtrato(file) {
   if (/\.pdf$/i.test(file.name) || file.type === "application/pdf") {
-    return (await parsePdf(file)).filter((l) => l.valor > 0);
+    return (await parsePdf(file)).filter((l) => l.valor !== 0);
   }
   if (file.type.startsWith("image/")) {
-    return (await parseImagem(file)).filter((l) => l.valor > 0);
+    return (await parseImagem(file)).filter((l) => l.valor !== 0);
   }
   const texto = await file.text();
   const linhas = /<OFX>|<STMTTRN>/i.test(texto) ? parseOfx(texto) : parseCsv(texto);
-  return linhas.filter((l) => l.valor > 0);
+  return linhas.filter((l) => l.valor !== 0);
 }

@@ -16,12 +16,12 @@ function linhaPrazo(p, onEdit, onDelete) {
   const dias = diasAte(p.data);
   const u = urgencia(dias);
   return (
-    <div key={p.id} className="flex items-center justify-between gap-3 px-4 py-3" style={{ borderTop: `1px solid ${COLORS.line}` }}>
+    <div key={p.id} onClick={() => onEdit(p)} className="flex items-center justify-between gap-3 px-4 py-3 cursor-pointer" style={{ borderTop: `1px solid ${COLORS.line}` }}>
       <div className="min-w-0">
         <p className="text-sm truncate" style={{ color: COLORS.ink, fontWeight: 600 }}>{p.tipo}</p>
         <p className="text-xs truncate" style={{ color: COLORS.slate }}>{p.processo?.numero ?? "—"} · {p.processo?.cliente?.nome ?? "—"} · {p.responsavel?.nome ?? "sem responsável"}</p>
       </div>
-      <div className="flex items-center gap-2 shrink-0">
+      <div className="flex items-center gap-2 shrink-0" onClick={(e) => e.stopPropagation()}>
         <Stamp tone={u.tone}>{u.label} · {dias}d</Stamp>
         <RowActions onEdit={() => onEdit(p)} onDelete={() => onDelete(p.id)} />
       </div>
@@ -200,14 +200,14 @@ export default function PrazosTab({ orgId } = {}) {
                 const dias = diasAte(p.data);
                 const u = urgencia(dias);
                 return (
-                  <tr key={p.id} style={{ borderTop: `1px solid ${COLORS.line}`, background: i % 2 ? "#FAF9F5" : COLORS.paperRaised }}>
+                  <tr key={p.id} onClick={() => abrirEdicao(p)} className="cursor-pointer" style={{ borderTop: `1px solid ${COLORS.line}`, background: i % 2 ? "#FAF9F5" : COLORS.paperRaised }}>
                     <td className="px-4 py-3" style={{ fontFamily: "'IBM Plex Mono', monospace", color: COLORS.inkSoft, fontSize: 12.5 }}>{p.processo?.numero ?? "—"}</td>
                     <td className="px-4 py-3" style={{ color: COLORS.ink }}>{p.processo?.cliente?.nome ?? "—"}</td>
                     <td className="px-4 py-3" style={{ color: COLORS.slate }}>{p.tipo}</td>
                     <td className="px-4 py-3" style={{ color: COLORS.slate }}>{new Date(`${p.data}T00:00:00`).toLocaleDateString("pt-BR")}</td>
                     <td className="px-4 py-3" style={{ color: COLORS.slate }}>{p.responsavel?.nome ?? "—"}</td>
                     <td className="px-4 py-3"><Stamp tone={u.tone}>{u.label} · {dias}d</Stamp></td>
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                       <RowActions onEdit={() => abrirEdicao(p)} onDelete={() => remove(p.id)} />
                     </td>
                   </tr>
