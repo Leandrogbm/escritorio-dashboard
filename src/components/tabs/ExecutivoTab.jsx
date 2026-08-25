@@ -9,13 +9,29 @@ import { useSupabaseTable } from "../../hooks/useSupabaseTable.js";
 
 const MES_LABEL = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
 const STATUS_CORES = { "Em andamento": COLORS.success, "Aguardando decisão": COLORS.brass, "Suspenso": COLORS.slate, "Encerrado": COLORS.line };
+const hojeStr = new Date().toISOString().slice(0, 10);
+const mesAtual = hojeStr.slice(0, 7);
+const anoAtual = hojeStr.slice(0, 4);
 
-export default function ExecutivoTab({ orgId } = {}) {
+// `embutido`: true quando usado como sub-aba dentro de ErpTab.jsx ("Visão geral") — sem
+// título/ícone próprio, porque a página já tem o cabeçalho do ERP.
+export default function ExecutivoTab({ orgId, embutido = false } = {}) {
   const orgEq = orgId ? ["org_id", orgId] : undefined;
   const { data: processos, loading } = useSupabaseTable("processos", { select: "area, valor, status, responsavel:profiles(nome)", eq: orgEq });
   const { data: clientes } = useSupabaseTable("clientes", { select: "id", eq: orgEq });
   const { data: honorarios, loading: loadingFinanceiro } = useSupabaseTable("honorarios", { select: "valor, status, vencimento, processo:processos(area)", eq: orgEq });
-  const [periodo, setPeriodo] = useState("mes"); // "mes" | "ano" — agrupamento do gráfico financeiro
+  const [periodo, setPeriodo] = useState("mes"); // "mes" | "ano" — agrupamento do gráfico financeiro (tendência, todos os períodos)
+
+  // Filtro de período pros KPIs do topo (honorários/rentabilidade) — diferente do `periodo`
+  // acima, que é só o agrupamento do gráfico de tendência (mostra todos os meses/anos juntos);
+  // esse aqui SELECIONA um mês ou ano específico e recalcula os números só daquele recorte.
+  const [modoKpi, setModoKpi] = useState("mes"); // "mes" | "ano"
+  const [periodoKpi, setPeriodoKpi] = useState(mesAtual);
+  const trocarModoKpi = (modo) => { setModoKpi(modo); setPeriodoKpi(modo === "ano" ? anoAtual : mesAtual); };
+  const honorariosDoPeriodo = useMemo(() => {
+    const chave = (v) => (modoKpi === "ano" ? v?.slice(0, 4) : v?.slice(0, 7));
+    return honorarios.filter((h) => chave(h.vencimento) === periodoKpi);
+  }, [honorarios, modoKpi, periodoKpi]);
 
   const receitaPorArea = useMemo(() => {
     const porArea = {};
@@ -45,9 +61,9 @@ export default function ExecutivoTab({ orgId } = {}) {
   }, [processos]);
 
   // Mesmo critério do FinanceiroTab: "Pago" é recebido, qualquer outra situação (em aberto
-  // ou vencido) ainda está a receber.
-  const totalHonorarios = honorarios.reduce((s, h) => s + Number(h.valor ?? 0), 0);
-  const recebido = honorarios.filter((h) => h.status === "Pago").reduce((s, h) => s + Number(h.valor ?? 0), 0);
+  // ou vencido) ainda está a receber. Escopado ao período selecionado (mês ou ano) no topo.
+  const totalHonorarios = honorariosDoPeriodo.reduce((s, h) => s + Number(h.valor ?? 0), 0);
+  const recebido = honorariosDoPeriodo.filter((h) => h.status === "Pago").reduce((s, h) => s + Number(h.valor ?? 0), 0);
   const aReceber = totalHonorarios - recebido;
 
   // Rentabilidade por área do direito: só honorários com processo_id vinculado entram aqui
@@ -55,7 +71,7 @@ export default function ExecutivoTab({ orgId } = {}) {
   // "recebido" é o que já entrou de verdade, "aReceber" ainda tá pendente/atrasado.
   const rentabilidadePorArea = useMemo(() => {
     const map = new Map();
-    for (const h of honorarios) {
+    for (const h of honorariosDoPeriodo) {
       const area = h.processo?.area;
       if (!area) continue;
       if (!map.has(area)) map.set(area, { area, recebido: 0, aReceber: 0 });
@@ -64,8 +80,8 @@ export default function ExecutivoTab({ orgId } = {}) {
       else bucket.aReceber += Number(h.valor ?? 0);
     }
     return [...map.values()].sort((a, b) => (b.recebido + b.aReceber) - (a.recebido + a.aReceber));
-  }, [honorarios]);
-  const semVinculoDeArea = honorarios.length > 0 && rentabilidadePorArea.length === 0;
+  }, [honorariosDoPeriodo]);
+  const semVinculoDeArea = honorariosDoPeriodo.length > 0 && rentabilidadePorArea.length === 0;
 
   // Agrupa por mês (vencimento.slice(0,7)) ou por ano (slice(0,4)); dentro de cada período
   // separa recebido x a receber pro gráfico empilhado.
@@ -90,7 +106,7 @@ export default function ExecutivoTab({ orgId } = {}) {
 
   return (
     <div>
-      <SectionTitle icon={TrendingUp} title="Visão Executiva" subtitle="Panorama consolidado do escritório" />
+      {!embutido && <SectionTitle icon={TrendingUp} title="Visão Executiva" subtitle="Panorama consolidado do escritório" />}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
         <Card>
           <p className="text-xs uppercase tracking-wide" style={{ color: COLORS.slate }}>Valor total em causas</p>
@@ -105,9 +121,31 @@ export default function ExecutivoTab({ orgId } = {}) {
           <p className="text-2xl mt-1" style={{ fontFamily: "'Source Serif 4', serif", fontWeight: 700, color: COLORS.ink }}>{clientes.length}</p>
         </Card>
       </div>
+      <div className="flex flex-wrap items-center gap-2 mb-3">
+        <p className="text-xs" style={{ color: COLORS.slate }}>Honorários e rentabilidade por área, no período:</p>
+        <div className="flex rounded-md overflow-hidden" style={{ border: `1px solid ${COLORS.line}` }}>
+          {[{ key: "mes", label: "Mês" }, { key: "ano", label: "Ano" }].map((op) => (
+            <button
+              key={op.key}
+              onClick={() => trocarModoKpi(op.key)}
+              className="px-3 py-1.5 text-xs font-semibold"
+              style={{ background: modoKpi === op.key ? COLORS.ink : "transparent", color: modoKpi === op.key ? "#fff" : COLORS.slate }}
+            >
+              {op.label}
+            </button>
+          ))}
+        </div>
+        <input
+          type={modoKpi === "ano" ? "number" : "month"}
+          value={periodoKpi}
+          onChange={(e) => setPeriodoKpi(e.target.value)}
+          className="px-3 py-1.5 rounded-md text-sm"
+          style={{ border: `1px solid ${COLORS.line}`, color: COLORS.ink, width: modoKpi === "ano" ? 100 : "auto" }}
+        />
+      </div>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
         <Card>
-          <p className="text-xs uppercase tracking-wide" style={{ color: COLORS.slate }}>Total (honorários)</p>
+          <p className="text-xs uppercase tracking-wide" style={{ color: COLORS.slate }}>Total (honorários) — período</p>
           <p className="text-2xl mt-1" style={{ fontFamily: "'Source Serif 4', serif", fontWeight: 700, color: COLORS.ink }}>{BRL(totalHonorarios)}</p>
         </Card>
         <Card>

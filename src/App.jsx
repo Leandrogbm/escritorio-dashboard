@@ -17,7 +17,6 @@ import FinanceiroTab from "./components/tabs/FinanceiroTab.jsx";
 import ErpTab from "./components/tabs/ErpTab.jsx";
 import ClientesTab from "./components/tabs/ClientesTab.jsx";
 import EquipeTab from "./components/tabs/EquipeTab.jsx";
-import ExecutivoTab from "./components/tabs/ExecutivoTab.jsx";
 import ConfigTab from "./components/tabs/ConfigTab.jsx";
 import MinhaEmpresaTab from "./components/tabs/MinhaEmpresaTab.jsx";
 import PortalCliente from "./components/PortalCliente.jsx";
@@ -130,12 +129,11 @@ export default function App() {
       case "processos": return <ProcessosTab currentRole={currentRole} orgId={orgId} profile={profile} />;
       case "quadro": return <QuadroTab orgId={orgId} currentRole={currentRole} profile={profile} />;
       case "financeiro": return <FinanceiroTab orgId={orgId} />;
-      case "erp": return <ErpTab orgId={orgId} />;
+      case "erp": return <ErpTab orgId={orgId} />; // Visão Executiva vira sub-aba aqui dentro (ErpTab.jsx)
       case "leads": return <LeadsTab orgId={orgId} />;
       case "leads_captacao": return <LeadsCaptacaoTab orgId={orgId} currentRole={currentRole} />;
       case "clientes": return <ClientesTab currentRole={currentRole} orgId={orgId} profile={profile} />;
       case "equipe": return <EquipeTab currentRole={currentRole} orgId={orgId} />;
-      case "executivo": return <ExecutivoTab orgId={orgId} />;
       default: return <EmptyState />;
     }
   };

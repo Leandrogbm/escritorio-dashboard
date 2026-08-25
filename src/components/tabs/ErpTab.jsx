@@ -1,5 +1,6 @@
 import React, { useMemo, useRef, useState } from "react";
-import { Calculator, Plus, Copy, Check, Upload, Filter, X } from "lucide-react";
+import { Calculator, Plus, Copy, Check, Upload, Filter, X, TrendingUp, Wallet } from "lucide-react";
+import ExecutivoTab from "./ExecutivoTab.jsx";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
 import Card from "../Card.jsx";
 import SectionTitle from "../SectionTitle.jsx";
@@ -40,6 +41,10 @@ const chaveFornecedor = (d) => (d.fornecedor || "").trim() || "Sem fornecedor";
 // pra saber quanto entra, quanto sai, e se sobra.
 export default function ErpTab({ orgId }) {
   const orgEq = orgId ? ["org_id", orgId] : undefined;
+  // Visão Executiva vira sub-aba daqui — pedido do usuário ("visão executiva tem que ser um
+  // adereço dentro do ERP"). "despesas" continua a aba principal (é o que o ERP faz no dia a
+  // dia); "visao" mostra o painel executivo (ExecutivoTab.jsx embutido).
+  const [aba, setAba] = useState("despesas");
   const { data: despesas, loading, insert, update, remove } = useSupabaseTable("despesas", { eq: orgEq, orderBy: "vencimento", ascending: true });
   const { data: honorarios } = useSupabaseTable("honorarios", { select: "id, cliente:clientes(id,nome), valor, status, vencimento", eq: orgEq });
   const { data: notificacoesTodas, refresh: refreshNotificacoes } = useSupabaseTable("notificacoes", { select: "id, tipo, despesa_id, titulo, texto", eq: orgEq });
@@ -190,7 +195,7 @@ export default function ErpTab({ orgId }) {
         icon={Calculator}
         title="ERP"
         subtitle="Contas a pagar, fluxo de caixa e resultado do escritório"
-        action={
+        action={aba === "despesas" && (
           <div className="flex flex-wrap items-center gap-2">
             <SearchInput value={busca} onChange={setBusca} placeholder="Buscar fornecedor..." />
             <button onClick={() => setFiltroAberto((v) => !v)} className="flex items-center gap-1.5 px-3 py-2 rounded-md text-sm font-semibold" style={{ border: `1px solid ${filtrosAtivos ? COLORS.brass : COLORS.line}`, color: filtrosAtivos ? COLORS.brass : COLORS.ink }}>
@@ -204,10 +209,25 @@ export default function ErpTab({ orgId }) {
               <Plus size={14} /> Nova despesa
             </button>
           </div>
-        }
+        )}
       />
 
-      {filtroAberto && (
+      <div className="flex gap-2 mb-6">
+        {[{ key: "despesas", label: "Despesas", icon: Wallet }, { key: "visao", label: "Visão geral", icon: TrendingUp }].map((t) => (
+          <button
+            key={t.key}
+            onClick={() => setAba(t.key)}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-md text-sm font-semibold"
+            style={{ background: aba === t.key ? COLORS.ink : "transparent", color: aba === t.key ? "#fff" : COLORS.ink, border: `1px solid ${aba === t.key ? COLORS.ink : COLORS.line}` }}
+          >
+            <t.icon size={14} /> {t.label}
+          </button>
+        ))}
+      </div>
+
+      {aba === "visao" && <ExecutivoTab orgId={orgId} embutido />}
+
+      {aba === "despesas" && filtroAberto && (
         <Card className="mb-5">
           <div className="flex items-center justify-between mb-3">
             <p className="text-sm font-semibold" style={{ color: COLORS.ink }}>Filtros</p>
@@ -244,6 +264,7 @@ export default function ErpTab({ orgId }) {
         </Card>
       )}
 
+      {aba === "despesas" && <>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
         <Card>
           <p className="text-xs uppercase tracking-wide" style={{ color: COLORS.slate }}>Despesas pagas (período)</p>
@@ -388,6 +409,7 @@ export default function ErpTab({ orgId }) {
           </div>
         </div>
       )}
+      </>}
 
       <RecordFormModal
         open={editing !== null}

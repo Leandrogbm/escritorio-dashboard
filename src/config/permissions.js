@@ -1,4 +1,4 @@
-import { Clock, Briefcase, DollarSign, Users, Building2, TrendingUp, Trello, Calculator } from "lucide-react";
+import { Clock, Briefcase, DollarSign, Users, Building2, Trello, Calculator } from "lucide-react";
 
 export const ROLES = [
   { key: "socio", label: "Sócio(a)" },
@@ -18,9 +18,12 @@ export const MODULES = [
   { key: "quadro", label: "Quadro de tarefas", icon: Trello },
   { key: "prazos", label: "Prazos", icon: Clock },
   { key: "financeiro", label: "Financeiro", icon: DollarSign },
+  // Visão Executiva não é mais módulo próprio — virou sub-aba dentro do ERP (pedido do
+  // usuário: "visão executiva tem que ser um adereço dentro do ERP"). Quem tem acesso ao
+  // ERP já vê as duas; ExecutivoTab.jsx continua existindo como componente, só não tem
+  // mais rota/permissão separada (ver ErpTab.jsx e App.jsx).
   { key: "erp", label: "ERP", icon: Calculator },
   { key: "equipe", label: "Equipe", icon: Building2 },
-  { key: "executivo", label: "Visão Executiva", icon: TrendingUp },
 ];
 
 // A matriz de permissões (quais abas cada perfil enxerga) agora vive na tabela
