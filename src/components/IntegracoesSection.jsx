@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { PenTool, ListChecks, Wallet, MapPin, Search, Trello, ChevronDown } from "lucide-react";
+import { PenTool, ListChecks, Wallet, MapPin, Search, Trello, ChevronDown, Eye, EyeOff } from "lucide-react";
 import { COLORS } from "../lib/theme.js";
 import { useSupabaseTable } from "../hooks/useSupabaseTable.js";
 import { supabase } from "../lib/supabaseClient.js";
@@ -23,6 +23,28 @@ import { supabase } from "../lib/supabaseClient.js";
 const inputStyle = { border: `1px solid ${COLORS.line}`, color: COLORS.ink };
 const labelStyle = { color: COLORS.ink, fontWeight: 600 };
 const hintStyle = { color: COLORS.slate, fontWeight: 400 };
+
+// Campo de credencial (token/chave) — mascarado por padrão (type="password", como qualquer
+// senha), com olho pra revelar só quando o usuário pede. Pedido do usuário: chave já
+// conectada não deve ficar exposta em texto puro na tela.
+function CampoSegredo({ value, onChange }) {
+  const [ver, setVer] = useState(false);
+  return (
+    <div className="relative">
+      <input
+        type={ver ? "text" : "password"}
+        value={value}
+        onChange={onChange}
+        autoComplete="off"
+        className="w-full px-3 py-2 pr-9 rounded-md text-sm"
+        style={inputStyle}
+      />
+      <button type="button" onClick={() => setVer((v) => !v)} aria-label={ver ? "Esconder" : "Mostrar"} className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded hover:opacity-70" style={{ color: COLORS.slate }}>
+        {ver ? <EyeOff size={14} /> : <Eye size={14} />}
+      </button>
+    </div>
+  );
+}
 
 function ComoConseguir({ passos }) {
   return (
@@ -52,6 +74,102 @@ function ItemIntegracao({ Icon, titulo, resumo, aberto, onToggle, children }) {
       </button>
       {aberto && <div className="pb-5">{children}</div>}
     </div>
+  );
+}
+
+// Key+Token dão pra buscar os quadros/listas direto na API do Trello (GET com CORS
+// liberado — é como os próprios Power-Ups funcionam no navegador) — evita o usuário caçar
+// "ID da lista" na mão, que na prática ele não acha (colava o link do quadro inteiro, não
+// da lista, e a integração não funcionava).
+function TrelloForm({ trello, setTrello, salvando, onSalvar }) {
+  const [quadros, setQuadros] = useState(null);
+  const [quadroId, setQuadroId] = useState("");
+  const [listas, setListas] = useState(null);
+  const [buscando, setBuscando] = useState(false);
+  const [erro, setErro] = useState("");
+
+  const buscarQuadros = async () => {
+    setErro("");
+    setBuscando(true);
+    try {
+      const res = await fetch(`https://api.trello.com/1/members/me/boards?key=${trello.trello_key}&token=${trello.trello_token}&fields=name`);
+      if (!res.ok) throw new Error(await res.text());
+      setQuadros(await res.json());
+    } catch (err) {
+      // Mostra o erro exato que a Trello devolveu (ex.: "invalid app token" = token
+      // expirado/errado) em vez de um genérico — é sempre isso ou isso, dá pra diagnosticar
+      // direto na tela sem precisar testar por fora.
+      setErro(`A Trello recusou: "${err.message || "erro desconhecido"}". Gere a API Key e o Token de novo em trello.com/power-ups/admin.`);
+    } finally {
+      setBuscando(false);
+    }
+  };
+
+  const escolherQuadro = async (id) => {
+    setQuadroId(id);
+    setListas(null);
+    if (!id) return;
+    try {
+      const res = await fetch(`https://api.trello.com/1/boards/${id}/lists?key=${trello.trello_key}&token=${trello.trello_token}&fields=name`);
+      if (!res.ok) throw new Error(await res.text());
+      setListas(await res.json());
+    } catch {
+      setErro("Não consegui buscar as listas desse quadro.");
+    }
+  };
+
+  return (
+    <form onSubmit={onSalvar} className="flex flex-col gap-3 max-w-md">
+      <label className="flex flex-col gap-1 text-xs" style={hintStyle}>
+        <span style={labelStyle}>API Key</span>
+        <CampoSegredo value={trello.trello_key} onChange={(e) => setTrello((v) => ({ ...v, trello_key: e.target.value }))} />
+      </label>
+      <label className="flex flex-col gap-1 text-xs" style={hintStyle}>
+        <span style={labelStyle}>Token</span> <span>(NÃO é o "Segredo" da tela da Trello — veja abaixo)</span>
+        <CampoSegredo value={trello.trello_token} onChange={(e) => setTrello((v) => ({ ...v, trello_token: e.target.value }))} />
+      </label>
+      {trello.trello_key && (
+        <a
+          href={`https://trello.com/1/authorize?expiration=never&name=Actum&scope=read,write&response_type=token&key=${trello.trello_key}`}
+          target="_blank" rel="noreferrer"
+          className="self-start text-xs underline"
+          style={{ color: COLORS.brass }}
+        >
+          Gerar o Token certo agora →
+        </a>
+      )}
+
+      <button type="button" onClick={buscarQuadros} disabled={!trello.trello_key || !trello.trello_token || buscando} className="self-start px-3 py-2 rounded-md text-xs font-semibold" style={{ border: `1px solid ${COLORS.line}`, color: COLORS.ink, opacity: !trello.trello_key || !trello.trello_token || buscando ? 0.5 : 1 }}>
+        {buscando ? "Buscando..." : "Buscar quadros"}
+      </button>
+      {erro && <p className="text-xs" style={{ color: COLORS.wine }}>{erro}</p>}
+
+      {quadros && (
+        <label className="flex flex-col gap-1 text-xs" style={hintStyle}>
+          <span style={labelStyle}>Quadro</span>
+          <select value={quadroId} onChange={(e) => escolherQuadro(e.target.value)} className="px-3 py-2 rounded-md text-sm" style={inputStyle}>
+            <option value="">Selecione</option>
+            {quadros.map((q) => <option key={q.id} value={q.id}>{q.name}</option>)}
+          </select>
+        </label>
+      )}
+      {listas && (
+        <label className="flex flex-col gap-1 text-xs" style={hintStyle}>
+          <span style={labelStyle}>Lista</span> <span>(coluna onde os cartões entram)</span>
+          <select value={trello.trello_list_id} onChange={(e) => setTrello((v) => ({ ...v, trello_list_id: e.target.value }))} className="px-3 py-2 rounded-md text-sm" style={inputStyle}>
+            <option value="">Selecione</option>
+            {listas.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
+          </select>
+        </label>
+      )}
+      {trello.trello_list_id && !listas && (
+        <p className="text-xs" style={{ color: COLORS.slate }}>Lista já conectada — busque os quadros de novo só se quiser trocar.</p>
+      )}
+
+      <button type="submit" disabled={salvando} className="self-start px-3.5 py-2 rounded-md text-sm font-semibold" style={{ background: COLORS.ink, color: "#fff", opacity: salvando ? 0.6 : 1 }}>
+        {salvando ? "Salvando..." : "Salvar"}
+      </button>
+    </form>
   );
 }
 
@@ -111,11 +229,11 @@ export default function IntegracoesSection({ orgId }) {
         <form onSubmit={salvar(d4, setSalvandoD4)} className="flex flex-col gap-3 max-w-md">
           <label className="flex flex-col gap-1 text-xs" style={hintStyle}>
             <span style={labelStyle}>Código de acesso</span> <span>(chamado de "Token" na D4Sign)</span>
-            <input value={d4.d4sign_token} onChange={(e) => setD4((v) => ({ ...v, d4sign_token: e.target.value }))} className="px-3 py-2 rounded-md text-sm" style={inputStyle} />
+            <CampoSegredo value={d4.d4sign_token} onChange={(e) => setD4((v) => ({ ...v, d4sign_token: e.target.value }))} />
           </label>
           <label className="flex flex-col gap-1 text-xs" style={hintStyle}>
             <span style={labelStyle}>Chave de segurança</span> <span>(chamada de "Crypt Key" na D4Sign)</span>
-            <input value={d4.d4sign_crypt_key} onChange={(e) => setD4((v) => ({ ...v, d4sign_crypt_key: e.target.value }))} className="px-3 py-2 rounded-md text-sm" style={inputStyle} />
+            <CampoSegredo value={d4.d4sign_crypt_key} onChange={(e) => setD4((v) => ({ ...v, d4sign_crypt_key: e.target.value }))} />
           </label>
           <label className="flex flex-col gap-1 text-xs" style={hintStyle}>
             <span style={labelStyle}>Código da pasta de documentos</span> <span>(UUID do "Cofre"/"Safe" na D4Sign)</span>
@@ -139,7 +257,7 @@ export default function IntegracoesSection({ orgId }) {
         <form onSubmit={salvar(escavador, setSalvandoEscavador)} className="flex flex-col gap-3 max-w-md">
           <label className="flex flex-col gap-1 text-xs" style={hintStyle}>
             <span style={labelStyle}>Token de API</span> <span>(gerado em api.escavador.com/tokens)</span>
-            <input value={escavador.escavador_token} onChange={(e) => setEscavador({ escavador_token: e.target.value })} className="px-3 py-2 rounded-md text-sm" style={inputStyle} />
+            <CampoSegredo value={escavador.escavador_token} onChange={(e) => setEscavador({ escavador_token: e.target.value })} />
           </label>
           <button type="submit" disabled={salvandoEscavador} className="self-start px-3.5 py-2 rounded-md text-sm font-semibold" style={{ background: COLORS.ink, color: "#fff", opacity: salvandoEscavador ? 0.6 : 1 }}>
             {salvandoEscavador ? "Salvando..." : "Salvar"}
@@ -152,28 +270,12 @@ export default function IntegracoesSection({ orgId }) {
           Toda tarefa criada no Actum (Kanban, ou dentro de um processo) também vira um cartão numa lista do seu Trello. É via única — editar/mover/concluir no Trello não volta pro Actum.
         </p>
         <ComoConseguir passos={[
-          <>Entre em <strong>trello.com/power-ups/admin</strong> logado com a conta do escritório.</>,
-          <>Crie um Power-Up novo (qualquer nome) e copie a <strong>API Key</strong> gerada.</>,
-          <>Na mesma tela tem um link <strong>"Token"</strong> — clique, autorize, e copie o token gerado.</>,
-          <>Abra o quadro do Trello onde os cartões devem cair, abra a lista (coluna) desejada e copie o <strong>ID da lista</strong> — no menu "..." da lista → "Copiar link", ou usando a extensão "Card Numbers"/inspecionar a URL.</>,
+          <>Entre em <strong>trello.com/power-ups/admin</strong> logado com a conta do escritório, crie um Power-Up novo (qualquer nome) e vá em <strong>"Chave de API"</strong>.</>,
+          <>Copie o campo <strong>"Chave de API"</strong> e cole abaixo — isso é a API Key.</>,
+          <>⚠️ <strong>Não copie o campo "Segredo"</strong> dessa mesma tela — não é o que precisa aqui. Depois de colar a API Key abaixo, aparece um link <strong>"Gerar o Token certo agora"</strong> — clique nele, autorize, e copie o token que aparecer na página seguinte.</>,
+          <>Com os dois colados, clique em <strong>"Buscar quadros"</strong> — escolhe o quadro e a lista (coluna) direto da tela, sem precisar copiar nenhum ID na mão.</>,
         ]} />
-        <form onSubmit={salvar(trello, setSalvandoTrello)} className="flex flex-col gap-3 max-w-md">
-          <label className="flex flex-col gap-1 text-xs" style={hintStyle}>
-            <span style={labelStyle}>API Key</span>
-            <input value={trello.trello_key} onChange={(e) => setTrello((v) => ({ ...v, trello_key: e.target.value }))} className="px-3 py-2 rounded-md text-sm" style={inputStyle} />
-          </label>
-          <label className="flex flex-col gap-1 text-xs" style={hintStyle}>
-            <span style={labelStyle}>Token</span>
-            <input value={trello.trello_token} onChange={(e) => setTrello((v) => ({ ...v, trello_token: e.target.value }))} className="px-3 py-2 rounded-md text-sm" style={inputStyle} />
-          </label>
-          <label className="flex flex-col gap-1 text-xs" style={hintStyle}>
-            <span style={labelStyle}>ID da lista</span> <span>(coluna do Trello onde os cartões entram)</span>
-            <input value={trello.trello_list_id} onChange={(e) => setTrello((v) => ({ ...v, trello_list_id: e.target.value }))} className="px-3 py-2 rounded-md text-sm" style={inputStyle} />
-          </label>
-          <button type="submit" disabled={salvandoTrello} className="self-start px-3.5 py-2 rounded-md text-sm font-semibold" style={{ background: COLORS.ink, color: "#fff", opacity: salvandoTrello ? 0.6 : 1 }}>
-            {salvandoTrello ? "Salvando..." : "Salvar"}
-          </button>
-        </form>
+        <TrelloForm trello={trello} setTrello={setTrello} salvando={salvandoTrello} onSalvar={salvar(trello, setSalvandoTrello)} />
       </ItemIntegracao>
 
       {/* ponytail: Asaas construído e testado (function + webhook), mas o usuário pediu pra
@@ -192,7 +294,7 @@ export default function IntegracoesSection({ orgId }) {
           <form onSubmit={salvar(asaas, setSalvandoAsaas)} className="flex flex-col gap-3 max-w-md">
             <label className="flex flex-col gap-1 text-xs" style={hintStyle}>
               <span style={labelStyle}>Chave de API</span> <span>(em Integrações → API, na Asaas)</span>
-              <input value={asaas.asaas_token} onChange={(e) => setAsaas((v) => ({ ...v, asaas_token: e.target.value }))} className="px-3 py-2 rounded-md text-sm" style={inputStyle} />
+              <CampoSegredo value={asaas.asaas_token} onChange={(e) => setAsaas((v) => ({ ...v, asaas_token: e.target.value }))} />
             </label>
             <label className="flex flex-col gap-1 text-xs" style={hintStyle}>
               <span style={labelStyle}>Ambiente</span>
