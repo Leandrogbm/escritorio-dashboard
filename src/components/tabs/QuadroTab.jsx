@@ -2,6 +2,7 @@ import React, { useMemo, useState } from "react";
 import { Trello, Plus, ChevronRight, ChevronLeft, Trash2, X } from "lucide-react";
 import Card from "../Card.jsx";
 import SectionTitle from "../SectionTitle.jsx";
+import TrelloQuadro from "../TrelloQuadro.jsx";
 import { COLORS } from "../../lib/theme.js";
 import { useSupabaseTable } from "../../hooks/useSupabaseTable.js";
 
@@ -18,12 +19,12 @@ const COLUNAS = [
 
 export default function QuadroTab({ orgId, currentRole, profile }) {
   const orgEq = orgId ? ["org_id", orgId] : undefined;
-  // Trello conectado com um quadro escolhido (Configurações → Integrações) — pedido do
-  // usuário: quando tiver, essa aba embute o quadro real do Trello (iframe) em vez do
-  // Kanban do Actum. O iframe usa a sessão do Trello já logada no navegador de quem está
-  // vendo — se a pessoa não estiver logada no Trello, ele mesmo pede login ali dentro.
-  const { data: orgRows } = useSupabaseTable("organizations", { select: "trello_board_shortlink", eq: orgId ? ["id", orgId] : undefined });
-  const trelloBoardShortlink = orgRows[0]?.trello_board_shortlink;
+  // Trello conectado com um quadro escolhido (Configurações → Integrações) — quando tiver,
+  // essa aba mostra o quadro real do Trello (listas + cards, ao vivo pela API) em vez do
+  // Kanban do Actum. Não dá pra embutir via iframe (Trello bloqueia isso por CSP própria),
+  // então é uma tela do Actum que busca/edita os dados do Trello direto.
+  const { data: orgRows } = useSupabaseTable("organizations", { select: "trello_key,trello_token,trello_board_id", eq: orgId ? ["id", orgId] : undefined });
+  const trelloConectado = orgRows[0]?.trello_key && orgRows[0]?.trello_token && orgRows[0]?.trello_board_id;
 
   const { data: tarefas, insert, update, remove } = useSupabaseTable("tarefas", {
     select: "*, responsavel:profiles(id,nome), processo:processos(id,numero)", eq: orgEq, orderBy: "created_at", ascending: true,
@@ -77,6 +78,15 @@ export default function QuadroTab({ orgId, currentRole, profile }) {
     const id = e.dataTransfer.getData("text/plain");
     if (id) update(id, { status: coluna });
   };
+
+  if (trelloConectado) {
+    return (
+      <div>
+        <SectionTitle icon={Trello} title="Quadro de tarefas" subtitle="Conectado ao Trello — listas e cartões ao vivo" />
+        <TrelloQuadro trelloKey={orgRows[0].trello_key} trelloToken={orgRows[0].trello_token} boardId={orgRows[0].trello_board_id} />
+      </div>
+    );
+  }
 
   return (
     <div>

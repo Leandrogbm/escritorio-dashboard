@@ -322,7 +322,8 @@ alter table organizations add column if not exists escavador_token text;
 alter table organizations add column if not exists trello_key text;
 alter table organizations add column if not exists trello_token text;
 alter table organizations add column if not exists trello_list_id text;
-alter table organizations add column if not exists trello_board_shortlink text; -- pra embutir o quadro (iframe) em QuadroTab.jsx
+alter table organizations add column if not exists trello_board_shortlink text; -- shortlink (não usado pra iframe -- Trello bloqueia via CSP -- mas mantido, pode servir de link "abrir no Trello")
+alter table organizations add column if not exists trello_board_id text; -- id real do quadro, usado pra buscar listas/cards (QuadroTab.jsx renderiza o quadro Trello de verdade, direto pela API)
 alter table honorarios add column if not exists asaas_charge_id text;
 alter table honorarios add column if not exists asaas_invoice_url text; -- link de pagamento (boleto+Pix) pra mandar ao cliente
 

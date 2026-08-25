@@ -109,7 +109,7 @@ function TrelloForm({ trello, setTrello, salvando, onSalvar }) {
     setQuadroId(id);
     setListas(null);
     const board = quadros?.find((q) => q.id === id);
-    setTrello((v) => ({ ...v, trello_board_shortlink: board?.shortLink ?? "" }));
+    setTrello((v) => ({ ...v, trello_board_shortlink: board?.shortLink ?? "", trello_board_id: id }));
     if (!id) return;
     try {
       const res = await fetch(`https://api.trello.com/1/boards/${id}/lists?key=${trello.trello_key}&token=${trello.trello_token}&fields=name`);
@@ -177,7 +177,7 @@ function TrelloForm({ trello, setTrello, salvando, onSalvar }) {
 
 export default function IntegracoesSection({ orgId }) {
   const { data: orgRows, refresh: refreshOrg } = useSupabaseTable("organizations", {
-    select: "d4sign_token,d4sign_crypt_key,d4sign_safe_uuid,asaas_token,asaas_ambiente,escavador_token,trello_key,trello_token,trello_list_id,trello_board_shortlink",
+    select: "d4sign_token,d4sign_crypt_key,d4sign_safe_uuid,asaas_token,asaas_ambiente,escavador_token,trello_key,trello_token,trello_list_id,trello_board_shortlink,trello_board_id",
     eq: orgId ? ["id", orgId] : undefined,
   });
   const org = orgRows[0];
@@ -189,7 +189,7 @@ export default function IntegracoesSection({ orgId }) {
   const [salvandoAsaas, setSalvandoAsaas] = useState(false);
   const [escavador, setEscavador] = useState({ escavador_token: "" });
   const [salvandoEscavador, setSalvandoEscavador] = useState(false);
-  const [trello, setTrello] = useState({ trello_key: "", trello_token: "", trello_list_id: "", trello_board_shortlink: "" });
+  const [trello, setTrello] = useState({ trello_key: "", trello_token: "", trello_list_id: "", trello_board_shortlink: "", trello_board_id: "" });
   const [salvandoTrello, setSalvandoTrello] = useState(false);
 
   // carrega os valores salvos assim que a organização chega (fetch async)
@@ -198,9 +198,9 @@ export default function IntegracoesSection({ orgId }) {
     setD4({ d4sign_token: org.d4sign_token ?? "", d4sign_crypt_key: org.d4sign_crypt_key ?? "", d4sign_safe_uuid: org.d4sign_safe_uuid ?? "" });
     setAsaas({ asaas_token: org.asaas_token ?? "", asaas_ambiente: org.asaas_ambiente ?? "sandbox" });
     setEscavador({ escavador_token: org.escavador_token ?? "" });
-    setTrello({ trello_key: org.trello_key ?? "", trello_token: org.trello_token ?? "", trello_list_id: org.trello_list_id ?? "", trello_board_shortlink: org.trello_board_shortlink ?? "" });
+    setTrello({ trello_key: org.trello_key ?? "", trello_token: org.trello_token ?? "", trello_list_id: org.trello_list_id ?? "", trello_board_shortlink: org.trello_board_shortlink ?? "", trello_board_id: org.trello_board_id ?? "" });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [org?.d4sign_token, org?.d4sign_crypt_key, org?.d4sign_safe_uuid, org?.asaas_token, org?.asaas_ambiente, org?.escavador_token, org?.trello_key, org?.trello_token, org?.trello_list_id, org?.trello_board_shortlink]);
+  }, [org?.d4sign_token, org?.d4sign_crypt_key, org?.d4sign_safe_uuid, org?.asaas_token, org?.asaas_ambiente, org?.escavador_token, org?.trello_key, org?.trello_token, org?.trello_list_id, org?.trello_board_shortlink, org?.trello_board_id]);
 
   const salvar = (campos, setSalvando) => async (e) => {
     e.preventDefault();
