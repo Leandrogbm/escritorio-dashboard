@@ -322,6 +322,7 @@ alter table organizations add column if not exists escavador_token text;
 alter table organizations add column if not exists trello_key text;
 alter table organizations add column if not exists trello_token text;
 alter table organizations add column if not exists trello_list_id text;
+alter table organizations add column if not exists trello_board_shortlink text; -- pra embutir o quadro (iframe) em QuadroTab.jsx
 alter table honorarios add column if not exists asaas_charge_id text;
 alter table honorarios add column if not exists asaas_invoice_url text; -- link de pagamento (boleto+Pix) pra mandar ao cliente
 

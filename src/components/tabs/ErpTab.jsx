@@ -10,7 +10,6 @@ import { COLORS } from "../../lib/theme.js";
 import { BRL } from "../../data/mockData.js";
 import { useSupabaseTable } from "../../hooks/useSupabaseTable.js";
 import { CATEGORIAS_DESPESA_COMUNS } from "../../config/categoriasDespesa.js";
-import { FORNECEDORES_COMUNS } from "../../config/fornecedoresComuns.js";
 
 // Um mês certinho depois — mesma lógica do FinanceiroTab (honorarios), pra "repetir
 // mensalmente" gerar uma conta recorrente (CPFL, SEMAE, aluguel...) de uma vez só.
@@ -27,6 +26,7 @@ const STATUS_OPTIONS = [
 ];
 const MES_LABEL = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
 const hojeStr = new Date().toISOString().slice(0, 10);
+const mesAtual = hojeStr.slice(0, 7);
 const estaAtrasado = (d) => d.status === "Vencido" || (d.status === "Em aberto" && d.vencimento < hojeStr);
 
 // Contas a pagar do escritório (aluguel, salário, fornecedor...) — junto com honorarios
@@ -51,8 +51,13 @@ export default function ErpTab({ orgId }) {
 
   const despesasFiltradas = despesas.filter((d) => d.descricao.toLowerCase().includes(busca.trim().toLowerCase()));
 
-  const totalPago = despesas.filter((d) => d.status === "Pago").reduce((s, d) => s + Number(d.valor), 0);
-  const totalAberto = despesas.filter((d) => d.status !== "Pago").reduce((s, d) => s + Number(d.valor), 0);
+  // Igual ao Financeiro: pago/a pagar são só do mês atual — conta que se repete gera vários
+  // meses de uma vez (ver `parcelas` em `salvar`), sem isso "A pagar" ficava inflado com
+  // meses que nem venceram ainda. Atrasado é sempre geral (atraso não some no fim do mês),
+  // e nunca conta em "a pagar" também (regra: em aberto dentro do prazo = a pagar; fora = atrasado).
+  const despesasDoMes = despesas.filter((d) => d.vencimento?.slice(0, 7) === mesAtual);
+  const totalPago = despesasDoMes.filter((d) => d.status === "Pago").reduce((s, d) => s + Number(d.valor), 0);
+  const totalAberto = despesasDoMes.filter((d) => d.status !== "Pago" && !estaAtrasado(d)).reduce((s, d) => s + Number(d.valor), 0);
   const atrasadas = despesas.filter(estaAtrasado);
   const totalAtrasado = atrasadas.reduce((s, d) => s + Number(d.valor), 0);
 
@@ -75,15 +80,16 @@ export default function ErpTab({ orgId }) {
       });
   }, [honorarios, despesas]);
 
-  // DRE simplificado: só o que já foi recebido/pago de verdade (regime caixa, não competência).
-  const receitaTotal = honorarios.filter((h) => h.status === "Pago").reduce((s, h) => s + Number(h.valor), 0);
-  const despesaTotal = totalPago;
-  const resultado = receitaTotal - despesaTotal;
+  // DRE simplificado do mês: só o que já foi recebido/pago de verdade (regime caixa, não
+  // competência), só vencimento do mês atual — mesmo raciocínio do resto desta aba.
+  const receitaMes = honorarios.filter((h) => h.status === "Pago" && h.vencimento?.slice(0, 7) === mesAtual).reduce((s, h) => s + Number(h.valor), 0);
+  const despesaMes = totalPago;
+  const resultadoMes = receitaMes - despesaMes;
 
   const fields = useMemo(() => {
     const base = [
       { key: "descricao", label: "Descrição" },
-      { key: "fornecedor", label: "Fornecedor (quem cobra — ex: CPFL, SEMAE)", type: "datalist", options: FORNECEDORES_COMUNS.map((f) => ({ value: f })), optional: true },
+      { key: "fornecedor", label: "Fornecedor (quem cobra — ex: CPFL, SEMAE)", optional: true },
       { key: "categoria", label: "Categoria", type: "datalist", options: CATEGORIAS_DESPESA_COMUNS.map((c) => ({ value: c })), optional: true },
       { key: "valor", label: "Valor (R$)", type: "number" },
       { key: "vencimento", label: editing?.id ? "Vencimento" : "Vencimento (da 1ª conta, se repetir)", type: "date" },
@@ -121,15 +127,15 @@ export default function ErpTab({ orgId }) {
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
         <Card>
-          <p className="text-xs uppercase tracking-wide" style={{ color: COLORS.slate }}>Despesas pagas</p>
+          <p className="text-xs uppercase tracking-wide" style={{ color: COLORS.slate }}>Despesas pagas (mês)</p>
           <p className="text-2xl mt-1" style={{ fontFamily: "'Source Serif 4', serif", fontWeight: 700, color: totalPago ? COLORS.success : COLORS.slate }}>{BRL(totalPago)}</p>
         </Card>
         <Card>
-          <p className="text-xs uppercase tracking-wide" style={{ color: COLORS.slate }}>A pagar</p>
+          <p className="text-xs uppercase tracking-wide" style={{ color: COLORS.slate }}>A pagar (mês)</p>
           <p className="text-2xl mt-1" style={{ fontFamily: "'Source Serif 4', serif", fontWeight: 700, color: totalAberto ? COLORS.brass : COLORS.slate }}>{BRL(totalAberto)}</p>
         </Card>
         <Card>
-          <p className="text-xs uppercase tracking-wide" style={{ color: COLORS.slate }}>Em atraso</p>
+          <p className="text-xs uppercase tracking-wide" style={{ color: COLORS.slate }}>Em atraso (total)</p>
           <p className="text-2xl mt-1" style={{ fontFamily: "'Source Serif 4', serif", fontWeight: 700, color: totalAtrasado ? COLORS.wine : COLORS.slate }}>{BRL(totalAtrasado)}</p>
           <p className="text-xs mt-1.5" style={{ color: COLORS.slate }}>{atrasadas.length} despesa(s) atrasada(s)</p>
         </Card>
@@ -137,16 +143,16 @@ export default function ErpTab({ orgId }) {
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
         <Card>
-          <p className="text-xs uppercase tracking-wide" style={{ color: COLORS.slate }}>Receita recebida (total)</p>
-          <p className="text-2xl mt-1" style={{ fontFamily: "'Source Serif 4', serif", fontWeight: 700, color: COLORS.ink }}>{BRL(receitaTotal)}</p>
+          <p className="text-xs uppercase tracking-wide" style={{ color: COLORS.slate }}>Receita recebida (mês)</p>
+          <p className="text-2xl mt-1" style={{ fontFamily: "'Source Serif 4', serif", fontWeight: 700, color: receitaMes ? COLORS.ink : COLORS.slate }}>{BRL(receitaMes)}</p>
         </Card>
         <Card>
-          <p className="text-xs uppercase tracking-wide" style={{ color: COLORS.slate }}>Despesa paga (total)</p>
-          <p className="text-2xl mt-1" style={{ fontFamily: "'Source Serif 4', serif", fontWeight: 700, color: COLORS.ink }}>{BRL(despesaTotal)}</p>
+          <p className="text-xs uppercase tracking-wide" style={{ color: COLORS.slate }}>Despesa paga (mês)</p>
+          <p className="text-2xl mt-1" style={{ fontFamily: "'Source Serif 4', serif", fontWeight: 700, color: despesaMes ? COLORS.ink : COLORS.slate }}>{BRL(despesaMes)}</p>
         </Card>
         <Card>
-          <p className="text-xs uppercase tracking-wide" style={{ color: COLORS.slate }}>Resultado (DRE simplificado)</p>
-          <p className="text-2xl mt-1" style={{ fontFamily: "'Source Serif 4', serif", fontWeight: 700, color: resultado >= 0 ? COLORS.success : COLORS.wine }}>{BRL(resultado)}</p>
+          <p className="text-xs uppercase tracking-wide" style={{ color: COLORS.slate }}>Resultado do mês (DRE simplificado)</p>
+          <p className="text-2xl mt-1" style={{ fontFamily: "'Source Serif 4', serif", fontWeight: 700, color: resultadoMes >= 0 ? COLORS.success : COLORS.wine }}>{BRL(resultadoMes)}</p>
         </Card>
       </div>
 

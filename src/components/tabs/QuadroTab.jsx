@@ -18,6 +18,13 @@ const COLUNAS = [
 
 export default function QuadroTab({ orgId, currentRole, profile }) {
   const orgEq = orgId ? ["org_id", orgId] : undefined;
+  // Trello conectado com um quadro escolhido (Configurações → Integrações) — pedido do
+  // usuário: quando tiver, essa aba embute o quadro real do Trello (iframe) em vez do
+  // Kanban do Actum. O iframe usa a sessão do Trello já logada no navegador de quem está
+  // vendo — se a pessoa não estiver logada no Trello, ele mesmo pede login ali dentro.
+  const { data: orgRows } = useSupabaseTable("organizations", { select: "trello_board_shortlink", eq: orgId ? ["id", orgId] : undefined });
+  const trelloBoardShortlink = orgRows[0]?.trello_board_shortlink;
+
   const { data: tarefas, insert, update, remove } = useSupabaseTable("tarefas", {
     select: "*, responsavel:profiles(id,nome), processo:processos(id,numero)", eq: orgEq, orderBy: "created_at", ascending: true,
   });
