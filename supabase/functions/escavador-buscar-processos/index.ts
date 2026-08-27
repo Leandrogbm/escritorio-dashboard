@@ -3,7 +3,7 @@
 // parecido, processo antigo), quem decide o que vira registro em Processos é o usuário
 // (ver botão "Buscar processos" em ClientesTab.jsx).
 //
-// Token é DA CONTA PAGA do escritório (organizations.escavador_token, colado em
+// Token é DA CONTA PAGA do escritório (integracoes.escavador_token, colado em
 // Configurações → Integrações → Escavador) — fica só aqui no servidor, nunca no bundle do
 // browser, porque cada busca é cobrada na conta do cliente.
 //
@@ -41,8 +41,8 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ error: "Só admin ou sócio podem buscar." }), { status: 403, headers: corsHeaders });
     }
 
-    const { data: org } = await admin.from("organizations").select("escavador_token").eq("id", callerProfile.org_id).single();
-    if (!org?.escavador_token) {
+    const { data: integ } = await admin.from("integracoes").select("escavador_token").eq("org_id", callerProfile.org_id).single();
+    if (!integ?.escavador_token) {
       return new Response(JSON.stringify({ error: "Conecte a conta Escavador em Configurações → Integrações antes de buscar." }), { status: 400, headers: corsHeaders });
     }
 
@@ -61,7 +61,7 @@ Deno.serve(async (req) => {
     let res: Response;
     try {
       res = await fetch(`https://api.escavador.com/api/v2/envolvido/processos?cpf_cnpj=${documento}&limit=50`, {
-        headers: { Authorization: `Bearer ${org.escavador_token}` },
+        headers: { Authorization: `Bearer ${integ.escavador_token}` },
         signal: controller.signal,
       });
     } finally {

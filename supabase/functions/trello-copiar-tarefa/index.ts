@@ -30,15 +30,15 @@ Deno.serve(async (req) => {
     const { data: tarefa } = await admin.from("tarefas").select("id, org_id, titulo, descricao, processo:processos(numero)").eq("id", tarefaId).single();
     if (!tarefa) return new Response(JSON.stringify({ ok: true, skip: "tarefa não encontrada" }), { headers: corsHeaders });
 
-    const { data: org } = await admin.from("organizations").select("trello_key, trello_token, trello_list_id").eq("id", tarefa.org_id).single();
-    if (!org?.trello_key || !org?.trello_token || !org?.trello_list_id) {
+    const { data: integ } = await admin.from("integracoes").select("trello_key, trello_token, trello_list_id").eq("org_id", tarefa.org_id).single();
+    if (!integ?.trello_key || !integ?.trello_token || !integ?.trello_list_id) {
       return new Response(JSON.stringify({ ok: true, skip: "Trello não conectado nessa org" }), { headers: corsHeaders });
     }
 
     const params = new URLSearchParams({
-      key: org.trello_key,
-      token: org.trello_token,
-      idList: org.trello_list_id,
+      key: integ.trello_key,
+      token: integ.trello_token,
+      idList: integ.trello_list_id,
       name: tarefa.titulo,
       desc: [tarefa.processo?.numero && `Processo: ${tarefa.processo.numero}`, tarefa.descricao].filter(Boolean).join("\n\n"),
     });

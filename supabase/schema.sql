@@ -294,36 +294,40 @@ create table api_keys (
 );
 create index api_keys_org_id_idx on api_keys (org_id);
 
--- ── D4Sign (assinatura eletrônica) ──────────────────────────────────────
--- Cada escritório usa a PRÓPRIA conta D4Sign (credenciais guardadas por org, não secret
--- global) — precisa criar conta lá, criar um "cofre" (safe) e colar as 3 credenciais em
--- Configurações → Assinatura eletrônica.
-alter table organizations add column if not exists d4sign_token text;
-alter table organizations add column if not exists d4sign_crypt_key text;
-alter table organizations add column if not exists d4sign_safe_uuid text;
+-- ── Integrações (D4Sign, Asaas, Escavador, Trello) ──────────────────────
+-- Credenciais moradas numa tabela PRÓPRIA, separada de `organizations`, com RLS restrita a
+-- admin/sócio — `organizations` tem SELECT liberado pra QUALQUER membro da empresa (nome/logo
+-- aparecem pra todo mundo no Sidebar), então guardar chave de API ali era ler-para-todos por
+-- engano: qualquer usuário autenticado (até com role recepção) conseguia puxar o token direto
+-- pela API REST, sem passar pela UI que escondia isso só visualmente. Cada escritório usa a
+-- PRÓPRIA conta de cada provedor — nunca secret global da plataforma.
+create table integracoes (
+  org_id uuid primary key references organizations(id) on delete cascade,
+  d4sign_token text,
+  d4sign_crypt_key text,
+  d4sign_safe_uuid text,
+  asaas_token text,
+  asaas_ambiente text not null default 'sandbox' check (asaas_ambiente in ('sandbox','producao')),
+  escavador_token text,
+  trello_key text,
+  trello_token text,
+  trello_list_id text,
+  trello_board_id text, -- usado pra buscar listas/cards (QuadroTab.jsx renderiza o quadro Trello de verdade, direto pela API)
+  trello_board_shortlink text -- não usado pra iframe (Trello bloqueia via CSP) -- mantido, pode servir de link "abrir no Trello"
+);
+alter table integracoes enable row level security;
+create policy integracoes_sel on integracoes for select
+  using ((org_id = auth_org_id() and auth_role() in ('admin','socio')) or is_platform_admin());
+create policy integracoes_upd on integracoes for update
+  using ((org_id = auth_org_id() and auth_role() in ('admin','socio')) or is_platform_admin())
+  with check ((org_id = auth_org_id() and auth_role() in ('admin','socio')) or is_platform_admin());
+create policy integracoes_ins on integracoes for insert
+  with check ((org_id = auth_org_id() and auth_role() in ('admin','socio')) or is_platform_admin());
 
--- ── Asaas (cobrança automática — boleto/Pix/cartão) ─────────────────────
--- Mesmo padrão do D4Sign: cada escritório usa a PRÓPRIA conta Asaas, credencial colada em
--- Configurações → Cobrança automática. "asaas_customer_id"/"asaas_charge_id" cacheiam o id
--- do lado da Asaas, pra não recriar cliente/cobrança à toa numa segunda tentativa.
-alter table organizations add column if not exists asaas_token text;
-alter table organizations add column if not exists asaas_ambiente text not null default 'sandbox' check (asaas_ambiente in ('sandbox','producao'));
+-- asaas_customer_id/celular2 continuam em clientes — não são segredo (id público do lado da
+-- Asaas, e telefone é dado do cliente, não credencial de API).
 alter table clientes add column if not exists asaas_customer_id text;
 alter table clientes add column if not exists celular2 text; -- segundo telefone, quando o cliente tem mais de um contato
-
--- ── Escavador (busca de processos por CPF/CNPJ) ─────────────────────────
--- Mesmo padrão: conta paga do PRÓPRIO escritório, token pessoal gerado em
--- api.escavador.com/tokens, colado em Configurações → Integrações.
-alter table organizations add column if not exists escavador_token text;
-
--- ── Trello (cópia de tarefa criada) ──────────────────────────────────────
--- Key+Token de app pessoal (trello.com/power-ups/admin) + id da lista onde os cards
--- entram — não é sincronização de mão dupla, só manda uma cópia quando a tarefa é criada.
-alter table organizations add column if not exists trello_key text;
-alter table organizations add column if not exists trello_token text;
-alter table organizations add column if not exists trello_list_id text;
-alter table organizations add column if not exists trello_board_shortlink text; -- shortlink (não usado pra iframe -- Trello bloqueia via CSP -- mas mantido, pode servir de link "abrir no Trello")
-alter table organizations add column if not exists trello_board_id text; -- id real do quadro, usado pra buscar listas/cards (QuadroTab.jsx renderiza o quadro Trello de verdade, direto pela API)
 alter table honorarios add column if not exists asaas_charge_id text;
 alter table honorarios add column if not exists asaas_invoice_url text; -- link de pagamento (boleto+Pix) pra mandar ao cliente
 

@@ -1,40 +1,48 @@
 import React, { useEffect, useState } from "react";
 import { Plus, Trash2, Loader2 } from "lucide-react";
 import { COLORS } from "../lib/theme.js";
+import { supabase } from "../lib/supabaseClient.js";
 
 // Mostra o quadro do Trello DE VERDADE (não é cópia/mirror local) — busca listas e cards
-// direto na API a cada abertura da aba, e toda ação (arrastar, criar, excluir) chama a
-// API na hora. Pedido do usuário depois de eu tentar embutir via iframe e a Trello bloquear
-// isso por CSP própria (frame-ancestors só libera Teams/Outlook/Bing) — isso aqui é a
-// alternativa real: não é o widget do Trello, é a MESMA informação, ao vivo.
+// pelo trello-proxy (Edge Function) a cada abertura da aba, e toda ação (arrastar, criar,
+// excluir) chama o proxy na hora. Pedido do usuário depois de eu tentar embutir via iframe e
+// a Trello bloquear isso por CSP própria (frame-ancestors só libera Teams/Outlook/Bing) —
+// isso aqui é a alternativa real: não é o widget do Trello, é a MESMA informação, ao vivo.
+//
+// Importante: NÃO recebe key/token do Trello como prop — essa credencial fica só no servidor
+// (tabela integracoes, RLS admin/sócio); esse componente é visível pra QUALQUER cargo com o
+// módulo "quadro", então a chave nunca pode chegar no browser de quem só está usando o
+// quadro (ver trello-proxy/index.ts).
 //
 // Visual imita o Trello de propósito (coluna cinza clara, card branco com sombra) — pedido
 // do usuário pra ficar reconhecível pra quem já usa o Trello todo dia. Descrição do card
-// trunca em 4 linhas (comprovante/intimação colado inteiro no card vira parede de texto
-// enorme) e quebra qualquer palavra/URL sem espaço, senão uma linha sem quebra (link longo)
-// estoura a largura fixa da coluna e derruba o layout inteiro — foi exatamente o bug visto.
+// trunca em 4 linhas e quebra qualquer palavra/URL sem espaço, senão uma linha sem quebra
+// (link longo) estoura a largura fixa da coluna e derruba o layout inteiro.
 const TRELLO_BG = "#F1F2F4";
 const clampStyle = { display: "-webkit-box", WebkitLineClamp: 4, WebkitBoxOrient: "vertical", overflow: "hidden" };
 
-export default function TrelloQuadro({ trelloKey, trelloToken, boardId }) {
+async function chamarProxy(body) {
+  const { data, error } = await supabase.functions.invoke("trello-proxy", { body });
+  if (error) throw new Error((await error.context?.json?.().catch(() => null))?.error ?? error.message);
+  return data;
+}
+
+export default function TrelloQuadro() {
   const [listas, setListas] = useState(null);
   const [cards, setCards] = useState(null);
   const [erro, setErro] = useState("");
   const [novaTarefaEm, setNovaTarefaEm] = useState(null); // id da lista com o form aberto
   const [novoTitulo, setNovoTitulo] = useState("");
 
-  const q = `key=${trelloKey}&token=${trelloToken}`;
-
   const carregar = async () => {
     setErro("");
     try {
-      const [resListas, resCards] = await Promise.all([
-        fetch(`https://api.trello.com/1/boards/${boardId}/lists?${q}&fields=name`),
-        fetch(`https://api.trello.com/1/boards/${boardId}/cards?${q}&fields=name,desc,idList`),
+      const [dadosListas, dadosCards] = await Promise.all([
+        chamarProxy({ acao: "listar_listas" }),
+        chamarProxy({ acao: "listar_cards" }),
       ]);
-      if (!resListas.ok || !resCards.ok) throw new Error(await (!resListas.ok ? resListas : resCards).text());
-      setListas(await resListas.json());
-      setCards(await resCards.json());
+      setListas(dadosListas);
+      setCards(dadosCards);
     } catch (err) {
       setErro(`Não consegui carregar o quadro do Trello: "${err.message}".`);
     }
@@ -42,18 +50,16 @@ export default function TrelloQuadro({ trelloKey, trelloToken, boardId }) {
 
   useEffect(() => {
     carregar();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [boardId]);
+  }, []);
 
   const moverCard = async (cardId, idList) => {
     setCards((cs) => cs.map((c) => (c.id === cardId ? { ...c, idList } : c))); // otimista
-    await fetch(`https://api.trello.com/1/cards/${cardId}?${q}&idList=${idList}`, { method: "PUT" });
+    await chamarProxy({ acao: "mover_card", cardId, idList });
   };
 
   const criarCard = async (idList) => {
     if (!novoTitulo.trim()) return;
-    const res = await fetch(`https://api.trello.com/1/cards?${q}&idList=${idList}&name=${encodeURIComponent(novoTitulo.trim())}`, { method: "POST" });
-    const novo = await res.json();
+    const novo = await chamarProxy({ acao: "criar_card", idList, nome: novoTitulo.trim() });
     setCards((cs) => [...cs, { id: novo.id, name: novo.name, desc: "", idList }]);
     setNovoTitulo("");
     setNovaTarefaEm(null);
@@ -61,7 +67,7 @@ export default function TrelloQuadro({ trelloKey, trelloToken, boardId }) {
 
   const excluirCard = async (cardId) => {
     setCards((cs) => cs.filter((c) => c.id !== cardId)); // otimista
-    await fetch(`https://api.trello.com/1/cards/${cardId}?${q}`, { method: "DELETE" });
+    await chamarProxy({ acao: "excluir_card", cardId });
   };
 
   if (erro) return <p className="text-sm" style={{ color: COLORS.wine }}>{erro}</p>;

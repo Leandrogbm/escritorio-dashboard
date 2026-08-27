@@ -176,11 +176,14 @@ function TrelloForm({ trello, setTrello, salvando, onSalvar }) {
 }
 
 export default function IntegracoesSection({ orgId }) {
-  const { data: orgRows, refresh: refreshOrg } = useSupabaseTable("organizations", {
+  // Credenciais moram em `integracoes` (RLS admin/sócio), não em `organizations` (que
+  // qualquer membro da empresa consegue ler) — ver comentário no schema.sql. Essa tela só
+  // aparece pra admin/sócio mesmo (Sidebar.jsx), então a leitura passa igual na RLS.
+  const { data: integRows, refresh: refreshOrg } = useSupabaseTable("integracoes", {
     select: "d4sign_token,d4sign_crypt_key,d4sign_safe_uuid,asaas_token,asaas_ambiente,escavador_token,trello_key,trello_token,trello_list_id,trello_board_shortlink,trello_board_id",
-    eq: orgId ? ["id", orgId] : undefined,
+    eq: orgId ? ["org_id", orgId] : undefined,
   });
-  const org = orgRows[0];
+  const org = integRows[0];
   const [expandido, setExpandido] = useState(null); // "d4sign" | "escavador" | "trello" | null
 
   const [d4, setD4] = useState({ d4sign_token: "", d4sign_crypt_key: "", d4sign_safe_uuid: "" });
@@ -205,7 +208,9 @@ export default function IntegracoesSection({ orgId }) {
   const salvar = (campos, setSalvando) => async (e) => {
     e.preventDefault();
     setSalvando(true);
-    const { error } = await supabase.from("organizations").update(campos).eq("id", orgId);
+    // upsert (não update): a linha em `integracoes` só existe depois da primeira vez que
+    // alguém salva algo — org nova não tem linha lá ainda.
+    const { error } = await supabase.from("integracoes").upsert({ org_id: orgId, ...campos }, { onConflict: "org_id" });
     setSalvando(false);
     if (error) return alert(error.message);
     await refreshOrg();

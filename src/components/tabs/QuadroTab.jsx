@@ -20,11 +20,12 @@ const COLUNAS = [
 export default function QuadroTab({ orgId, currentRole, profile }) {
   const orgEq = orgId ? ["org_id", orgId] : undefined;
   // Trello conectado com um quadro escolhido (Configurações → Integrações) — quando tiver,
-  // essa aba mostra o quadro real do Trello (listas + cards, ao vivo pela API) em vez do
-  // Kanban do Actum. Não dá pra embutir via iframe (Trello bloqueia isso por CSP própria),
-  // então é uma tela do Actum que busca/edita os dados do Trello direto.
-  const { data: orgRows } = useSupabaseTable("organizations", { select: "trello_key,trello_token,trello_board_id", eq: orgId ? ["id", orgId] : undefined });
-  const trelloConectado = orgRows[0]?.trello_key && orgRows[0]?.trello_token && orgRows[0]?.trello_board_id;
+  // essa aba mostra o quadro real do Trello (listas + cards, ao vivo via trello-proxy) em vez
+  // do Kanban do Actum. Não dá pra embutir via iframe (Trello bloqueia isso por CSP própria).
+  // "trello_conectado" é só um boolean público em organizations (qualquer cargo pode ler) —
+  // a Key/Token de verdade mora em `integracoes`, RLS admin/sócio, e nunca chega aqui.
+  const { data: orgRows } = useSupabaseTable("organizations", { select: "trello_conectado", eq: orgId ? ["id", orgId] : undefined });
+  const trelloConectado = orgRows[0]?.trello_conectado;
 
   const { data: tarefas, insert, update, remove } = useSupabaseTable("tarefas", {
     select: "*, responsavel:profiles(id,nome), processo:processos(id,numero)", eq: orgEq, orderBy: "created_at", ascending: true,
@@ -83,7 +84,7 @@ export default function QuadroTab({ orgId, currentRole, profile }) {
     return (
       <div>
         <SectionTitle icon={Trello} title="Quadro de tarefas" subtitle="Conectado ao Trello — listas e cartões ao vivo" />
-        <TrelloQuadro trelloKey={orgRows[0].trello_key} trelloToken={orgRows[0].trello_token} boardId={orgRows[0].trello_board_id} />
+        <TrelloQuadro />
       </div>
     );
   }

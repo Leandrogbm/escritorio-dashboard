@@ -43,11 +43,13 @@ export default function FinanceiroTab({ orgId } = {}) {
   // casa entrada com honorário — funciona igual daqui ou do ERP (ver ImportarExtratoModal.jsx).
   const { data: despesas } = useSupabaseTable("despesas", { select: "id, fornecedor, descricao, valor, vencimento, status", eq: orgEq });
   const { data: processos } = useSupabaseTable("processos", { select: "id,numero,area,cliente_id", orderBy: "numero", ascending: true, eq: orgEq });
-  const { data: orgRows } = useSupabaseTable("organizations", { select: "asaas_token", eq: orgId ? ["id", orgId] : undefined });
   // ponytail: Asaas construído e testado, mas segurado em back log a pedido do usuário —
-  // não subir pro cliente ainda (ver ROADMAP-comparativo.md). "&& false" esconde o botão
-  // sem tirar o resto do código; reativar removendo o "&& false".
-  const asaasConectado = !!orgRows[0]?.asaas_token && false;
+  // não subir pro cliente ainda (ver ROADMAP-comparativo.md). Sempre false enquanto isso —
+  // por segurança, nem o token é buscado aqui (ele mora em `integracoes`, RLS admin/sócio;
+  // essa aba é visível pro cargo "financeiro" também, que não pode ler aquela tabela — e nem
+  // precisaria, já que o botão fica escondido de qualquer forma). Reativar: buscar via uma
+  // Edge Function ou função SQL que devolva só um boolean "conectado", nunca o token cru.
+  const asaasConectado = false;
   const [gerandoCobranca, setGerandoCobranca] = useState(null); // id do honorário sendo gerado
   const [erroCobranca, setErroCobranca] = useState("");
 
