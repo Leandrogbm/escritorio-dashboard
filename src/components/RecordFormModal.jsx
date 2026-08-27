@@ -64,6 +64,17 @@ export default function RecordFormModal({ open, title, fields, initialValues, on
         </p>
 
         {fields.map((f) => (
+          f.type === "checkbox" ? (
+            <label key={f.key} className="flex items-center gap-2 text-xs" style={{ color: COLORS.ink }}>
+              <input
+                type="checkbox"
+                checked={!!values[f.key]}
+                onChange={(e) => setValues((v) => ({ ...v, [f.key]: e.target.checked }))}
+                className="shrink-0"
+              />
+              {f.label}
+            </label>
+          ) : (
           <label key={f.key} className="flex flex-col gap-1 text-xs" style={{ color: COLORS.slate }}>
             {f.label}
             {f.type === "select" ? (
@@ -105,6 +116,7 @@ export default function RecordFormModal({ open, title, fields, initialValues, on
               </>
             )}
           </label>
+          )
         ))}
 
         {error && <p className="text-xs" style={{ color: COLORS.wine }}>{error}</p>}

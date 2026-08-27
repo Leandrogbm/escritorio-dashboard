@@ -47,6 +47,10 @@ const FIELDS = [
   { key: "uf", label: "UF", optional: true },
   { key: "origem", label: "Origem", optional: true },
   { key: "contrato_renovacao", label: "Início do contrato", type: "date", optional: true },
+  // LGPD: registra o "sim ou não" do titular, não obrigatório pra conseguir salvar o cadastro
+  // (forçar marcado impediria registrar quem não concordou) — a data do aceite é carimbada
+  // em `salvar`, só na primeira vez que vira true (ver abaixo).
+  { key: "lgpd_aceite", label: "Cliente concorda com o tratamento dos dados pessoais dele, conforme a LGPD (Lei 13.709/2018)", type: "checkbox", optional: true },
 ];
 
 export default function ClientesTab({ currentRole, orgId, profile }) {
@@ -192,7 +196,15 @@ export default function ClientesTab({ currentRole, orgId, profile }) {
         fields={FIELDS}
         initialValues={editing}
         onClose={() => setEditing(null)}
-        onSubmit={(values) => (editing?.id ? update(editing.id, values) : insert(values))}
+        onSubmit={(values) => {
+          // Carimba a data/hora só na primeira vez que o aceite vira "sim" — se já tinha
+          // aceite_em e o usuário desmarcar/marcar de novo, a data original de prova não muda.
+          const jaAceitou = !!editing?.lgpd_aceite_em;
+          const payload = values.lgpd_aceite && !jaAceitou
+            ? { ...values, lgpd_aceite_em: new Date().toISOString() }
+            : values;
+          return editing?.id ? update(editing.id, payload) : insert(payload);
+        }}
       />
 
       {buscandoProcessos && (

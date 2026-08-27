@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { Eye, EyeOff } from "lucide-react";
 import Card from "./Card.jsx";
 import Signup from "./Signup.jsx";
+import PoliticaPrivacidadeModal from "./PoliticaPrivacidadeModal.jsx";
 import { COLORS } from "../lib/theme.js";
 import { supabase } from "../lib/supabaseClient.js";
 
@@ -14,6 +15,7 @@ export default function Login() {
   const [verSenha, setVerSenha] = useState(false);
   const [sent, setSent] = useState(false);
   const [signingUp, setSigningUp] = useState(false); // true = mostra o cadastro de empresa nova
+  const [mostrarPrivacidade, setMostrarPrivacidade] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -169,7 +171,13 @@ export default function Login() {
         <p className="text-xs mt-5 text-center" style={{ color: COLORS.slate }}>
           Acesso restrito. Fale com o administrador do seu escritório para receber suas credenciais.
         </p>
+        <p className="text-xs mt-2 text-center">
+          <button type="button" onClick={() => setMostrarPrivacidade(true)} className="underline" style={{ color: COLORS.slate }}>
+            Política de Privacidade
+          </button>
+        </p>
       </Card>
+      {mostrarPrivacidade && <PoliticaPrivacidadeModal onClose={() => setMostrarPrivacidade(false)} />}
     </div>
   );
 }

@@ -328,6 +328,12 @@ create policy integracoes_ins on integracoes for insert
 -- Asaas, e telefone é dado do cliente, não credencial de API).
 alter table clientes add column if not exists asaas_customer_id text;
 alter table clientes add column if not exists celular2 text; -- segundo telefone, quando o cliente tem mais de um contato
+
+-- LGPD: aceite do titular pro tratamento dos dados pessoais dele no sistema — checkbox no
+-- cadastro (ClientesTab.jsx), com data/hora do "sim" guardada como prova (não é reescrita se
+-- o aceite for desmarcado depois, ver comentário em ClientesTab.jsx).
+alter table clientes add column if not exists lgpd_aceite boolean not null default false;
+alter table clientes add column if not exists lgpd_aceite_em timestamptz;
 alter table honorarios add column if not exists asaas_charge_id text;
 alter table honorarios add column if not exists asaas_invoice_url text; -- link de pagamento (boleto+Pix) pra mandar ao cliente
 
