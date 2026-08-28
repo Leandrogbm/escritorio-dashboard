@@ -1123,7 +1123,11 @@ $$;
 create extension if not exists pg_cron;
 create extension if not exists pg_net;
 
-select cron.schedule('datajud-sync-diario', '0 9 * * *', $$
+-- Antes rodava 1x/dia (9h) -- usuario pediu pra aparecer sem precisar clicar em "Sincronizar
+-- agora", entao passou a rodar de hora em hora (volume de processos dessa org e baixo, bem
+-- dentro da cota publica do DataJud/CNJ). ponytail: se a base de processos crescer muito,
+-- reavaliar frequencia/cota antes de aumentar mais.
+select cron.schedule('datajud-sync-horario', '0 * * * *', $$
   select net.http_post(
     url := 'https://vclylstjbpsxikmnpguk.supabase.co/functions/v1/datajud-sync',
     headers := jsonb_build_object(
