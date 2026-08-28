@@ -6,6 +6,7 @@ import RowActions from "../RowActions.jsx";
 import { TableHead, Tr } from "../TableList.jsx";
 import RecordFormModal from "../RecordFormModal.jsx";
 import ClienteDocumentosPagina from "../ClienteDocumentosPagina.jsx";
+import ClientePagina from "../ClientePagina.jsx";
 import EscavadorBuscaModal from "../EscavadorBuscaModal.jsx";
 import SearchInput from "../SearchInput.jsx";
 import { COLORS } from "../../lib/theme.js";
@@ -58,14 +59,15 @@ export default function ClientesTab({ currentRole, orgId, profile }) {
   const [editing, setEditing] = useState(null); // null = fechado, {} = novo, {...} = editando
   const [vendoDocumentos, setVendoDocumentos] = useState(null); // cliente aberto na pasta de documentos
   const [buscandoProcessos, setBuscandoProcessos] = useState(null); // cliente aberto na busca Escavador
+  const [clienteAberto, setClienteAberto] = useState(null); // cliente aberto na página cheia (processos+financeiro)
   const [busca, setBusca] = useState("");
   const podeExcluir = currentRole === "admin" || currentRole === "socio"; // RLS (clientes_del) já barra no banco — isso só esconde o botão
 
   // Mesmo motivo do ProcessosTab: <main> é quem rola, não a window — sem isso o botão
-  // "Voltar" da página de documentos sai da tela se a lista estava rolada.
+  // "Voltar" da página de documentos/cliente sai da tela se a lista estava rolada.
   useEffect(() => {
     document.querySelector("main")?.scrollTo({ top: 0 });
-  }, [vendoDocumentos]);
+  }, [vendoDocumentos, clienteAberto]);
 
   const criarAcessoPortal = async (cliente) => {
     const email = prompt(`Email do "${cliente.nome}" pra acessar o Portal do Cliente:`, cliente.email || "");
@@ -91,6 +93,34 @@ export default function ClientesTab({ currentRole, orgId, profile }) {
 
   if (vendoDocumentos) {
     return <ClienteDocumentosPagina cliente={vendoDocumentos} orgId={orgId} profile={profile} onVoltar={() => setVendoDocumentos(null)} />;
+  }
+
+  if (clienteAberto) {
+    // Cliente pode ter sido editado desde que a página abriu — pega a versão mais fresca da
+    // lista já carregada, cai no que tinha se ainda não sincronizou (mesmo padrão do
+    // ProcessosTab).
+    const atual = clientes.find((c) => c.id === clienteAberto.id) ?? clienteAberto;
+    return (
+      <>
+        <ClientePagina
+          cliente={atual}
+          orgId={orgId}
+          podeExcluir={podeExcluir}
+          onVoltar={() => setClienteAberto(null)}
+          onEditar={() => setEditing(atual)}
+          onExcluir={() => { remove(atual.id); setClienteAberto(null); }}
+          onDocumentos={() => setVendoDocumentos(atual)}
+        />
+        <RecordFormModal
+          open={editing !== null}
+          title="Editar cliente"
+          fields={FIELDS}
+          initialValues={editing}
+          onClose={() => setEditing(null)}
+          onSubmit={(values) => update(editing.id, values)}
+        />
+      </>
+    );
   }
 
   return (
@@ -121,7 +151,7 @@ export default function ClientesTab({ currentRole, orgId, profile }) {
               <tr><td colSpan={6} className="px-4 py-6 text-center text-sm" style={{ color: COLORS.slate }}>{busca ? "Nenhum cliente encontrado." : "Nenhum cliente cadastrado ainda."}</td></tr>
             )}
             {filtrados.map((c) => (
-              <Tr key={c.id} onClick={() => setEditing(c)}>
+              <Tr key={c.id} onClick={() => setClienteAberto(c)}>
                 <td className="px-4 py-3.5">
                   <p style={{ fontFamily: "'Source Serif 4', serif", fontWeight: 600, fontSize: 15, color: COLORS.ink }}>{c.nome}</p>
                   <p className="text-xs mt-0.5" style={{ color: COLORS.brassText }}>{c.tipo === "PJ" ? "Pessoa Jurídica" : "Pessoa Física"}</p>
@@ -168,7 +198,7 @@ export default function ClientesTab({ currentRole, orgId, profile }) {
                         </button>
                       )
                     )}
-                    <RowActions onEdit={() => setEditing(c)} onDelete={podeExcluir ? () => remove(c.id) : undefined} />
+                    <RowActions onEdit={() => setClienteAberto(c)} onDelete={podeExcluir ? () => remove(c.id) : undefined} />
                   </div>
                 </td>
               </Tr>
