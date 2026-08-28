@@ -24,7 +24,7 @@ const PRAZO_FIELDS = [
   { key: "alerta_dias_antes", label: "Avisar quantos dias úteis antes de vencer", type: "number", optional: true },
 ];
 
-export default function ProcessosTab({ currentRole, orgId, profile }) {
+export default function ProcessosTab({ currentRole, orgId, profile, abrirProcessoId, onAbriuProcesso }) {
   // orgId só vem preenchido quando o platform admin "entrou" numa empresa alheia — filtra
   // explicitamente porque a RLS libera geral pra ele, não fica restrita a uma org só.
   const orgEq = orgId ? ["org_id", orgId] : undefined;
@@ -61,6 +61,17 @@ export default function ProcessosTab({ currentRole, orgId, profile }) {
   useEffect(() => {
     document.querySelector("main")?.scrollTo({ top: 0 });
   }, [processoAberto]);
+
+  // Deep-link vindo da página do Cliente ("clicar num processo dele" — ver ClientePagina.jsx
+  // e App.jsx): assim que a lista carrega, se tiver um id pendente, já abre a página cheia
+  // daquele processo e avisa o App.jsx que já abriu (senão reabriria de novo à toa depois).
+  useEffect(() => {
+    if (!abrirProcessoId || processos.length === 0) return;
+    const alvo = processos.find((p) => p.id === abrirProcessoId);
+    if (alvo) setProcessoAberto(alvo);
+    onAbriuProcesso?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [abrirProcessoId, processos]);
 
   const processosFiltrados = processos.filter((p) => {
     const q = busca.trim().toLowerCase();

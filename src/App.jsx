@@ -66,6 +66,15 @@ export default function App() {
   }, [activeTab]);
   const [menuMobileAberto, setMenuMobileAberto] = useState(false); // sidebar vira gaveta em telas pequenas
 
+  // Navegação entre abas a partir da página do Cliente (clicar num processo/cobrança dele
+  // deve trocar de aba E já abrir aquele registro específico, não só cair na lista) — a aba
+  // de destino lê isso na montagem e limpa depois de abrir, pra não reabrir de novo à toa
+  // numa próxima troca de aba.
+  const [abrirProcessoId, setAbrirProcessoId] = useState(null);
+  const [abrirClienteFinanceiroId, setAbrirClienteFinanceiroId] = useState(null);
+  const abrirProcesso = (id) => { setAbrirProcessoId(id); setActiveTab("processos"); };
+  const abrirFinanceiroDoCliente = (id) => { setAbrirClienteFinanceiroId(id); setActiveTab("financeiro"); };
+
   // Em modo suporte o platform admin opera como admin completo da empresa escolhida —
   // vê e mexe em tudo, sem depender do role_permissions dela.
   const currentRole = emSuporte ? "admin" : profile?.role;
@@ -138,13 +147,13 @@ export default function App() {
     if (!activeTab) return <EmptyState />;
     switch (activeTab) {
       case "prazos": return <PrazosTab orgId={orgId} />;
-      case "processos": return <ProcessosTab currentRole={currentRole} orgId={orgId} profile={profile} />;
+      case "processos": return <ProcessosTab currentRole={currentRole} orgId={orgId} profile={profile} abrirProcessoId={abrirProcessoId} onAbriuProcesso={() => setAbrirProcessoId(null)} />;
       case "quadro": return <QuadroTab orgId={orgId} currentRole={currentRole} profile={profile} />;
-      case "financeiro": return <FinanceiroTab orgId={orgId} />;
+      case "financeiro": return <FinanceiroTab orgId={orgId} abrirClienteId={abrirClienteFinanceiroId} onAbriuCliente={() => setAbrirClienteFinanceiroId(null)} />;
       case "erp": return <ErpTab orgId={orgId} />; // Visão Executiva vira sub-aba aqui dentro (ErpTab.jsx)
       case "leads": return <LeadsTab orgId={orgId} />;
       case "leads_captacao": return <LeadsCaptacaoTab orgId={orgId} currentRole={currentRole} />;
-      case "clientes": return <ClientesTab currentRole={currentRole} orgId={orgId} profile={profile} />;
+      case "clientes": return <ClientesTab currentRole={currentRole} orgId={orgId} profile={profile} onAbrirProcesso={abrirProcesso} onAbrirFinanceiro={abrirFinanceiroDoCliente} />;
       case "equipe": return <EquipeTab currentRole={currentRole} orgId={orgId} />;
       default: return <EmptyState />;
     }

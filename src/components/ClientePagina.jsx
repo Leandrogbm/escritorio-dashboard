@@ -5,6 +5,7 @@ import StatusPicker from "./StatusPicker.jsx";
 import { COLORS } from "../lib/theme.js";
 import { BRL } from "../data/mockData.js";
 import { useSupabaseTable } from "../hooks/useSupabaseTable.js";
+import { useEscClose } from "../hooks/useEscClose.js";
 import { formatCelular } from "../lib/celular.js";
 import { formatDocumento } from "../lib/documento.js";
 
@@ -15,7 +16,8 @@ const STATUS_HONORARIO = { "Em aberto": "warn", "Vencido": "urgent", "Pago": "ok
 // cima de popup ficava confuso pra fechar com Esc). Pedido do usuário: clicar no cliente não
 // deve só abrir o formulário de edição, tem que mostrar os processos e o financeiro dele
 // junto, com a edição de dados acessível dali (botão "Editar", abre o form de sempre).
-export default function ClientePagina({ cliente, orgId, podeExcluir, onVoltar, onEditar, onExcluir, onDocumentos }) {
+export default function ClientePagina({ cliente, orgId, podeExcluir, onVoltar, onEditar, onExcluir, onDocumentos, onAbrirProcesso, onAbrirFinanceiro }) {
+  useEscClose(onVoltar, true);
   const orgEq = orgId ? ["org_id", orgId] : undefined;
   const { data: processos, update: updateProcesso } = useSupabaseTable("processos", {
     select: "id, numero, area, status, valor", eq: ["cliente_id", cliente.id],
@@ -113,10 +115,10 @@ export default function ClientePagina({ cliente, orgId, podeExcluir, onVoltar, o
                   <tr><td colSpan={4} className="px-4 py-6 text-center" style={{ color: COLORS.slate }}>Nenhum processo vinculado a esse cliente ainda.</td></tr>
                 )}
                 {processos.map((p) => (
-                  <tr key={p.id} style={{ borderTop: `1px solid ${COLORS.line}` }}>
+                  <tr key={p.id} onClick={() => onAbrirProcesso?.(p.id)} className={onAbrirProcesso ? "cursor-pointer hover:!bg-[rgba(165,121,59,0.06)]" : ""} style={{ borderTop: `1px solid ${COLORS.line}` }}>
                     <td className="px-4 py-2.5" style={{ fontFamily: "'IBM Plex Mono', monospace", color: COLORS.inkSoft, fontSize: 12.5 }}>{p.numero}</td>
                     <td className="px-4 py-2.5" style={{ color: COLORS.slate }}>{p.area}</td>
-                    <td className="px-4 py-2.5">
+                    <td className="px-4 py-2.5" onClick={(e) => e.stopPropagation()}>
                       <StatusPicker value={p.status} options={Object.keys(STATUS_PROCESSO)} tone={STATUS_PROCESSO} onChange={(status) => updateProcesso(p.id, { status })} />
                     </td>
                     <td className="px-4 py-2.5" style={{ color: COLORS.ink }}>{p.valor ? BRL(p.valor) : "—"}</td>
@@ -142,10 +144,10 @@ export default function ClientePagina({ cliente, orgId, podeExcluir, onVoltar, o
                     <tr><td colSpan={3} className="px-4 py-6 text-center" style={{ color: COLORS.slate }}>Nenhuma cobrança lançada pra esse cliente ainda.</td></tr>
                   )}
                   {honorarios.map((h) => (
-                    <tr key={h.id} style={{ borderTop: `1px solid ${COLORS.line}` }}>
+                    <tr key={h.id} onClick={() => onAbrirFinanceiro?.(cliente.id)} className={onAbrirFinanceiro ? "cursor-pointer hover:!bg-[rgba(165,121,59,0.06)]" : ""} style={{ borderTop: `1px solid ${COLORS.line}` }}>
                       <td className="px-4 py-2.5 font-semibold" style={{ color: COLORS.ink }}>{BRL(h.valor)}</td>
                       <td className="px-4 py-2.5" style={{ color: COLORS.slate }}>{new Date(`${h.vencimento}T00:00:00`).toLocaleDateString("pt-BR")}</td>
-                      <td className="px-4 py-2.5">
+                      <td className="px-4 py-2.5" onClick={(e) => e.stopPropagation()}>
                         <StatusPicker value={h.status} options={Object.keys(STATUS_HONORARIO)} tone={STATUS_HONORARIO} onChange={(status) => updateHonorario(h.id, { status })} />
                       </td>
                     </tr>

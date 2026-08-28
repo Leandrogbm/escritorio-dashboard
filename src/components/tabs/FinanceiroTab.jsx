@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { DollarSign, Plus, X, Upload, Wallet, CheckCircle2, Clock3, AlertTriangle } from "lucide-react";
 import Card from "../Card.jsx";
 import KpiCard from "../KpiCard.jsx";
@@ -39,7 +39,7 @@ const estaAtrasado = (h) => h.status === "Vencido" || (h.status === "Em aberto" 
 // cobranças em vez de uma cobrança só.
 const toneDoCliente = (c) => (c.atrasado > 0 ? "urgent" : c.pendente > 0 ? "warn" : c.recebido > 0 ? "ok" : "neutral");
 
-export default function FinanceiroTab({ orgId } = {}) {
+export default function FinanceiroTab({ orgId, abrirClienteId, onAbriuCliente } = {}) {
   const orgEq = orgId ? ["org_id", orgId] : undefined;
   const { data: honorarios, loading, insert, update, remove, refresh } = useSupabaseTable("honorarios", {
     select: "*, cliente:clientes(id,nome,tipo)", eq: orgEq,
@@ -92,6 +92,16 @@ export default function FinanceiroTab({ orgId } = {}) {
   const [arquivoExtrato, setArquivoExtrato] = useState(null); // File escolhido — abre o toast de resultado
   const fileInputRef = useRef(null);
   useEscClose(() => setSelecionado(null), !!selecionado);
+
+  // Deep-link vindo da página do Cliente ("clicar numa cobrança dele" — ver
+  // ClientePagina.jsx e App.jsx): abre o painel desse cliente assim que a lista carrega, e
+  // avisa o App.jsx que já abriu (senão reabriria de novo à toa numa próxima troca de aba).
+  useEffect(() => {
+    if (!abrirClienteId || clientes.length === 0) return;
+    setSelecionado(abrirClienteId);
+    onAbriuCliente?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [abrirClienteId, clientes]);
 
   // Seletor de arquivo dispara direto no clique do botão (dentro do próprio handler, gesto
   // síncrono do usuário) — sem popup no meio pra escolher de novo, e funciona no Safari/iOS,

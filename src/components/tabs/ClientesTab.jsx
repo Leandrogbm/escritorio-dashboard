@@ -51,7 +51,7 @@ const FIELDS = [
   { key: "contrato_renovacao", label: "Início do contrato", type: "date", optional: true },
 ];
 
-export default function ClientesTab({ currentRole, orgId, profile }) {
+export default function ClientesTab({ currentRole, orgId, profile, onAbrirProcesso, onAbrirFinanceiro }) {
   const orgEq = orgId ? ["org_id", orgId] : undefined;
   const { data: clientes, loading, insert, update, remove } = useSupabaseTable("clientes", { orderBy: "nome", ascending: true, eq: orgEq });
   const { data: acessosPortal, refresh: refreshAcessos } = useSupabaseTable("cliente_logins", { select: "cliente_id", eq: orgEq });
@@ -110,6 +110,8 @@ export default function ClientesTab({ currentRole, orgId, profile }) {
           onEditar={() => setEditing(atual)}
           onExcluir={() => { remove(atual.id); setClienteAberto(null); }}
           onDocumentos={() => setVendoDocumentos(atual)}
+          onAbrirProcesso={onAbrirProcesso}
+          onAbrirFinanceiro={onAbrirFinanceiro}
         />
         <RecordFormModal
           open={editing !== null}
