@@ -1,7 +1,9 @@
 import React from "react";
 import { COLORS } from "../lib/theme.js";
 
-const TONE_COLOR = {
+// Exportado — TableList.jsx (lombada colorida das linhas de lista) usa o mesmo mapa,
+// pro spine da linha e o carimbo dentro dela nunca discordarem de cor.
+export const TONE_COLOR = {
   urgent: COLORS.wine,
   warn: COLORS.brass,
   ok: COLORS.success,

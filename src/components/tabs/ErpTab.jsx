@@ -7,6 +7,7 @@ import KpiCard from "../KpiCard.jsx";
 import SectionTitle from "../SectionTitle.jsx";
 import StatusPicker from "../StatusPicker.jsx";
 import RowActions from "../RowActions.jsx";
+import { TableHead, Tr } from "../TableList.jsx";
 import RecordFormModal from "../RecordFormModal.jsx";
 import SearchInput from "../SearchInput.jsx";
 import ImportarExtratoModal from "./ImportarExtratoModal.jsx";
@@ -35,6 +36,9 @@ const hojeStr = new Date().toISOString().slice(0, 10);
 const mesAtual = hojeStr.slice(0, 7);
 const estaAtrasado = (d) => d.status === "Vencido" || (d.status === "Em aberto" && d.vencimento < hojeStr);
 const chaveFornecedor = (d) => (d.fornecedor || "").trim() || "Sem fornecedor";
+// Mesma lógica do "pior caso vira lombada da linha" do Financeiro — atrasado > a pagar >
+// pago > neutro, resumido pro fornecedor inteiro em vez de uma despesa só.
+const toneDoFornecedor = (f) => (f.atrasado > 0 ? "urgent" : f.aPagar > 0 ? "warn" : f.pago > 0 ? "ok" : "neutral");
 
 // Contas a pagar do escritório (aluguel, salário, fornecedor...) — junto com honorarios
 // (contas a receber, já existente em Financeiro) dá fluxo de caixa e DRE simplificado.
@@ -302,30 +306,24 @@ export default function ErpTab({ orgId }) {
       <Card className="overflow-hidden !p-0">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
-            <thead>
-              <tr style={{ background: COLORS.ink }}>
-                {["Fornecedor", "Total (período)", "Pago (período)", "A pagar (período)", "Atrasado"].map((h) => (
-                  <th key={h} className="text-left px-4 py-3 font-semibold" style={{ color: COLORS.paper, fontSize: 11 }}>{h.toUpperCase()}</th>
-                ))}
-              </tr>
-            </thead>
+            <TableHead columns={["Fornecedor", "Total (período)", "Pago (período)", "A pagar (período)", "Atrasado"]} />
             <tbody>
               {!loading && porFornecedorFiltrado.length === 0 && (
                 <tr><td colSpan={5} className="px-4 py-6 text-center text-sm" style={{ color: COLORS.slate }}>{busca ? "Nenhum fornecedor encontrado." : "Nenhuma despesa cadastrada ainda."}</td></tr>
               )}
-              {porFornecedorFiltrado.map((f, i) => (
-                <tr key={f.nome} onClick={() => setSelecionado(f.nome)} className="cursor-pointer" style={{ borderTop: `1px solid ${COLORS.line}`, background: i % 2 ? "#FAF9F5" : COLORS.paperRaised }}>
-                  <td className="px-4 py-3" style={{ color: COLORS.ink, fontWeight: 600 }}>
+              {porFornecedorFiltrado.map((f) => (
+                <Tr key={f.nome} onClick={() => setSelecionado(f.nome)} tone={toneDoFornecedor(f)}>
+                  <td className="px-4 py-3.5">
                     <div className="flex items-center gap-1.5">
-                      {f.nome}
+                      <p style={{ fontFamily: "'Source Serif 4', serif", fontWeight: 600, fontSize: 15, color: COLORS.ink }}>{f.nome}</p>
                       <FornecedorBell notificacoes={notificacoesPorFornecedor.get(f.nome) ?? []} onMudou={() => { refreshNotificacoes(); }} />
                     </div>
                   </td>
-                  <td className="px-4 py-3" style={{ color: COLORS.ink }}>{BRL(f.total)}</td>
-                  <td className="px-4 py-3" style={{ color: f.pago ? COLORS.success : COLORS.slate }}>{BRL(f.pago)}</td>
-                  <td className="px-4 py-3" style={{ color: f.aPagar ? COLORS.brass : COLORS.slate }}>{BRL(f.aPagar)}</td>
-                  <td className="px-4 py-3" style={{ color: f.atrasado ? COLORS.wine : COLORS.slate }}>{BRL(f.atrasado)}</td>
-                </tr>
+                  <td className="px-4 py-3.5" style={{ color: COLORS.ink }}>{BRL(f.total)}</td>
+                  <td className="px-4 py-3.5" style={{ color: f.pago ? COLORS.success : COLORS.slate }}>{BRL(f.pago)}</td>
+                  <td className="px-4 py-3.5" style={{ color: f.aPagar ? COLORS.brass : COLORS.slate }}>{BRL(f.aPagar)}</td>
+                  <td className="px-4 py-3.5" style={{ color: f.atrasado ? COLORS.wine : COLORS.slate }}>{BRL(f.atrasado)}</td>
+                </Tr>
               ))}
             </tbody>
           </table>
@@ -348,25 +346,17 @@ export default function ErpTab({ orgId }) {
             <Card className="overflow-hidden !p-0">
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
-                  <thead>
-                    <tr>
-                      <th className="text-left px-4 py-2 font-medium" style={{ color: COLORS.slate, fontSize: 11 }}>DESCRIÇÃO</th>
-                      <th className="text-left px-4 py-2 font-medium" style={{ color: COLORS.slate, fontSize: 11 }}>VALOR</th>
-                      <th className="text-left px-4 py-2 font-medium" style={{ color: COLORS.slate, fontSize: 11 }}>VENCIMENTO</th>
-                      <th className="text-left px-4 py-2 font-medium" style={{ color: COLORS.slate, fontSize: 11 }}>SITUAÇÃO</th>
-                      <th></th>
-                    </tr>
-                  </thead>
+                  <TableHead columns={["Descrição", "Valor", "Vencimento", "Situação", ""]} />
                   <tbody>
                     {[...fornecedorAberto.itens].sort((a, b) => a.vencimento.localeCompare(b.vencimento)).map((d) => (
-                      <tr key={d.id} onClick={() => setEditing(d)} className="cursor-pointer" style={{ borderTop: `1px solid ${COLORS.line}` }}>
-                        <td className="px-4 py-2" style={{ color: COLORS.ink, fontWeight: 600 }}>
+                      <Tr key={d.id} onClick={() => setEditing(d)} tone={estaAtrasado(d) ? "urgent" : d.status === "Pago" ? "ok" : "warn"}>
+                        <td className="px-4 py-3" style={{ color: COLORS.ink, fontWeight: 600 }}>
                           {d.descricao}
                           {d.categoria && <span className="block text-xs font-normal" style={{ color: COLORS.slate }}>{d.categoria}</span>}
                         </td>
-                        <td className="px-4 py-2" style={{ color: COLORS.ink }}>{BRL(d.valor)}</td>
-                        <td className="px-4 py-2" style={{ color: COLORS.slate }}>{new Date(`${d.vencimento}T00:00:00`).toLocaleDateString("pt-BR")}</td>
-                        <td className="px-4 py-2" onClick={(e) => e.stopPropagation()}>
+                        <td className="px-4 py-3" style={{ color: COLORS.ink }}>{BRL(d.valor)}</td>
+                        <td className="px-4 py-3" style={{ color: COLORS.slate }}>{new Date(`${d.vencimento}T00:00:00`).toLocaleDateString("pt-BR")}</td>
+                        <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                           <StatusPicker
                             value={d.status}
                             options={STATUS_OPTIONS.map((s) => s.value)}
@@ -379,10 +369,10 @@ export default function ErpTab({ orgId }) {
                             </button>
                           )}
                         </td>
-                        <td className="px-2 py-2" onClick={(e) => e.stopPropagation()}>
+                        <td className="px-2 py-3" onClick={(e) => e.stopPropagation()}>
                           <RowActions onEdit={() => setEditing(d)} onDelete={() => remove(d.id)} />
                         </td>
-                      </tr>
+                      </Tr>
                     ))}
                   </tbody>
                 </table>

@@ -4,6 +4,7 @@ import Card from "../Card.jsx";
 import SectionTitle from "../SectionTitle.jsx";
 import Stamp, { urgencia } from "../Stamp.jsx";
 import RowActions from "../RowActions.jsx";
+import { TableHead, Tr } from "../TableList.jsx";
 import RecordFormModal from "../RecordFormModal.jsx";
 import SearchInput from "../SearchInput.jsx";
 import { COLORS } from "../../lib/theme.js";
@@ -183,34 +184,26 @@ export default function PrazosTab({ orgId } = {}) {
         <Card className="overflow-hidden !p-0">
           <div className="overflow-x-auto">
           <table className="w-full text-sm">
-            <thead>
-              <tr style={{ background: COLORS.ink }}>
-                {["Processo", "Cliente", "Tipo", "Data", "Responsável", "Situação", ""].map((h) => (
-                  <th key={h} className="text-left px-4 py-3 font-semibold" style={{ color: COLORS.paper, fontSize: 11, letterSpacing: "0.06em" }}>
-                    {h.toUpperCase()}
-                  </th>
-                ))}
-              </tr>
-            </thead>
+            <TableHead columns={["Processo", "Cliente", "Tipo", "Data", "Responsável", "Situação", ""]} />
             <tbody>
               {!loading && sorted.length === 0 && (
                 <tr><td colSpan={7} className="px-4 py-6 text-center text-sm" style={{ color: COLORS.slate }}>{busca ? "Nenhum prazo encontrado." : "Nenhum prazo cadastrado ainda."}</td></tr>
               )}
-              {sorted.map((p, i) => {
+              {sorted.map((p) => {
                 const dias = diasAte(p.data);
                 const u = urgencia(dias);
                 return (
-                  <tr key={p.id} onClick={() => abrirEdicao(p)} className="cursor-pointer" style={{ borderTop: `1px solid ${COLORS.line}`, background: i % 2 ? "#FAF9F5" : COLORS.paperRaised }}>
-                    <td className="px-4 py-3" style={{ fontFamily: "'IBM Plex Mono', monospace", color: COLORS.inkSoft, fontSize: 12.5 }}>{p.processo?.numero ?? "—"}</td>
-                    <td className="px-4 py-3" style={{ color: COLORS.ink }}>{p.processo?.cliente?.nome ?? "—"}</td>
-                    <td className="px-4 py-3" style={{ color: COLORS.slate }}>{p.tipo}</td>
-                    <td className="px-4 py-3" style={{ color: COLORS.slate }}>{new Date(`${p.data}T00:00:00`).toLocaleDateString("pt-BR")}</td>
-                    <td className="px-4 py-3" style={{ color: COLORS.slate }}>{p.responsavel?.nome ?? "—"}</td>
-                    <td className="px-4 py-3"><Stamp tone={u.tone}>{u.label} · {dias}d</Stamp></td>
-                    <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                  <Tr key={p.id} onClick={() => abrirEdicao(p)} tone={u.tone}>
+                    <td className="px-4 py-3.5" style={{ fontFamily: "'IBM Plex Mono', monospace", color: COLORS.inkSoft, fontSize: 12.5 }}>{p.processo?.numero ?? "—"}</td>
+                    <td className="px-4 py-3.5" style={{ fontFamily: "'Source Serif 4', serif", fontWeight: 600, fontSize: 15, color: COLORS.ink }}>{p.processo?.cliente?.nome ?? "—"}</td>
+                    <td className="px-4 py-3.5" style={{ color: COLORS.slate }}>{p.tipo}</td>
+                    <td className="px-4 py-3.5" style={{ color: COLORS.slate }}>{new Date(`${p.data}T00:00:00`).toLocaleDateString("pt-BR")}</td>
+                    <td className="px-4 py-3.5" style={{ color: COLORS.slate }}>{p.responsavel?.nome ?? "—"}</td>
+                    <td className="px-4 py-3.5"><Stamp tone={u.tone}>{u.label} · {dias}d</Stamp></td>
+                    <td className="px-4 py-3.5" onClick={(e) => e.stopPropagation()}>
                       <RowActions onEdit={() => abrirEdicao(p)} onDelete={() => remove(p.id)} />
                     </td>
-                  </tr>
+                  </Tr>
                 );
               })}
             </tbody>

@@ -3,6 +3,7 @@ import { Users, Plus, MessageCircle, UserCheck, KeyRound, FolderOpen, Search } f
 import Card from "../Card.jsx";
 import SectionTitle from "../SectionTitle.jsx";
 import RowActions from "../RowActions.jsx";
+import { TableHead, Tr } from "../TableList.jsx";
 import RecordFormModal from "../RecordFormModal.jsx";
 import ClienteDocumentosPagina from "../ClienteDocumentosPagina.jsx";
 import EscavadorBuscaModal from "../EscavadorBuscaModal.jsx";
@@ -114,28 +115,19 @@ export default function ClientesTab({ currentRole, orgId, profile }) {
       <Card className="overflow-hidden !p-0">
         <div className="overflow-x-auto">
         <table className="w-full text-sm">
-          <thead>
-            <tr style={{ background: COLORS.ink }}>
-              {["Cliente", "Tipo", "CPF/CNPJ", "Celular", "Origem", "Início do contrato", ""].map((h) => (
-                <th key={h} className="text-left px-4 py-3 font-semibold" style={{ color: COLORS.paper, fontSize: 11 }}>{h.toUpperCase()}</th>
-              ))}
-            </tr>
-          </thead>
+          <TableHead columns={["Cliente", "CPF/CNPJ", "Celular", "Origem", "Início do contrato", ""]} />
           <tbody>
             {!loading && filtrados.length === 0 && (
-              <tr><td colSpan={7} className="px-4 py-6 text-center text-sm" style={{ color: COLORS.slate }}>{busca ? "Nenhum cliente encontrado." : "Nenhum cliente cadastrado ainda."}</td></tr>
+              <tr><td colSpan={6} className="px-4 py-6 text-center text-sm" style={{ color: COLORS.slate }}>{busca ? "Nenhum cliente encontrado." : "Nenhum cliente cadastrado ainda."}</td></tr>
             )}
-            {filtrados.map((c, i) => (
-              <tr
-                key={c.id}
-                onClick={() => setEditing(c)}
-                className="cursor-pointer transition-colors hover:!bg-[rgba(165,121,59,0.06)]"
-                style={{ borderTop: `1px solid ${COLORS.line}`, background: i % 2 ? "#FAF9F5" : COLORS.paperRaised }}
-              >
-                <td className="px-4 py-3" style={{ color: COLORS.ink }}>{c.nome}</td>
-                <td className="px-4 py-3" style={{ color: COLORS.slate }}>{c.tipo}</td>
-                <td className="px-4 py-3" style={{ color: COLORS.slate }}>{c.documento ? formatDocumento(c.tipo, c.documento) : "—"}</td>
-                <td className="px-4 py-3" style={{ color: COLORS.slate }}>
+            {filtrados.map((c) => (
+              <Tr key={c.id} onClick={() => setEditing(c)}>
+                <td className="px-4 py-3.5">
+                  <p style={{ fontFamily: "'Source Serif 4', serif", fontWeight: 600, fontSize: 15, color: COLORS.ink }}>{c.nome}</p>
+                  <p className="text-xs mt-0.5" style={{ color: COLORS.brassText }}>{c.tipo === "PJ" ? "Pessoa Jurídica" : "Pessoa Física"}</p>
+                </td>
+                <td className="px-4 py-3.5" style={{ color: COLORS.slate }}>{c.documento ? formatDocumento(c.tipo, c.documento) : "—"}</td>
+                <td className="px-4 py-3.5" style={{ color: COLORS.slate }}>
                   {[c.celular, c.celular2].filter(Boolean).length === 0 && "—"}
                   {[c.celular, c.celular2].filter(Boolean).map((tel) => (
                     <div key={tel} className="flex items-center gap-2">
@@ -157,9 +149,9 @@ export default function ClientesTab({ currentRole, orgId, profile }) {
                     </div>
                   ))}
                 </td>
-                <td className="px-4 py-3" style={{ color: COLORS.slate }}>{c.origem || "—"}</td>
-                <td className="px-4 py-3" style={{ color: COLORS.slate }}>{c.contrato_renovacao || "—"}</td>
-                <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                <td className="px-4 py-3.5" style={{ color: COLORS.slate }}>{c.origem || "—"}</td>
+                <td className="px-4 py-3.5" style={{ color: COLORS.slate }}>{c.contrato_renovacao || "—"}</td>
+                <td className="px-4 py-3.5" onClick={(e) => e.stopPropagation()}>
                   <div className="flex items-center gap-1">
                     <button onClick={() => setVendoDocumentos(c)} aria-label="Documentos do cliente" title="Documentos do cliente" className="p-1.5 rounded hover:opacity-70" style={{ color: COLORS.brass }}>
                       <FolderOpen size={14} />
@@ -179,7 +171,7 @@ export default function ClientesTab({ currentRole, orgId, profile }) {
                     <RowActions onEdit={() => setEditing(c)} onDelete={podeExcluir ? () => remove(c.id) : undefined} />
                   </div>
                 </td>
-              </tr>
+              </Tr>
             ))}
           </tbody>
         </table>

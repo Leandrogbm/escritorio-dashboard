@@ -5,6 +5,7 @@ import KpiCard from "../KpiCard.jsx";
 import SectionTitle from "../SectionTitle.jsx";
 import StatusPicker from "../StatusPicker.jsx";
 import RowActions from "../RowActions.jsx";
+import { TableHead, Tr } from "../TableList.jsx";
 import RecordFormModal from "../RecordFormModal.jsx";
 import SearchInput from "../SearchInput.jsx";
 import ImportarExtratoModal from "./ImportarExtratoModal.jsx";
@@ -33,6 +34,10 @@ function addMonths(dateStr, n) {
 const hojeStr = new Date().toISOString().slice(0, 10);
 const mesAtual = hojeStr.slice(0, 7);
 const estaAtrasado = (h) => h.status === "Vencido" || (h.status === "Em aberto" && h.vencimento < hojeStr);
+// Pior caso do cliente vira a lombada colorida da linha — mesmo semáforo do Stamp
+// (atrasado > pendente > recebido > neutro), só que resumido pra um cliente com várias
+// cobranças em vez de uma cobrança só.
+const toneDoCliente = (c) => (c.atrasado > 0 ? "urgent" : c.pendente > 0 ? "warn" : c.recebido > 0 ? "ok" : "neutral");
 
 export default function FinanceiroTab({ orgId } = {}) {
   const orgEq = orgId ? ["org_id", orgId] : undefined;
@@ -199,32 +204,25 @@ export default function FinanceiroTab({ orgId } = {}) {
       <Card className="overflow-hidden !p-0">
         <div className="overflow-x-auto">
         <table className="w-full text-sm">
-          <thead>
-            <tr style={{ background: COLORS.ink }}>
-              {["Cliente", "Tipo", "Total (mês)", "Recebido (mês)", "Pendente (mês)", "Atrasado"].map((h) => (
-                <th key={h} className="text-left px-4 py-3 font-semibold" style={{ color: COLORS.paper, fontSize: 11 }}>{h.toUpperCase()}</th>
-              ))}
-            </tr>
-          </thead>
+          <TableHead columns={["Cliente", "Tipo", "Total (mês)", "Recebido (mês)", "Pendente (mês)", "Atrasado"]} />
           <tbody>
             {!loading && porClienteFiltrado.length === 0 && (
               <tr><td colSpan={6} className="px-4 py-6 text-center text-sm" style={{ color: COLORS.slate }}>{busca ? "Nenhum cliente encontrado." : "Nenhum cliente cadastrado ainda."}</td></tr>
             )}
-            {porClienteFiltrado.map((c, i) => (
-              <tr key={c.id} onClick={() => setSelecionado(c.id)} className="cursor-pointer"
-                style={{ borderTop: `1px solid ${COLORS.line}`, background: i % 2 ? "#FAF9F5" : COLORS.paperRaised }}>
-                <td className="px-4 py-3" style={{ color: COLORS.ink, fontWeight: 600 }}>
+            {porClienteFiltrado.map((c) => (
+              <Tr key={c.id} onClick={() => setSelecionado(c.id)} tone={toneDoCliente(c)}>
+                <td className="px-4 py-3.5">
                   <div className="flex items-center gap-1.5">
-                    {c.nome}
+                    <p style={{ fontFamily: "'Source Serif 4', serif", fontWeight: 600, fontSize: 15, color: COLORS.ink }}>{c.nome}</p>
                     <ClienteBell notificacoes={notificacoesPorCliente.get(c.id) ?? []} onMudou={() => { refreshNotificacoesPagamento(); refresh(); }} />
                   </div>
                 </td>
-                <td className="px-4 py-3" style={{ color: COLORS.slate }}>{c.tipo}</td>
-                <td className="px-4 py-3" style={{ color: COLORS.ink }}>{BRL(c.total)}</td>
-                <td className="px-4 py-3" style={{ color: c.recebido ? COLORS.success : COLORS.slate }}>{BRL(c.recebido)}</td>
-                <td className="px-4 py-3" style={{ color: c.pendente ? COLORS.brass : COLORS.slate }}>{BRL(c.pendente)}</td>
-                <td className="px-4 py-3" style={{ color: c.atrasado ? COLORS.wine : COLORS.slate }}>{BRL(c.atrasado)}</td>
-              </tr>
+                <td className="px-4 py-3.5" style={{ color: COLORS.slate }}>{c.tipo}</td>
+                <td className="px-4 py-3.5" style={{ color: COLORS.ink }}>{BRL(c.total)}</td>
+                <td className="px-4 py-3.5" style={{ color: c.recebido ? COLORS.success : COLORS.slate }}>{BRL(c.recebido)}</td>
+                <td className="px-4 py-3.5" style={{ color: c.pendente ? COLORS.brass : COLORS.slate }}>{BRL(c.pendente)}</td>
+                <td className="px-4 py-3.5" style={{ color: c.atrasado ? COLORS.wine : COLORS.slate }}>{BRL(c.atrasado)}</td>
+              </Tr>
             ))}
           </tbody>
         </table>
@@ -257,22 +255,16 @@ export default function FinanceiroTab({ orgId } = {}) {
             <Card className="overflow-hidden !p-0">
               <div className="overflow-x-auto">
               <table className="w-full text-sm">
-                <thead>
-                  <tr><th className="text-left px-4 py-2 font-medium" style={{ color: COLORS.slate, fontSize: 11 }}>VALOR</th>
-                    <th className="text-left px-4 py-2 font-medium" style={{ color: COLORS.slate, fontSize: 11 }}>VENCIMENTO</th>
-                    <th className="text-left px-4 py-2 font-medium" style={{ color: COLORS.slate, fontSize: 11 }}>SITUAÇÃO</th>
-                    <th></th>
-                  </tr>
-                </thead>
+                <TableHead columns={["Valor", "Vencimento", "Situação", ""]} />
                 <tbody>
                   {clienteAberto.itens.length === 0 && (
                     <tr><td colSpan={4} className="px-4 py-4 text-center" style={{ color: COLORS.slate }}>Nenhuma cobrança ainda.</td></tr>
                   )}
                   {[...clienteAberto.itens].sort((a, b) => a.vencimento.localeCompare(b.vencimento)).map((h) => (
-                    <tr key={h.id} style={{ borderTop: `1px solid ${COLORS.line}` }}>
-                      <td className="px-4 py-2 font-semibold" style={{ color: COLORS.ink }}>{BRL(h.valor)}</td>
-                      <td className="px-4 py-2" style={{ color: COLORS.slate }}>{new Date(`${h.vencimento}T00:00:00`).toLocaleDateString("pt-BR")}</td>
-                      <td className="px-4 py-2" onClick={(e) => e.stopPropagation()}>
+                    <Tr key={h.id} tone={estaAtrasado(h) ? "urgent" : h.status === "Pago" ? "ok" : "warn"}>
+                      <td className="px-4 py-3 font-semibold" style={{ color: COLORS.ink }}>{BRL(h.valor)}</td>
+                      <td className="px-4 py-3" style={{ color: COLORS.slate }}>{new Date(`${h.vencimento}T00:00:00`).toLocaleDateString("pt-BR")}</td>
+                      <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                         <StatusPicker
                           value={h.status}
                           options={STATUS_OPTIONS.map((s) => s.value)}
@@ -291,13 +283,13 @@ export default function FinanceiroTab({ orgId } = {}) {
                           )
                         )}
                       </td>
-                      <td className="px-2 py-2">
+                      <td className="px-2 py-3">
                         <RowActions
                           onEdit={() => setEditing({ ...h, cliente_id: h.cliente?.id })}
                           onDelete={() => remove(h.id)}
                         />
                       </td>
-                    </tr>
+                    </Tr>
                   ))}
                 </tbody>
               </table>
