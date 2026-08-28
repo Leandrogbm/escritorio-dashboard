@@ -92,6 +92,11 @@ export default function MovimentacoesPanel({ processo, onClose, onRegistrarPrazo
                   <div>
                     <p className="text-sm" style={{ color: COLORS.ink, fontWeight: 600 }}>{m.nome}</p>
                     <p className="text-xs mt-0.5" style={{ color: COLORS.slate }}>{new Date(m.data_hora).toLocaleString("pt-BR")}</p>
+                    {m.prazo_sugerido_tipo && (
+                      <p className="flex items-center gap-1 text-xs mt-1" style={{ color: COLORS.brass }}>
+                        <Sparkles size={11} /> IA sugere: {m.prazo_sugerido_tipo}, {m.prazo_sugerido_dias} dias {m.prazo_sugerido_dias_uteis ? "úteis" : "corridos"}
+                      </p>
+                    )}
                   </div>
                 </div>
                 {m.requer_atencao && onRegistrarPrazo && (

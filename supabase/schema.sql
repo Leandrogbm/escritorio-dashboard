@@ -784,6 +784,13 @@ create table movimentacoes_processo (
   requer_atencao boolean not null default false,
   dedup_key text not null, -- hash(nome+data_hora) — evita duplicar o mesmo andamento a cada sync
   created_at timestamptz not null default now(),
+  -- Sugestão de prazo por IA (mesma chamada que classifica requer_atencao, prompt mais rico)
+  -- — tipo/dias/dias_uteis pré-preenchem "Registrar prazo a partir da movimentação" em vez do
+  -- advogado digitar tudo na mão. Null quando a IA não achou prazo nessa movimentação (ou a
+  -- classificação veio só da camada de palavra-chave, sem IA configurada).
+  prazo_sugerido_tipo text,
+  prazo_sugerido_dias integer,
+  prazo_sugerido_dias_uteis boolean,
   unique (processo_id, dedup_key)
 );
 create index movimentacoes_processo_org_id_idx on movimentacoes_processo (org_id);

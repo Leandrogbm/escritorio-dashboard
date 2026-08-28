@@ -101,12 +101,16 @@ export default function ProcessosTab({ currentRole, orgId, profile }) {
     alert(`Sincronizado: ${data.ok}/${data.processados} processo(s) ok, ${data.novos_movimentos} movimentação(ões) nova(s).`);
   };
 
+  // Pré-preenche com a sugestão da IA (tipo/dias/dias_uteis) quando tem — advogado ainda
+  // confirma/ajusta antes de salvar, IA só poupa o preenchimento manual (ver
+  // classificarComIA em datajud-sync/index.ts, comparado com o Legal One no ROADMAP-comparativo.md).
   const abrirRegistrarPrazo = (processoId) => (mov) => setRegistrandoPrazo({
     processo_id: processoId,
     movimentacao_origem_id: mov.id,
     data_inicio: mov.data_hora.slice(0, 10),
-    dias_uteis: "true",
-    tipo: mov.nome,
+    dias_uteis: mov.prazo_sugerido_dias_uteis === false ? "false" : "true",
+    tipo: mov.prazo_sugerido_tipo || mov.nome,
+    quantidade_dias: mov.prazo_sugerido_dias ?? "",
   });
 
   if (processoAberto) {
