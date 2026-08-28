@@ -18,7 +18,8 @@ const anoAtual = hojeStr.slice(0, 4);
 // título/ícone próprio, porque a página já tem o cabeçalho do ERP.
 export default function ExecutivoTab({ orgId, embutido = false } = {}) {
   const orgEq = orgId ? ["org_id", orgId] : undefined;
-  const { data: processos, loading } = useSupabaseTable("processos", { select: "area, valor, status, responsavel:profiles(nome)", eq: orgEq });
+  // FK explícito: ver comentário em ProcessosTab.jsx (processo_responsaveis criou ambiguidade).
+  const { data: processos, loading } = useSupabaseTable("processos", { select: "area, valor, status, responsavel:profiles!processos_responsavel_id_fkey(nome)", eq: orgEq });
   const { data: clientes } = useSupabaseTable("clientes", { select: "id", eq: orgEq });
   const { data: honorarios, loading: loadingFinanceiro } = useSupabaseTable("honorarios", { select: "valor, status, vencimento, processo:processos(area)", eq: orgEq });
   const [periodo, setPeriodo] = useState("mes"); // "mes" | "ano" — agrupamento do gráfico financeiro (tendência, todos os períodos)

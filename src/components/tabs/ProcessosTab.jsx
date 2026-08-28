@@ -29,7 +29,10 @@ export default function ProcessosTab({ currentRole, orgId, profile, abrirProcess
   // explicitamente porque a RLS libera geral pra ele, não fica restrita a uma org só.
   const orgEq = orgId ? ["org_id", orgId] : undefined;
   const { data: processos, loading, error: erroProcessos, insert, update, remove } = useSupabaseTable("processos", {
-    select: "*, cliente:clientes(id,nome), responsavel:profiles(id,nome)", eq: orgEq,
+    // FK explícito (!processos_responsavel_id_fkey): a tabela processo_responsaveis (ponytail,
+    // dormant) criou um segundo caminho processos<->profiles, e sem isso o PostgREST recusa o
+    // embed por ambiguidade ("more than one relationship was found").
+    select: "*, cliente:clientes(id,nome), responsavel:profiles!processos_responsavel_id_fkey(id,nome)", eq: orgEq,
   });
   const { data: clientes } = useSupabaseTable("clientes", { select: "id,nome", orderBy: "nome", ascending: true, eq: orgEq });
   const { data: equipe } = useSupabaseTable("profiles", { select: "id,nome", orderBy: "nome", ascending: true, eq: orgEq });
