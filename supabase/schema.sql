@@ -538,11 +538,93 @@ create policy clientes_del on clientes for delete using (
   (org_id = auth_org_id() and has_module('clientes') and auth_role() in ('admin','socio')) or is_platform_admin()
 );
 
+-- ── Múltiplos responsáveis por processo ──────────────────────────────────
+create table processo_responsaveis (
+  processo_id uuid not null references processos(id) on delete cascade,
+  profile_id uuid not null references profiles(id) on delete cascade,
+  primary key (processo_id, profile_id)
+);
+create index processo_responsaveis_processo_idx on processo_responsaveis (processo_id);
+create index processo_responsaveis_profile_idx on processo_responsaveis (profile_id);
+-- migra o que já existia em processos.responsavel_id (não-op numa instalação nova, sem
+-- processo cadastrado ainda — relevante só ao rodar isso num banco já em produção).
+insert into processo_responsaveis (processo_id, profile_id)
+select id, responsavel_id from processos where responsavel_id is not null
+on conflict do nothing;
+alter table processo_responsaveis enable row level security;
+create policy processo_responsaveis_sel on processo_responsaveis for select using (
+  exists (select 1 from processos p where p.id = processo_id and p.org_id = auth_org_id() and has_module('processos'))
+  or is_platform_admin()
+);
+create policy processo_responsaveis_ins on processo_responsaveis for insert with check (
+  exists (select 1 from processos p where p.id = processo_id and p.org_id = auth_org_id() and has_module('processos'))
+  or is_platform_admin()
+);
+create policy processo_responsaveis_del on processo_responsaveis for delete using (
+  exists (select 1 from processos p where p.id = processo_id and p.org_id = auth_org_id() and has_module('processos'))
+  or is_platform_admin()
+);
+
+-- processos.responsavel_id continua existindo como "responsável principal" (dá suporte a
+-- quem já depende de um valor único: set_prazo_data() herda responsavel pro prazo,
+-- ExecutivoTab "carga de trabalho por responsável"). Sincronizado sozinho a partir de
+-- processo_responsaveis — sempre o primeiro (menor id) da lista atual, ou null se vazio.
+create or replace function sincroniza_responsavel_principal() returns trigger
+  language plpgsql security definer set search_path = public as $$
+declare
+  p_id uuid;
+  principal uuid;
+begin
+  p_id := coalesce(new.processo_id, old.processo_id);
+  select profile_id into principal from processo_responsaveis where processo_id = p_id order by profile_id limit 1;
+  update processos set responsavel_id = principal where id = p_id;
+  return null;
+end;
+$$;
+create trigger trg_sincroniza_responsavel_principal
+  after insert or delete on processo_responsaveis
+  for each row execute function sincroniza_responsavel_principal();
+
+-- ponytail: regra de privacidade construída (processo com 1 único responsável que é sócio
+-- só seria visível pra esse sócio) mas NENHUMA policy chama processo_visivel() agora — ver
+-- comentário em processos_sel mais abaixo pro motivo (dado real do cliente quebrou a regra
+-- assim que ativei: todo processo já tem o mesmo sócio como responsável padrão). Funções
+-- ficam prontas pra quando houver um critério real de "confidencial" que não seja "só tem
+-- 1 responsável".
+create or replace function processo_privado_de_socio(p_processo_id uuid) returns boolean
+  language sql stable as $$
+  select count(*) = 1 and bool_or(pf.role = 'socio')
+  from processo_responsaveis pr join profiles pf on pf.id = pr.profile_id
+  where pr.processo_id = p_processo_id
+$$;
+
+create or replace function eh_responsavel_do_processo(p_processo_id uuid) returns boolean
+  language sql stable as $$
+  select exists (select 1 from processo_responsaveis pr where pr.processo_id = p_processo_id and pr.profile_id = auth.uid())
+$$;
+
+create or replace function processo_visivel(p_processo_id uuid) returns boolean
+  language sql stable as $$
+  select case
+    when auth_role() = 'admin' then true
+    when processo_privado_de_socio(p_processo_id) then eh_responsavel_do_processo(p_processo_id)
+    else auth_role() <> 'advogado' or eh_responsavel_do_processo(p_processo_id)
+  end
+$$;
+
 alter table processos enable row level security;
 create trigger trg_set_org_id before insert on processos for each row execute function set_org_id();
 -- advogado só vê/edita/exclui processos onde é o responsável designado (pelo sócio/admin,
 -- via o campo "Responsável" do form) — sócio/admin/financeiro/recepção continuam vendo
 -- todos os processos da org (só precisam do módulo liberado em role_permissions).
+--
+-- ponytail: tentei uma 2ª regra aqui (processo com responsável único que é sócio ficar
+-- privado só pra esse sócio) e tive que reverter na hora — na prática TODO processo do
+-- cliente real já tem o mesmo sócio como responsável padrão (convenção de cadastro deles,
+-- não uma marcação de confidencial), então a regra escondia tudo de todo mundo. `
+-- processo_responsaveis`/`processo_visivel()` (funções abaixo) ficam prontas mas SEM efeito
+-- em nenhuma policy — não usar até decidir um critério real de "isso é privado" (ex.: um
+-- campo explícito tipo `processos.confidencial`, não inferido pela contagem de responsável).
 create policy processos_sel on processos for select using (
   (org_id = auth_org_id() and has_module('processos') and (auth_role() <> 'advogado' or responsavel_id = auth.uid()))
   or is_platform_admin()
@@ -565,7 +647,10 @@ create policy processos_del on processos for delete using (
 
 alter table prazos enable row level security;
 create trigger trg_set_org_id before insert on prazos for each row execute function set_org_id();
-create policy prazos_sel on prazos for select using ((org_id = auth_org_id() and has_module('prazos')) or is_platform_admin());
+create policy prazos_sel on prazos for select using (
+  (org_id = auth_org_id() and has_module('prazos'))
+  or is_platform_admin()
+);
 create policy prazos_ins on prazos for insert with check ((org_id = auth_org_id() and has_module('prazos')) or is_platform_admin());
 create policy prazos_upd on prazos for update
   using ((org_id = auth_org_id() and has_module('prazos')) or is_platform_admin()) with check (true);
