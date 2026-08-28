@@ -19,13 +19,6 @@ function tiltFor(text) {
   return -3 + (h % 601) / 100; // -3.00deg .. +3.00deg
 }
 
-// Grão de tinta — ruído fractal via SVG, reaproveitado como textura em cima do carimbo.
-// Data URI (não <filter id> na página) de propósito: com várias listas de prazos/status na
-// mesma tela, um id de filtro só existiria uma vez no DOM e todo o resto ficaria sem grão.
-const GRAIN_SVG =
-  "<svg xmlns='http://www.w3.org/2000/svg'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix type='matrix' values='0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 0.45 0'/></filter><rect width='100%' height='100%' filter='url(#n)'/></svg>";
-const GRAIN = `url("data:image/svg+xml,${encodeURIComponent(GRAIN_SVG)}")`;
-
 export default function Stamp({ children, tone = "neutral" }) {
   const color = TONE_COLOR[tone] ?? COLORS.slate;
   const tilt = tiltFor(String(children));
@@ -53,9 +46,7 @@ export default function Stamp({ children, tone = "neutral" }) {
           boxShadow: `inset 0 0 0 2.5px ${color}26`,
           letterSpacing: "0.12em",
           fontFamily: "'IBM Plex Mono', monospace",
-          backgroundColor: "rgba(255,255,255,0.45)",
-          backgroundImage: GRAIN,
-          backgroundBlendMode: "multiply",
+          background: "transparent",
           textShadow: `0.5px 0.5px 0 ${color}4D`,
         }}
       >
