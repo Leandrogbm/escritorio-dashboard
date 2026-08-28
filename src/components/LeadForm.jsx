@@ -115,7 +115,7 @@ export default function LeadForm({ orgId }) {
           Cidade
           <div className="flex items-center gap-2">
             <input value={cidade} onChange={(e) => setCidade(e.target.value)} className="flex-1 px-3 py-2 rounded-md text-sm font-normal" style={{ border: `1px solid ${COLORS.line}`, color: COLORS.ink }} />
-            <button type="button" onClick={usarLocalizacao} disabled={localizando} className="shrink-0 px-2.5 py-2 rounded-md text-xs font-semibold" style={{ border: `1px solid ${COLORS.line}`, color: COLORS.brass }}>
+            <button type="button" onClick={usarLocalizacao} disabled={localizando} className="shrink-0 px-2.5 py-2 rounded-md text-xs font-semibold" style={{ border: `1px solid ${COLORS.line}`, color: COLORS.brassText }}>
               {localizando ? "..." : coords ? "✓ Local" : "Usar local"}
             </button>
           </div>

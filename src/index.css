@@ -44,6 +44,14 @@ html, body {
     border-color: #A5793B !important;
     box-shadow: 0 0 0 3px rgba(165, 121, 59, 0.15);
   }
+  /* Anel de foco pro resto (botão, link, item de navegação): só em navegação por teclado
+     (:focus-visible), pra não acender em todo clique de mouse — e na mesma cor do anel do
+     input acima, pra foco parecer uma única linguagem no site inteiro em vez do azul padrão
+     do navegador brigando com a paleta. */
+  button:focus-visible, a:focus-visible, [tabindex]:focus-visible {
+    outline: 2px solid #A5793B;
+    outline-offset: 2px;
+  }
   ::selection {
     background: rgba(165, 121, 59, 0.25);
   }

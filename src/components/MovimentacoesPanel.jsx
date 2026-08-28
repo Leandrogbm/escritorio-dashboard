@@ -52,7 +52,7 @@ export default function MovimentacoesPanel({ processo, onClose, onRegistrarPrazo
             <p className="flex items-center gap-1.5 text-xs font-semibold" style={{ color: COLORS.ink }}>
               <Sparkles size={13} color={COLORS.brass} /> Resumo por IA
             </p>
-            <button onClick={resumirComIA} disabled={resumindo} className="text-xs underline shrink-0" style={{ color: COLORS.brass, opacity: resumindo ? 0.5 : 1 }}>
+            <button onClick={resumirComIA} disabled={resumindo} className="text-xs underline shrink-0" style={{ color: COLORS.brassText, opacity: resumindo ? 0.5 : 1 }}>
               {resumindo ? "Gerando..." : resumo ? "Atualizar" : "Gerar resumo"}
             </button>
           </div>
@@ -93,7 +93,7 @@ export default function MovimentacoesPanel({ processo, onClose, onRegistrarPrazo
                     <p className="text-sm" style={{ color: COLORS.ink, fontWeight: 600 }}>{m.nome}</p>
                     <p className="text-xs mt-0.5" style={{ color: COLORS.slate }}>{new Date(m.data_hora).toLocaleString("pt-BR")}</p>
                     {m.prazo_sugerido_tipo && (
-                      <p className="flex items-center gap-1 text-xs mt-1" style={{ color: COLORS.brass }}>
+                      <p className="flex items-center gap-1 text-xs mt-1" style={{ color: COLORS.brassText }}>
                         <Sparkles size={11} /> IA sugere: {m.prazo_sugerido_tipo}, {m.prazo_sugerido_dias} dias {m.prazo_sugerido_dias_uteis ? "úteis" : "corridos"}
                       </p>
                     )}
@@ -103,7 +103,7 @@ export default function MovimentacoesPanel({ processo, onClose, onRegistrarPrazo
                   <button
                     onClick={() => onRegistrarPrazo(m)}
                     className="text-xs underline shrink-0"
-                    style={{ color: COLORS.brass }}
+                    style={{ color: COLORS.brassText }}
                   >
                     Registrar prazo
                   </button>

@@ -204,7 +204,7 @@ export default function ProcessosTab({ currentRole, orgId, profile }) {
               </div>
             )}
             <div className="flex items-center justify-between mt-4 pt-4" style={{ borderTop: `1px solid ${COLORS.line}` }}>
-              <span className="text-xs uppercase tracking-wide" style={{ color: COLORS.brass, fontWeight: 600 }}>{p.area}</span>
+              <span className="text-xs uppercase tracking-wide" style={{ color: COLORS.brassText, fontWeight: 600 }}>{p.area}</span>
               <span className="text-sm" style={{ color: COLORS.slate }}>{p.responsavel?.nome ?? "—"}</span>
               <span className="text-sm font-semibold" style={{ color: COLORS.ink }}>{p.valor ? p.valor.toLocaleString("pt-BR", { style: "currency", currency: "BRL" }) : "—"}</span>
             </div>

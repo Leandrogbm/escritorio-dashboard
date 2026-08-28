@@ -293,11 +293,11 @@ export default function FinanceiroTab({ orgId } = {}) {
                         />
                         {asaasConectado && h.status !== "Pago" && (
                           h.asaas_invoice_url ? (
-                            <a href={h.asaas_invoice_url} target="_blank" rel="noreferrer" className="flex items-center gap-1 text-xs underline mt-1" style={{ color: COLORS.brass }}>
+                            <a href={h.asaas_invoice_url} target="_blank" rel="noreferrer" className="flex items-center gap-1 text-xs underline mt-1" style={{ color: COLORS.brassText }}>
                               <Wallet size={11} /> Ver cobrança Asaas
                             </a>
                           ) : (
-                            <button onClick={() => gerarCobrancaAsaas(h.id)} disabled={gerandoCobranca === h.id} className="flex items-center gap-1 text-xs underline mt-1" style={{ color: COLORS.brass, opacity: gerandoCobranca === h.id ? 0.5 : 1 }}>
+                            <button onClick={() => gerarCobrancaAsaas(h.id)} disabled={gerandoCobranca === h.id} className="flex items-center gap-1 text-xs underline mt-1" style={{ color: COLORS.brassText, opacity: gerandoCobranca === h.id ? 0.5 : 1 }}>
                               <Wallet size={11} /> {gerandoCobranca === h.id ? "Gerando..." : "Gerar cobrança Asaas"}
                             </button>
                           )

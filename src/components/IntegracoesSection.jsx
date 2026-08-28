@@ -135,7 +135,7 @@ function TrelloForm({ trello, setTrello, salvando, onSalvar }) {
           href={`https://trello.com/1/authorize?expiration=never&name=Actum&scope=read,write&response_type=token&key=${trello.trello_key}`}
           target="_blank" rel="noreferrer"
           className="self-start text-xs underline"
-          style={{ color: COLORS.brass }}
+          style={{ color: COLORS.brassText }}
         >
           Gerar o Token certo agora →
         </a>

@@ -97,7 +97,7 @@ export default function App() {
     return (
       <FullScreenMessage>
         Sua conta ainda não tem acesso liberado. Fale com o administrador do escritório.
-        <button onClick={signOut} className="block mx-auto mt-4 text-sm underline" style={{ color: COLORS.brass }}>Sair</button>
+        <button onClick={signOut} className="block mx-auto mt-4 text-sm underline" style={{ color: COLORS.brassText }}>Sair</button>
       </FullScreenMessage>
     );
   }
@@ -105,7 +105,7 @@ export default function App() {
     return (
       <FullScreenMessage>
         O acesso da sua empresa está suspenso no momento. Fale com o suporte pra regularizar.
-        <button onClick={signOut} className="block mx-auto mt-4 text-sm underline" style={{ color: COLORS.brass }}>Sair</button>
+        <button onClick={signOut} className="block mx-auto mt-4 text-sm underline" style={{ color: COLORS.brassText }}>Sair</button>
       </FullScreenMessage>
     );
   }

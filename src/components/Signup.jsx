@@ -48,17 +48,23 @@ export default function Signup({ onDone, onCancel }) {
         </div>
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-3">
-          <input required placeholder="Nome da empresa" value={nomeEmpresa} onChange={(e) => setNomeEmpresa(e.target.value)}
+          <label htmlFor="signup-empresa" className="sr-only">Nome da empresa</label>
+          <input id="signup-empresa" required placeholder="Nome da empresa" value={nomeEmpresa} onChange={(e) => setNomeEmpresa(e.target.value)}
             className="px-3.5 py-2.5 rounded-md text-sm outline-none" style={FIELD_STYLE} />
-          <input required placeholder="CNPJ" value={cnpj} onChange={(e) => setCnpj(e.target.value)}
+          <label htmlFor="signup-cnpj" className="sr-only">CNPJ</label>
+          <input id="signup-cnpj" required placeholder="CNPJ" value={cnpj} onChange={(e) => setCnpj(e.target.value)}
             className="px-3.5 py-2.5 rounded-md text-sm outline-none" style={FIELD_STYLE} />
-          <input required placeholder="Seu nome (responsável/admin)" value={nomeResponsavel} onChange={(e) => setNomeResponsavel(e.target.value)}
+          <label htmlFor="signup-responsavel" className="sr-only">Seu nome (responsável/admin)</label>
+          <input id="signup-responsavel" required placeholder="Seu nome (responsável/admin)" value={nomeResponsavel} onChange={(e) => setNomeResponsavel(e.target.value)}
             className="px-3.5 py-2.5 rounded-md text-sm outline-none" style={FIELD_STYLE} />
-          <input required type="email" autoComplete="email" placeholder="Email corporativo" value={email} onChange={(e) => setEmail(e.target.value)}
+          <label htmlFor="signup-email" className="sr-only">Email corporativo</label>
+          <input id="signup-email" required type="email" autoComplete="email" placeholder="Email corporativo" value={email} onChange={(e) => setEmail(e.target.value)}
             className="px-3.5 py-2.5 rounded-md text-sm outline-none" style={FIELD_STYLE} />
-          <input required type="password" autoComplete="new-password" placeholder="Senha" value={password} onChange={(e) => setPassword(e.target.value)}
+          <label htmlFor="signup-senha" className="sr-only">Senha</label>
+          <input id="signup-senha" required type="password" autoComplete="new-password" placeholder="Senha" value={password} onChange={(e) => setPassword(e.target.value)}
             className="px-3.5 py-2.5 rounded-md text-sm outline-none" style={FIELD_STYLE} />
-          <input required type="password" autoComplete="new-password" placeholder="Confirmar senha" value={confirm} onChange={(e) => setConfirm(e.target.value)}
+          <label htmlFor="signup-confirmar" className="sr-only">Confirmar senha</label>
+          <input id="signup-confirmar" required type="password" autoComplete="new-password" placeholder="Confirmar senha" value={confirm} onChange={(e) => setConfirm(e.target.value)}
             className="px-3.5 py-2.5 rounded-md text-sm outline-none" style={FIELD_STYLE} />
 
           {error && <p className="text-xs" style={{ color: COLORS.wine }}>{error}</p>}

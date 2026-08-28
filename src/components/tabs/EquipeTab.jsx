@@ -137,7 +137,7 @@ export default function EquipeTab({ currentRole, orgId }) {
             <div onClick={() => setEditing(e)} className="flex items-center justify-between">
               <div>
                 <p style={{ fontFamily: "'Source Serif 4', serif", fontWeight: 600, color: COLORS.ink }}>{e.nome}</p>
-                <p className="text-xs" style={{ color: COLORS.brass, letterSpacing: "0.04em" }}>{(e.cargo || "—").toUpperCase()}</p>
+                <p className="text-xs" style={{ color: COLORS.brassText, letterSpacing: "0.04em" }}>{(e.cargo || "—").toUpperCase()}</p>
               </div>
               <div className="flex items-center gap-2">
                 <Stamp tone="neutral">{e.ativos} ativos</Stamp>

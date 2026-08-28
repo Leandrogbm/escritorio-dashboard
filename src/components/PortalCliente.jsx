@@ -48,7 +48,7 @@ export default function PortalCliente({ clienteAcesso, signOut }) {
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <p style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 12, color: COLORS.slate }}>{p.numero}</p>
-                  <p className="text-xs uppercase tracking-wide mt-1" style={{ color: COLORS.brass, fontWeight: 600 }}>{p.area}</p>
+                  <p className="text-xs uppercase tracking-wide mt-1" style={{ color: COLORS.brassText, fontWeight: 600 }}>{p.area}</p>
                 </div>
                 <Stamp tone={STATUS_TONE[p.status]}>{p.status}</Stamp>
               </div>

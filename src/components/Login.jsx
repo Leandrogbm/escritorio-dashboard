@@ -59,7 +59,9 @@ export default function Login() {
             </p>
           ) : (
             <form onSubmit={handleForgot} className="flex flex-col gap-3">
+              <label htmlFor="forgot-email" className="sr-only">Seu e-mail</label>
               <input
+                id="forgot-email"
                 type="email"
                 required
                 autoComplete="email"
@@ -105,7 +107,9 @@ export default function Login() {
         </div>
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-3">
+          <label htmlFor="login-email" className="sr-only">E-mail</label>
           <input
+            id="login-email"
             type="email"
             required
             autoComplete="email"
@@ -116,7 +120,9 @@ export default function Login() {
             style={{ border: `1px solid ${COLORS.line}`, color: COLORS.ink, background: COLORS.paperRaised }}
           />
           <div className="relative">
+            <label htmlFor="login-password" className="sr-only">Senha</label>
             <input
+              id="login-password"
               type={verSenha ? "text" : "password"}
               required
               autoComplete="current-password"

@@ -63,7 +63,7 @@ export default function GerarNotaModal({ honorario, org, onGerada, onClose }) {
           </label>
 
           {faltaInscricao && (
-            <div className="flex items-start gap-1.5 mb-4 px-2.5 py-2 rounded-md text-xs" style={{ background: "rgba(165,121,59,0.1)", color: COLORS.brass }}>
+            <div className="flex items-start gap-1.5 mb-4 px-2.5 py-2 rounded-md text-xs" style={{ background: "rgba(165,121,59,0.1)", color: COLORS.brassText }}>
               <AlertTriangle size={14} className="shrink-0 mt-0.5" />
               Falta a Inscrição Municipal da empresa (aba Minha Empresa) — a maioria das prefeituras exige pra emitir de verdade. Dá pra gerar o rascunho mesmo assim.
             </div>
