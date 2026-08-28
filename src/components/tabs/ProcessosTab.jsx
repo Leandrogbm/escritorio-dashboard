@@ -28,7 +28,7 @@ export default function ProcessosTab({ currentRole, orgId, profile, abrirProcess
   // orgId só vem preenchido quando o platform admin "entrou" numa empresa alheia — filtra
   // explicitamente porque a RLS libera geral pra ele, não fica restrita a uma org só.
   const orgEq = orgId ? ["org_id", orgId] : undefined;
-  const { data: processos, loading, insert, update, remove } = useSupabaseTable("processos", {
+  const { data: processos, loading, error: erroProcessos, insert, update, remove } = useSupabaseTable("processos", {
     select: "*, cliente:clientes(id,nome), responsavel:profiles(id,nome)", eq: orgEq,
   });
   const { data: clientes } = useSupabaseTable("clientes", { select: "id,nome", orderBy: "nome", ascending: true, eq: orgEq });
@@ -189,7 +189,12 @@ export default function ProcessosTab({ currentRole, orgId, profile, abrirProcess
           </div>
         }
       />
-      {!loading && processosFiltrados.length === 0 && (
+      {erroProcessos && (
+        <p className="text-sm mb-3 px-3 py-2 rounded-md" style={{ color: COLORS.wine, background: "rgba(155,28,28,0.08)" }}>
+          Não deu pra carregar os processos ({erroProcessos}). Tente atualizar a página; se persistir, saia e entre de novo.
+        </p>
+      )}
+      {!loading && !erroProcessos && processosFiltrados.length === 0 && (
         <p className="text-sm" style={{ color: COLORS.slate }}>{busca ? "Nenhum processo encontrado." : "Nenhum processo cadastrado ainda."}</p>
       )}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
