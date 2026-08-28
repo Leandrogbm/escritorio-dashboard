@@ -1,4 +1,4 @@
-@import url("https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400;8..60,600;8..60,700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400;8..60,600;8..60,700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600;700&display=swap");
 
 @tailwind base;
 @tailwind components;
@@ -111,6 +111,19 @@ html, body {
   to { opacity: 1; transform: translateY(0); }
 }
 
+/* Halo do carimbo "urgente" (Stamp.jsx) — tinta ainda fresca, respira bem devagar atrás do
+   selo. Alerta ambiente, não decoração: esse tom já significa "atrasado/vencido" em todo o
+   sistema (financeiro, ERP, prazo), então o pulso reforça o mesmo aviso em todo lugar. */
+@keyframes carimbo-pulso {
+  0%, 100% { opacity: 0.16; transform: scale(1); }
+  50% { opacity: 0.36; transform: scale(1.16); }
+}
+.carimbo-pulso {
+  animation: carimbo-pulso 3200ms ease-in-out infinite;
+  filter: blur(5px);
+  pointer-events: none;
+}
+
 @media (prefers-reduced-motion: reduce) {
   button:not(:disabled), a, input, select, textarea, .card-hoverable {
     transition: none !important;
@@ -118,7 +131,10 @@ html, body {
   button:not(:disabled):hover, .card-hoverable:hover {
     transform: none !important;
   }
-  .balanca-animada, .tab-fade-in {
+  .balanca-animada, .tab-fade-in, .carimbo-pulso {
     animation: none !important;
+  }
+  .carimbo-pulso {
+    opacity: 0.16 !important;
   }
 }
