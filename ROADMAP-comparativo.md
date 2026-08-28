@@ -159,7 +159,44 @@ a peça mínima que destrava o resto, sem virar ERP genérico (isso é outro pro
   sentir falta de verdade; virar ERP completo não é o objetivo, é ficar bom o suficiente
   pra não precisar de outro sistema à parte pra despesa/fluxo de caixa.
 
-Fontes: [ADVBOX — Software Jurídico](https://advbox.com.br/software-juridico),
+## Segunda rodada de comparativo (27/08/2026) — Astrea, Legal One, CPJ-3C, GOJUR, LegalSuite, Themis
+
+(Projuris já tinha comparativo próprio e quase tudo coberto — ver `ROADMAP-projuris.md`.)
+
+Pesquisei os 6. Resumo honesto: a esmagadora maioria das "funcionalidades diferenciais"
+divulgadas por eles é **captura automática de andamento em todos os tribunais/diários
+oficiais** (Astrea, CPJ-3C, GOJUR, LegalSuite) e **IA pra classificar publicação/gerar
+relatório** (Legal One, CPJ-3C, GOJUR, Themis) — coisas que a gente **já tem** (DataJud +
+`classificarUrgenciaIA`) ou que **exigem provedor pago** pra ir além do que a API pública do
+DataJud permite (mesma categoria do Escavador/Judit já discutida — captura de TODA
+publicação de TODO tribunal em texto completo, não só "teve movimentação", é serviço pago
+de todos eles por trás, ninguém faz isso de graça). Não inventei gap novo só pra preencher
+lista — a plataforma já está em paridade nesses pontos.
+
+**Achado real e novo**: Legal One tem "Sugestão de Prazos com IA" — quando chega uma
+intimação/movimentação, a IA já sugere o TIPO de prazo e a quantidade de dias (ex.:
+"Intimação pra contestação" → tipo "Contestação", 15 dias úteis), em vez do advogado ter que
+preencher isso na mão em "Registrar prazo a partir da movimentação" (já existe esse fluxo
+manual em ProcessosTab.jsx). Isso dá pra construir **de graça**, reaproveitando 100% da
+infra que já existe: mesma chamada de IA que já roda em `datajud-sync` (`classificarUrgenciaIA`)
+pode, na mesma resposta, também devolver tipo+dias sugeridos pra cada movimentação marcada
+como "requer atenção" — sem custo extra de chamada, só um prompt mais rico. O advogado
+continua confirmando/ajustando antes de salvar (igual já fizemos com o resumo de andamento
+e o checklist sugerido — IA sugere, humano decide).
+
+**Esforço**: baixo (mesma function, prompt mais rico). **Impacto**: alto — é o ponto mais
+sensível do fluxo (perder prazo é o pior erro possível), e hoje ainda depende do advogado
+lembrar de clicar "Registrar prazo" e preencher tipo/dias corretamente.
+
+Fontes: [Astrea — Aurum](https://www.aurum.com.br/astrea/),
+[Legal One — Thomson Reuters](https://www.thomsonreuters.com.br/pt/juridico/legal-one.html),
+[Thomson Reuters — IA no Legal One](https://tiinside.com.br/es/28/05/2026/thomson-reuters-automatiza-rotinas-juridicas-com-novas-funcionalidades-de-ia-no-legal-one/),
+[CPJ-3C — Preâmbulo Tech](https://preambulo.com.br/blog/cpj-3c-preambulo-tech/),
+[GOJUR — funcionalidades](https://www.gojur.com.br/blog/recursos-de-um-software-juridico/),
+[Themis — Aurum](https://www.aurum.com.br/themis/),
+[LegalSuite — comparativo 2026](https://legalsuite.com.br/blog/gestao-como-escolher-software-juridico-2026).
+
+Fontes (rodada anterior): [ADVBOX — Software Jurídico](https://advbox.com.br/software-juridico),
 [ADVBOX adquire LawX](https://www.direitonews.com.br/2026/08/advbox-adquire-lawx-anuncia-nova-geracao-inteligencia-artificial-escritorios-advocacia.html),
 [LiderHub docs](https://docs.liderhub.ai/),
 [ZapSign API](https://blog.zapsign.com.br/zapsign-api/),
