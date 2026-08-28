@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Briefcase, Plus, AlertTriangle, RefreshCw } from "lucide-react";
+import { Briefcase, Plus, AlertTriangle, RefreshCw, Lock } from "lucide-react";
 import Card from "../Card.jsx";
 import SectionTitle from "../SectionTitle.jsx";
 import RowActions from "../RowActions.jsx";
@@ -101,7 +101,14 @@ export default function ProcessosTab({ currentRole, orgId, profile, abrirProcess
     { key: "status", label: "Situação", type: "select", options: STATUS_OPTIONS },
     { key: "valor", label: "Valor da causa (R$)", type: "number", optional: true },
     { key: "responsavel_id", label: "Responsável", type: "select", options: equipe.map((e) => ({ value: e.id, label: e.nome })), optional: true },
-  ], [clientes, equipe]);
+    // Só sócio/admin decide sigilo — RLS (processos_sel/upd/del) restringe visão E edição a
+    // quem é o responsável quando marcado; financeiro do processo confidencial some junto
+    // (honorarios_sel). Pedido do usuário, versão sem repetir o incidente: só entra em vigor
+    // quando alguém liga esse campo à mão, nunca sozinho pelo simples fato de ter 1 responsável.
+    ...(currentRole === "admin" || currentRole === "socio"
+      ? [{ key: "confidencial", label: "Confidencial — só o responsável enxerga (processo e financeiro)", type: "checkbox" }]
+      : []),
+  ], [clientes, equipe, currentRole]);
 
   const sincronizarDatajud = async () => {
     setSincronizando(true);
@@ -208,7 +215,10 @@ export default function ProcessosTab({ currentRole, orgId, profile, abrirProcess
             <div className="flex items-start justify-between gap-3">
               <div>
                 <p style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 12, color: COLORS.slate }}>{p.numero}</p>
-                <p className="mt-1 text-lg" style={{ fontFamily: "'Source Serif 4', serif", color: COLORS.ink, fontWeight: 600 }}>{p.cliente?.nome ?? "—"}</p>
+                <p className="mt-1 text-lg flex items-center gap-1.5" style={{ fontFamily: "'Source Serif 4', serif", color: COLORS.ink, fontWeight: 600 }}>
+                  {p.cliente?.nome ?? "—"}
+                  {p.confidencial && <Lock size={13} color={COLORS.brassText} aria-label="Confidencial" />}
+                </p>
               </div>
               <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
                 {p.datajud_status === "erro" && <AlertTriangle size={14} color={COLORS.wine} />}

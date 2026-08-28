@@ -7,6 +7,7 @@ import TarefasPanel from "./TarefasPanel.jsx";
 import DepositosPanel from "./DepositosPanel.jsx";
 import DocumentosPanel from "./DocumentosPanel.jsx";
 import { COLORS } from "../lib/theme.js";
+import { useEscClose } from "../hooks/useEscClose.js";
 
 const STATUS_TONE = { "Em andamento": "ok", "Aguardando decisão": "warn", "Suspenso": "neutral", "Encerrado": "neutral" };
 
@@ -14,6 +15,7 @@ const STATUS_TONE = { "Em andamento": "ok", "Aguardando decisão": "warn", "Susp
 // — clicar num processo troca o conteúdo da tela, com botão "Voltar", em vez de empilhar
 // modal em cima de modal (era confuso: Esc fechava um de cada vez, fora de ordem).
 export default function ProcessoPagina({ processo: p, atrasos, equipe, orgId, profile, onVoltar, onEditar, onExcluir, onRegistrarPrazo, onMudarStatus }) {
+  useEscClose(onVoltar, true);
   const [aba, setAba] = useState("andamentos");
 
   const abas = [

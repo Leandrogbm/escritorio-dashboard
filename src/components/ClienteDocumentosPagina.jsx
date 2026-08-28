@@ -4,6 +4,7 @@ import Card from "./Card.jsx";
 import { COLORS } from "../lib/theme.js";
 import { useSupabaseTable } from "../hooks/useSupabaseTable.js";
 import { supabase } from "../lib/supabaseClient.js";
+import { useEscClose } from "../hooks/useEscClose.js";
 
 const BUCKET = "documentos-cliente";
 
@@ -25,6 +26,7 @@ function formatTamanho(bytes) {
 // (contrato de honorários já assinado, procuração, RG/CNPJ etc.). Bucket privado — link de
 // download é assinado (expira).
 export default function ClienteDocumentosPagina({ cliente, orgId, profile, onVoltar }) {
+  useEscClose(onVoltar, true);
   const orgEq = orgId ? ["org_id", orgId] : undefined;
   const { data: documentos, insert, remove, refresh } = useSupabaseTable("documentos_cliente", {
     select: "*", eq: orgEq, orderBy: "created_at", ascending: false,

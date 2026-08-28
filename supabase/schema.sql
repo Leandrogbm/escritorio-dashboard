@@ -85,6 +85,11 @@ create table processos (
   valor numeric(14,2) not null default 0,
   responsavel_id uuid references profiles(id),
   created_at timestamptz not null default now(),
+  -- Confidencial: quando true, só responsavel_id (e admin) enxerga o processo e o financeiro
+  -- vinculado a ele (ver processos_sel/upd/del e honorarios_sel). Ligado à mão por sócio/admin
+  -- na edição do processo — nunca automático, pra não repetir o incidente de "1 responsável
+  -- sócio = privado" (todo processo real compartilhava o mesmo sócio padrão).
+  confidencial boolean not null default false,
   unique (org_id, numero)
 );
 create index processos_org_id_idx on processos (org_id);
@@ -626,7 +631,11 @@ create trigger trg_set_org_id before insert on processos for each row execute fu
 -- em nenhuma policy — não usar até decidir um critério real de "isso é privado" (ex.: um
 -- campo explícito tipo `processos.confidencial`, não inferido pela contagem de responsável).
 create policy processos_sel on processos for select using (
-  (org_id = auth_org_id() and has_module('processos') and (auth_role() <> 'advogado' or responsavel_id = auth.uid()))
+  (org_id = auth_org_id() and has_module('processos') and (
+    auth_role() = 'admin'
+    or (not confidencial and (auth_role() <> 'advogado' or responsavel_id = auth.uid()))
+    or (confidencial and responsavel_id = auth.uid())
+  ))
   or is_platform_admin()
 );
 -- limite de processos do plano entra aqui — org sem plano (plano null) fica sem limite.
@@ -639,10 +648,18 @@ create policy processos_ins on processos for insert with check (
   ))
 );
 create policy processos_upd on processos for update
-  using ((org_id = auth_org_id() and has_module('processos') and (auth_role() <> 'advogado' or responsavel_id = auth.uid())) or is_platform_admin())
+  using ((org_id = auth_org_id() and has_module('processos') and (
+    auth_role() = 'admin'
+    or (not confidencial and (auth_role() <> 'advogado' or responsavel_id = auth.uid()))
+    or (confidencial and responsavel_id = auth.uid())
+  )) or is_platform_admin())
   with check (true);
 create policy processos_del on processos for delete using (
-  (org_id = auth_org_id() and has_module('processos') and (auth_role() <> 'advogado' or responsavel_id = auth.uid())) or is_platform_admin()
+  (org_id = auth_org_id() and has_module('processos') and (
+    auth_role() = 'admin'
+    or (not confidencial and (auth_role() <> 'advogado' or responsavel_id = auth.uid()))
+    or (confidencial and responsavel_id = auth.uid())
+  )) or is_platform_admin()
 );
 
 alter table prazos enable row level security;
@@ -658,7 +675,16 @@ create policy prazos_del on prazos for delete using ((org_id = auth_org_id() and
 
 alter table honorarios enable row level security;
 create trigger trg_set_org_id before insert on honorarios for each row execute function set_org_id();
-create policy honorarios_sel on honorarios for select using ((org_id = auth_org_id() and has_module('financeiro')) or is_platform_admin());
+-- Financeiro de processo confidencial segue a mesma regra do processo (ver processos_sel):
+-- some pra quem não é o responsável nem admin. honorario sem processo vinculado (avulso) não
+-- é afetado.
+create policy honorarios_sel on honorarios for select using (
+  (org_id = auth_org_id() and has_module('financeiro') and (
+    auth_role() = 'admin' or processo_id is null
+    or not exists (select 1 from processos p where p.id = honorarios.processo_id and p.confidencial and p.responsavel_id <> auth.uid())
+  ))
+  or is_platform_admin()
+);
 create policy honorarios_ins on honorarios for insert with check ((org_id = auth_org_id() and has_module('financeiro')) or is_platform_admin());
 create policy honorarios_upd on honorarios for update
   using ((org_id = auth_org_id() and has_module('financeiro')) or is_platform_admin()) with check (true);
