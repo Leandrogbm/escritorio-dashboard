@@ -16,7 +16,8 @@ code unless the calling session explicitly asks you to fix what you found.
 
 - **Disposable-org testing**: create a throwaway org via the `signup-empresa` Edge Function
   (`POST {SUPABASE_URL}/functions/v1/signup-empresa` with `nomeEmpresa`, `cnpj` (14 digits,
-  any unused number), `nomeResponsavel`, `email`, `password`). Get a JWT via
+  any unused number), `nomeResponsavel`, `email`, `password`, `termosAceitos: true` — the last
+  one is required, the function rejects with 400 without it). Get a JWT via
   `POST {SUPABASE_URL}/auth/v1/token?grant_type=password`. Exercise the feature via `curl`
   against the REST API (`/rest/v1/<table>`) and Edge Functions (`/functions/v1/<fn>`) directly
   — this is faster and more conclusive than trying to drive the React UI.

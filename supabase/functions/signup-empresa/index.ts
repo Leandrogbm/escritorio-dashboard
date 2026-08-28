@@ -23,7 +23,7 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const { nomeEmpresa, cnpj, nomeResponsavel, email, password } = await req.json();
+    const { nomeEmpresa, cnpj, nomeResponsavel, email, password, termosAceitos } = await req.json();
     const cnpjDigits = limparCnpj(cnpj);
 
     if (!nomeEmpresa || !nomeResponsavel || !email || !password || cnpjDigits.length !== 14) {
@@ -31,6 +31,12 @@ Deno.serve(async (req) => {
         JSON.stringify({ error: "Preencha nome da empresa, CNPJ válido (14 dígitos), responsável, email e senha." }),
         { status: 400, headers: corsHeaders }
       );
+    }
+    // Aceite dos Termos de Uso/Política de Privacidade do Actum é do ESCRITÓRIO que está se
+    // cadastrando (cliente do Actum), não dos clientes que ele atende — ver comentário no
+    // schema.sql. Obrigatório pra criar a organização.
+    if (!termosAceitos) {
+      return new Response(JSON.stringify({ error: "É preciso aceitar os Termos de Uso e a Política de Privacidade." }), { status: 400, headers: corsHeaders });
     }
     if (password.length < 6) {
       return new Response(JSON.stringify({ error: "A senha precisa ter pelo menos 6 caracteres." }), { status: 400, headers: corsHeaders });
@@ -52,7 +58,7 @@ Deno.serve(async (req) => {
 
     const { data: org, error: orgErr } = await admin
       .from("organizations")
-      .insert({ nome: nomeEmpresa, slug: cnpjDigits, cnpj: cnpjDigits })
+      .insert({ nome: nomeEmpresa, slug: cnpjDigits, cnpj: cnpjDigits, termos_aceite: true, termos_aceite_em: new Date().toISOString() })
       .select("id")
       .single();
     if (orgErr) {

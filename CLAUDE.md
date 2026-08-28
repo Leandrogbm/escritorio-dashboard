@@ -77,8 +77,11 @@ o histórico de bugs de regressão pra conferir.
 Organização descartável via a própria Edge Function `signup-empresa`:
 ```
 POST {SUPABASE_URL}/functions/v1/signup-empresa
-  { nomeEmpresa, cnpj (14 dígitos, qualquer não usado), nomeResponsavel, email, password }
+  { nomeEmpresa, cnpj (14 dígitos, qualquer não usado), nomeResponsavel, email, password, termosAceitos: true }
 ```
+(`termosAceitos: true` é obrigatório desde que o aceite de Termos/Privacidade virou parte do
+cadastro — sem isso a function recusa com 400.)
+
 JWT: `POST {SUPABASE_URL}/auth/v1/token?grant_type=password` com email/senha. Exercita a
 feature via `curl` direto no REST (`/rest/v1/<tabela>`) ou na Edge Function
 (`/functions/v1/<nome>`) — mais rápido e conclusivo que dirigir a UI React.

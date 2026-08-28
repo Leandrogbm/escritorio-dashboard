@@ -329,11 +329,13 @@ create policy integracoes_ins on integracoes for insert
 alter table clientes add column if not exists asaas_customer_id text;
 alter table clientes add column if not exists celular2 text; -- segundo telefone, quando o cliente tem mais de um contato
 
--- LGPD: aceite do titular pro tratamento dos dados pessoais dele no sistema — checkbox no
--- cadastro (ClientesTab.jsx), com data/hora do "sim" guardada como prova (não é reescrita se
--- o aceite for desmarcado depois, ver comentário em ClientesTab.jsx).
-alter table clientes add column if not exists lgpd_aceite boolean not null default false;
-alter table clientes add column if not exists lgpd_aceite_em timestamptz;
+-- LGPD/Termos: aceite é do ESCRITÓRIO (cliente do Actum), não de cada cliente que ele
+-- atende — o escritório é quem tem contrato com o próprio cliente cobrindo isso; aqui é só
+-- o escritório aceitando os Termos de Uso/Política de Privacidade do Actum, no cadastro
+-- (Signup.jsx) ou, pra empresa já existente, no primeiro login depois dessa feature existir
+-- (App.jsx bloqueia até aceitar). Data/hora do "sim" não é reescrita se already true.
+alter table organizations add column if not exists termos_aceite boolean not null default false;
+alter table organizations add column if not exists termos_aceite_em timestamptz;
 alter table honorarios add column if not exists asaas_charge_id text;
 alter table honorarios add column if not exists asaas_invoice_url text; -- link de pagamento (boleto+Pix) pra mandar ao cliente
 

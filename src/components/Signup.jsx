@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import Card from "./Card.jsx";
+import PoliticaPrivacidadeModal from "./PoliticaPrivacidadeModal.jsx";
 import { COLORS } from "../lib/theme.js";
 import { supabase } from "../lib/supabaseClient.js";
 
@@ -16,14 +17,17 @@ export default function Signup({ onDone, onCancel }) {
   const [confirm, setConfirm] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [termosAceitos, setTermosAceitos] = useState(false);
+  const [mostrarPrivacidade, setMostrarPrivacidade] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (password !== confirm) return setError("As senhas não coincidem.");
+    if (!termosAceitos) return setError("Você precisa aceitar os Termos de Uso e a Política de Privacidade pra continuar.");
     setError("");
     setLoading(true);
     const { error: signupError } = await supabase.functions.invoke("signup-empresa", {
-      body: { nomeEmpresa, cnpj, nomeResponsavel, email, password },
+      body: { nomeEmpresa, cnpj, nomeResponsavel, email, password, termosAceitos: true },
     });
     if (signupError) {
       const body = await signupError.context?.json?.().catch(() => null);
@@ -67,6 +71,17 @@ export default function Signup({ onDone, onCancel }) {
           <input id="signup-confirmar" required type="password" autoComplete="new-password" placeholder="Confirmar senha" value={confirm} onChange={(e) => setConfirm(e.target.value)}
             className="px-3.5 py-2.5 rounded-md text-sm outline-none" style={FIELD_STYLE} />
 
+          <label className="flex items-start gap-2 text-xs" style={{ color: COLORS.slate }}>
+            <input type="checkbox" checked={termosAceitos} onChange={(e) => setTermosAceitos(e.target.checked)} className="mt-0.5 shrink-0" />
+            <span>
+              Li e aceito os{" "}
+              <button type="button" onClick={() => setMostrarPrivacidade(true)} className="underline" style={{ color: COLORS.brassText }}>
+                Termos de Uso e a Política de Privacidade
+              </button>{" "}
+              do Actum.
+            </span>
+          </label>
+
           {error && <p className="text-xs" style={{ color: COLORS.wine }}>{error}</p>}
 
           <button type="submit" disabled={loading}
@@ -80,6 +95,7 @@ export default function Signup({ onDone, onCancel }) {
           </button>
         </form>
       </Card>
+      {mostrarPrivacidade && <PoliticaPrivacidadeModal onClose={() => setMostrarPrivacidade(false)} />}
     </div>
   );
 }

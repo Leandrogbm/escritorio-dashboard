@@ -23,6 +23,7 @@ import PortalCliente from "./components/PortalCliente.jsx";
 import LeadsCaptacaoTab from "./components/tabs/LeadsCaptacaoTab.jsx";
 import LeadForm from "./components/LeadForm.jsx";
 import PageLoader from "./components/PageLoader.jsx";
+import AceitarTermosGate from "./components/AceitarTermosGate.jsx";
 
 export default function App() {
   // ponytail: Captação de Leads em back log a pedido do usuário (ver ROADMAP-comparativo.md)
@@ -108,6 +109,11 @@ export default function App() {
         <button onClick={signOut} className="block mx-auto mt-4 text-sm underline" style={{ color: COLORS.brassText }}>Sair</button>
       </FullScreenMessage>
     );
+  }
+  // Empresa criada antes dessa tela existir nunca aceitou os Termos/Privacidade do Actum
+  // (quem cadastra agora já aceita no formulário, ver Signup.jsx) — bloqueia até aceitar.
+  if (!emSuporte && !profile.organizations?.termos_aceite) {
+    return <AceitarTermosGate profile={profile} currentRole={currentRole} signOut={signOut} onAceito={refreshProfile} />;
   }
   if (!permissions) return <FullScreenMessage>Carregando...</FullScreenMessage>;
 
