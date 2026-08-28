@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState, Suspense, lazy } from "react";
 import { COLORS } from "./lib/theme.js";
 import { MODULES } from "./config/permissions.js";
 import { useAuth } from "./hooks/useAuth.js";
@@ -9,21 +9,27 @@ import PlatformAdminPanel from "./components/PlatformAdminPanel.jsx";
 import Sidebar from "./components/Sidebar.jsx";
 import TopBar from "./components/TopBar.jsx";
 import EmptyState from "./components/EmptyState.jsx";
-import PrazosTab from "./components/tabs/PrazosTab.jsx";
-import ProcessosTab from "./components/tabs/ProcessosTab.jsx";
-import QuadroTab from "./components/tabs/QuadroTab.jsx";
-import LeadsTab from "./components/tabs/LeadsTab.jsx";
-import FinanceiroTab from "./components/tabs/FinanceiroTab.jsx";
-import ErpTab from "./components/tabs/ErpTab.jsx";
-import ClientesTab from "./components/tabs/ClientesTab.jsx";
-import EquipeTab from "./components/tabs/EquipeTab.jsx";
-import ConfigTab from "./components/tabs/ConfigTab.jsx";
-import MinhaEmpresaTab from "./components/tabs/MinhaEmpresaTab.jsx";
 import PortalCliente from "./components/PortalCliente.jsx";
-import LeadsCaptacaoTab from "./components/tabs/LeadsCaptacaoTab.jsx";
 import LeadForm from "./components/LeadForm.jsx";
 import PageLoader from "./components/PageLoader.jsx";
 import AceitarTermosGate from "./components/AceitarTermosGate.jsx";
+
+// code-splitting por aba (vercel-react-best-practices: bundle-dynamic-imports) — só uma aba
+// renderiza por vez (`activeTab`), mas antes todas (Financeiro/ERP com Recharts, PDF/OCR do
+// extrato etc.) entravam no bundle principal de largada, mesmo sem o usuário nunca abrir
+// metade delas numa sessão. Cada `lazy` vira um chunk carregado só quando a aba é escolhida
+// — `PageLoader` (já usado na troca de aba) cobre o Suspense.
+const PrazosTab = lazy(() => import("./components/tabs/PrazosTab.jsx"));
+const ProcessosTab = lazy(() => import("./components/tabs/ProcessosTab.jsx"));
+const QuadroTab = lazy(() => import("./components/tabs/QuadroTab.jsx"));
+const LeadsTab = lazy(() => import("./components/tabs/LeadsTab.jsx"));
+const FinanceiroTab = lazy(() => import("./components/tabs/FinanceiroTab.jsx"));
+const ErpTab = lazy(() => import("./components/tabs/ErpTab.jsx"));
+const ClientesTab = lazy(() => import("./components/tabs/ClientesTab.jsx"));
+const EquipeTab = lazy(() => import("./components/tabs/EquipeTab.jsx"));
+const ConfigTab = lazy(() => import("./components/tabs/ConfigTab.jsx"));
+const MinhaEmpresaTab = lazy(() => import("./components/tabs/MinhaEmpresaTab.jsx"));
+const LeadsCaptacaoTab = lazy(() => import("./components/tabs/LeadsCaptacaoTab.jsx"));
 
 export default function App() {
   // ponytail: Captação de Leads em back log a pedido do usuário (ver ROADMAP-comparativo.md)
@@ -166,7 +172,11 @@ export default function App() {
           onSairSuporte={() => setOrgOverride(null)}
         />
         <main className="flex-1 px-4 sm:px-8 py-6 sm:py-8 overflow-y-auto overflow-x-hidden">
-          {trocandoAba ? <PageLoader /> : <div key={activeTab} className="tab-fade-in">{renderTab()}</div>}
+          {trocandoAba ? <PageLoader /> : (
+            <Suspense fallback={<PageLoader />}>
+              <div key={activeTab} className="tab-fade-in">{renderTab()}</div>
+            </Suspense>
+          )}
         </main>
       </div>
     </div>
