@@ -10,25 +10,15 @@ export const TONE_COLOR = {
   neutral: COLORS.slate,
 };
 
-// Rotação leve e determinística a partir do texto — um carimbo de verdade nunca bate duas
-// vezes exatamente igual, mas o MESMO carimbo (mesmo label) não pode "tremer" a cada
-// re-render, senão vira ruído em vez de textura.
-function tiltFor(text) {
-  let h = 0;
-  for (let i = 0; i < text.length; i++) h = (h * 31 + text.charCodeAt(i)) >>> 0;
-  return -3 + (h % 601) / 100; // -3.00deg .. +3.00deg
-}
-
 export default function Stamp({ children, tone = "neutral" }) {
   const color = TONE_COLOR[tone] ?? COLORS.slate;
-  const tilt = tiltFor(String(children));
   // Carimbo "urgente" tem tinta ainda fresca — halo respira bem devagar atrás dele.
   // Reservado só a esse tom (usado em prazo estourando E em atrasado/vencido no
   // financeiro/ERP): é o mesmo alerta em qualquer lugar do sistema, não decoração local.
   const vivo = tone === "urgent";
 
   return (
-    <span className="relative inline-flex align-middle" style={{ transform: `rotate(${tilt}deg)` }}>
+    <span className="relative inline-flex align-middle">
       {vivo && (
         <span
           aria-hidden="true"
