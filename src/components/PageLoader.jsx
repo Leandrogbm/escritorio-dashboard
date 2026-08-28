@@ -8,7 +8,7 @@ export default function PageLoader() {
   return (
     <div className="flex flex-col items-center justify-center gap-3 py-24">
       <Scale size={40} color={COLORS.brass} className="balanca-animada" />
-      <p className="text-xs uppercase tracking-widest" style={{ color: COLORS.slate }}>Carregando</p>
+      <p className="text-xs uppercase tracking-widest" style={{ color: COLORS.slate, fontFamily: "'IBM Plex Mono', monospace" }}>Carregando</p>
     </div>
   );
 }

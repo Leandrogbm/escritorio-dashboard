@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
-import { Building2, LogOut, LayoutGrid, Eye, Ban, PlayCircle, Trash2, Settings2, XCircle, ShieldAlert } from "lucide-react";
+import { Building2, LogOut, LayoutGrid, Eye, Ban, PlayCircle, Trash2, Settings2, XCircle, ShieldAlert, Wallet, AlertTriangle } from "lucide-react";
 import Card from "./Card.jsx";
+import KpiCard from "./KpiCard.jsx";
 import RecordFormModal from "./RecordFormModal.jsx";
 import EmpresaInspector from "./EmpresaInspector.jsx";
 import { COLORS } from "../lib/theme.js";
@@ -105,18 +106,9 @@ export default function PlatformAdminPanel({ temPerfilProprio, onEntrarNaEmpresa
         <p className="text-sm mb-6" style={{ color: COLORS.slate }}>{empresas?.length ?? 0} empresa(s).</p>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-          <Card>
-            <p className="text-xs uppercase tracking-wide" style={{ color: COLORS.slate }}>MRR (em dia)</p>
-            <p className="text-2xl mt-1" style={{ fontFamily: "'Source Serif 4', serif", fontWeight: 700, color: COLORS.ink }}>{BRL(mrr)}</p>
-          </Card>
-          <Card>
-            <p className="text-xs uppercase tracking-wide" style={{ color: COLORS.slate }}>Empresas atrasadas</p>
-            <p className="text-2xl mt-1" style={{ fontFamily: "'Source Serif 4', serif", fontWeight: 700, color: COLORS.wine }}>{atrasadas}</p>
-          </Card>
-          <Card>
-            <p className="text-xs uppercase tracking-wide" style={{ color: COLORS.slate }}>Total de empresas</p>
-            <p className="text-2xl mt-1" style={{ fontFamily: "'Source Serif 4', serif", fontWeight: 700, color: COLORS.ink }}>{empresas?.length ?? 0}</p>
-          </Card>
+          <KpiCard icon={Wallet} tone="ink" label="MRR (em dia)" value={BRL(mrr)} />
+          <KpiCard icon={AlertTriangle} tone="wine" label="Empresas atrasadas" value={atrasadas} valueColor={COLORS.wine} />
+          <KpiCard icon={Building2} tone="brass" label="Total de empresas" value={empresas?.length ?? 0} />
         </div>
 
         <Card className="overflow-hidden !p-0">

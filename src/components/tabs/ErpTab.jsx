@@ -1,8 +1,9 @@
 import React, { useMemo, useRef, useState } from "react";
-import { Calculator, Plus, Copy, Check, Upload, Filter, X, TrendingUp, Wallet } from "lucide-react";
+import { Calculator, Plus, Copy, Check, Upload, Filter, X, TrendingUp, Wallet, CheckCircle2, Clock3, AlertTriangle, Scale } from "lucide-react";
 import ExecutivoTab from "./ExecutivoTab.jsx";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
 import Card from "../Card.jsx";
+import KpiCard from "../KpiCard.jsx";
 import SectionTitle from "../SectionTitle.jsx";
 import StatusPicker from "../StatusPicker.jsx";
 import RowActions from "../RowActions.jsx";
@@ -266,34 +267,15 @@ export default function ErpTab({ orgId }) {
 
       {aba === "despesas" && <>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-        <Card>
-          <p className="text-xs uppercase tracking-wide" style={{ color: COLORS.slate }}>Despesas pagas (período)</p>
-          <p className="text-2xl mt-1" style={{ fontFamily: "'Source Serif 4', serif", fontWeight: 700, color: totalPago ? COLORS.success : COLORS.slate }}>{BRL(totalPago)}</p>
-        </Card>
-        <Card>
-          <p className="text-xs uppercase tracking-wide" style={{ color: COLORS.slate }}>A pagar (período)</p>
-          <p className="text-2xl mt-1" style={{ fontFamily: "'Source Serif 4', serif", fontWeight: 700, color: totalAberto ? COLORS.brass : COLORS.slate }}>{BRL(totalAberto)}</p>
-        </Card>
-        <Card>
-          <p className="text-xs uppercase tracking-wide" style={{ color: COLORS.slate }}>Em atraso (total)</p>
-          <p className="text-2xl mt-1" style={{ fontFamily: "'Source Serif 4', serif", fontWeight: 700, color: totalAtrasado ? COLORS.wine : COLORS.slate }}>{BRL(totalAtrasado)}</p>
-          <p className="text-xs mt-1.5" style={{ color: COLORS.slate }}>{atrasadas.length} despesa(s) atrasada(s) no total</p>
-        </Card>
+        <KpiCard icon={CheckCircle2} tone={totalPago ? "success" : "slate"} label="Despesas pagas (período)" value={BRL(totalPago)} valueColor={totalPago ? COLORS.success : COLORS.slate} />
+        <KpiCard icon={Clock3} tone={totalAberto ? "brass" : "slate"} label="A pagar (período)" value={BRL(totalAberto)} valueColor={totalAberto ? COLORS.brass : COLORS.slate} />
+        <KpiCard icon={AlertTriangle} tone={totalAtrasado ? "wine" : "slate"} label="Em atraso (total)" value={BRL(totalAtrasado)} valueColor={totalAtrasado ? COLORS.wine : COLORS.slate} caption={`${atrasadas.length} despesa(s) atrasada(s) no total`} />
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-        <Card>
-          <p className="text-xs uppercase tracking-wide" style={{ color: COLORS.slate }}>Receita recebida (período)</p>
-          <p className="text-2xl mt-1" style={{ fontFamily: "'Source Serif 4', serif", fontWeight: 700, color: receitaMes ? COLORS.ink : COLORS.slate }}>{BRL(receitaMes)}</p>
-        </Card>
-        <Card>
-          <p className="text-xs uppercase tracking-wide" style={{ color: COLORS.slate }}>Despesa paga (período)</p>
-          <p className="text-2xl mt-1" style={{ fontFamily: "'Source Serif 4', serif", fontWeight: 700, color: despesaMes ? COLORS.ink : COLORS.slate }}>{BRL(despesaMes)}</p>
-        </Card>
-        <Card>
-          <p className="text-xs uppercase tracking-wide" style={{ color: COLORS.slate }}>Resultado do período (DRE simplificado)</p>
-          <p className="text-2xl mt-1" style={{ fontFamily: "'Source Serif 4', serif", fontWeight: 700, color: resultadoMes >= 0 ? COLORS.success : COLORS.wine }}>{BRL(resultadoMes)}</p>
-        </Card>
+        <KpiCard icon={Wallet} tone="ink" label="Receita recebida (período)" value={BRL(receitaMes)} valueColor={receitaMes ? COLORS.ink : COLORS.slate} />
+        <KpiCard icon={Wallet} tone="slate" label="Despesa paga (período)" value={BRL(despesaMes)} valueColor={despesaMes ? COLORS.ink : COLORS.slate} />
+        <KpiCard icon={Scale} tone={resultadoMes >= 0 ? "success" : "wine"} label="Resultado do período (DRE simplificado)" value={BRL(resultadoMes)} valueColor={resultadoMes >= 0 ? COLORS.success : COLORS.wine} />
       </div>
 
       <Card className="mb-6">

@@ -1,6 +1,7 @@
 import React, { useMemo, useRef, useState } from "react";
-import { DollarSign, Plus, X, Upload, Wallet } from "lucide-react";
+import { DollarSign, Plus, X, Upload, Wallet, CheckCircle2, Clock3, AlertTriangle } from "lucide-react";
 import Card from "../Card.jsx";
+import KpiCard from "../KpiCard.jsx";
 import SectionTitle from "../SectionTitle.jsx";
 import StatusPicker from "../StatusPicker.jsx";
 import RowActions from "../RowActions.jsx";
@@ -189,23 +190,10 @@ export default function FinanceiroTab({ orgId } = {}) {
       />
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-        <Card>
-          <p className="text-xs uppercase tracking-wide" style={{ color: COLORS.slate }}>Faturamento do mês</p>
-          <p className="text-2xl mt-1" style={{ fontFamily: "'Source Serif 4', serif", fontWeight: 700, color: COLORS.ink }}>{BRL(faturamentoMes)}</p>
-        </Card>
-        <Card>
-          <p className="text-xs uppercase tracking-wide" style={{ color: COLORS.slate }}>Recebido no mês</p>
-          <p className="text-2xl mt-1" style={{ fontFamily: "'Source Serif 4', serif", fontWeight: 700, color: recebidoMes ? COLORS.success : COLORS.slate }}>{BRL(recebidoMes)}</p>
-        </Card>
-        <Card>
-          <p className="text-xs uppercase tracking-wide" style={{ color: COLORS.slate }}>Pendente no mês</p>
-          <p className="text-2xl mt-1" style={{ fontFamily: "'Source Serif 4', serif", fontWeight: 700, color: pendenteMes ? COLORS.brass : COLORS.slate }}>{BRL(pendenteMes)}</p>
-        </Card>
-        <Card>
-          <p className="text-xs uppercase tracking-wide" style={{ color: COLORS.slate }}>Em atraso (total)</p>
-          <p className="text-2xl mt-1" style={{ fontFamily: "'Source Serif 4', serif", fontWeight: 700, color: totalAtrasado ? COLORS.wine : COLORS.slate }}>{BRL(totalAtrasado)}</p>
-          <p className="text-xs mt-1.5" style={{ color: COLORS.slate }}>{atrasadosTodos.length} cobrança(s) atrasada(s)</p>
-        </Card>
+        <KpiCard icon={Wallet} tone="ink" label="Faturamento do mês" value={BRL(faturamentoMes)} />
+        <KpiCard icon={CheckCircle2} tone={recebidoMes ? "success" : "slate"} label="Recebido no mês" value={BRL(recebidoMes)} valueColor={recebidoMes ? COLORS.success : COLORS.slate} />
+        <KpiCard icon={Clock3} tone={pendenteMes ? "brass" : "slate"} label="Pendente no mês" value={BRL(pendenteMes)} valueColor={pendenteMes ? COLORS.brass : COLORS.slate} />
+        <KpiCard icon={AlertTriangle} tone={totalAtrasado ? "wine" : "slate"} label="Em atraso (total)" value={BRL(totalAtrasado)} valueColor={totalAtrasado ? COLORS.wine : COLORS.slate} caption={`${atrasadosTodos.length} cobrança(s) atrasada(s)`} />
       </div>
 
       <Card className="overflow-hidden !p-0">

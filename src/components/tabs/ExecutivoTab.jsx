@@ -1,7 +1,8 @@
 import React, { useMemo, useState } from "react";
-import { TrendingUp } from "lucide-react";
+import { TrendingUp, Scale, Users, Wallet, CheckCircle2, Clock3 } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
 import Card from "../Card.jsx";
+import KpiCard from "../KpiCard.jsx";
 import SectionTitle from "../SectionTitle.jsx";
 import { COLORS } from "../../lib/theme.js";
 import { BRL } from "../../data/mockData.js";
@@ -108,18 +109,9 @@ export default function ExecutivoTab({ orgId, embutido = false } = {}) {
     <div>
       {!embutido && <SectionTitle icon={TrendingUp} title="Visão Executiva" subtitle="Panorama consolidado do escritório" />}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-        <Card>
-          <p className="text-xs uppercase tracking-wide" style={{ color: COLORS.slate }}>Valor total em causas</p>
-          <p className="text-2xl mt-1" style={{ fontFamily: "'Source Serif 4', serif", fontWeight: 700, color: COLORS.ink }}>{BRL(totalReceita)}</p>
-        </Card>
-        <Card>
-          <p className="text-xs uppercase tracking-wide" style={{ color: COLORS.slate }}>Processos ativos</p>
-          <p className="text-2xl mt-1" style={{ fontFamily: "'Source Serif 4', serif", fontWeight: 700, color: COLORS.ink }}>{ativos}</p>
-        </Card>
-        <Card>
-          <p className="text-xs uppercase tracking-wide" style={{ color: COLORS.slate }}>Total de clientes</p>
-          <p className="text-2xl mt-1" style={{ fontFamily: "'Source Serif 4', serif", fontWeight: 700, color: COLORS.ink }}>{clientes.length}</p>
-        </Card>
+        <KpiCard icon={Scale} tone="ink" label="Valor total em causas" value={BRL(totalReceita)} />
+        <KpiCard icon={CheckCircle2} tone="brass" label="Processos ativos" value={ativos} />
+        <KpiCard icon={Users} tone="slate" label="Total de clientes" value={clientes.length} />
       </div>
       <div className="flex flex-wrap items-center gap-2 mb-3">
         <p className="text-xs" style={{ color: COLORS.slate }}>Honorários e rentabilidade por área, no período:</p>
@@ -144,18 +136,9 @@ export default function ExecutivoTab({ orgId, embutido = false } = {}) {
         />
       </div>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-        <Card>
-          <p className="text-xs uppercase tracking-wide" style={{ color: COLORS.slate }}>Total (honorários) — período</p>
-          <p className="text-2xl mt-1" style={{ fontFamily: "'Source Serif 4', serif", fontWeight: 700, color: COLORS.ink }}>{BRL(totalHonorarios)}</p>
-        </Card>
-        <Card>
-          <p className="text-xs uppercase tracking-wide" style={{ color: COLORS.slate }}>Recebido</p>
-          <p className="text-2xl mt-1" style={{ fontFamily: "'Source Serif 4', serif", fontWeight: 700, color: COLORS.success }}>{BRL(recebido)}</p>
-        </Card>
-        <Card>
-          <p className="text-xs uppercase tracking-wide" style={{ color: COLORS.slate }}>A receber</p>
-          <p className="text-2xl mt-1" style={{ fontFamily: "'Source Serif 4', serif", fontWeight: 700, color: COLORS.brass }}>{BRL(aReceber)}</p>
-        </Card>
+        <KpiCard icon={Wallet} tone="ink" label="Total (honorários) — período" value={BRL(totalHonorarios)} />
+        <KpiCard icon={CheckCircle2} tone="success" label="Recebido" value={BRL(recebido)} valueColor={COLORS.success} />
+        <KpiCard icon={Clock3} tone="brass" label="A receber" value={BRL(aReceber)} valueColor={COLORS.brass} />
       </div>
 
       <Card className="mb-6">

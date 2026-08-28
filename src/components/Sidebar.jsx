@@ -68,13 +68,19 @@ export default function Sidebar({ allowedModules, activeTab, setActiveTab, curre
                 key={m.key}
                 onClick={() => escolher(m.key)}
                 title={recolhida ? m.label : undefined}
-                className={`w-full flex items-center gap-3 py-2.5 rounded-md text-sm transition-colors ${!active ? "hover:bg-white/[0.06]" : ""} ${recolhida ? "md:justify-center md:px-0" : ""} px-3`}
+                className={`relative w-full flex items-center gap-3 py-2.5 rounded-md text-sm transition-colors ${!active ? "hover:bg-white/[0.06]" : ""} ${recolhida ? "md:justify-center md:px-0" : ""} px-3`}
                 style={{
                   background: active ? "rgba(165,121,59,0.18)" : undefined,
                   color: active ? COLORS.brass : "rgba(255,255,255,0.75)",
                   fontWeight: active ? 600 : 500,
                 }}
               >
+                {active && (
+                  <span
+                    className="absolute left-0 top-1.5 bottom-1.5 w-[3px] rounded-full"
+                    style={{ background: COLORS.brass }}
+                  />
+                )}
                 <Icon size={17} className="shrink-0" />
                 <span className={recolhida ? "md:hidden" : ""}>{m.label}</span>
               </button>

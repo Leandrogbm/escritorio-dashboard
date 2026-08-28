@@ -1,10 +1,50 @@
 import React, { useState } from "react";
-import { Eye, EyeOff } from "lucide-react";
+import { Eye, EyeOff, Scale } from "lucide-react";
 import Card from "./Card.jsx";
 import Signup from "./Signup.jsx";
 import PoliticaPrivacidadeModal from "./PoliticaPrivacidadeModal.jsx";
 import { COLORS } from "../lib/theme.js";
 import { supabase } from "../lib/supabaseClient.js";
+
+// Moldura da tela de login/recuperação — painel de marca (ink navy) à esquerda em telas
+// largas, formulário à direita. Só layout/visual em volta do `children`; nenhum dos dois
+// formulários muda de comportamento por causa disso, só ganham uma vitrine em telas grandes.
+function AuthShell({ children }) {
+  return (
+    <div className="min-h-screen w-full flex" style={{ background: COLORS.paper, fontFamily: "'Inter', sans-serif" }}>
+      <div
+        className="hidden lg:flex flex-col justify-between w-[42%] shrink-0 px-12 py-14 relative overflow-hidden"
+        style={{ background: COLORS.ink }}
+      >
+        <div
+          className="absolute inset-0 opacity-[0.06]"
+          style={{
+            backgroundImage: "radial-gradient(circle, #fff 1px, transparent 1px)",
+            backgroundSize: "22px 22px",
+          }}
+        />
+        <div className="relative flex items-center gap-3">
+          <img src="/brand/logo-icon.png" alt="Actum" className="w-9 h-9" />
+          <span style={{ fontFamily: "'Source Serif 4', serif", color: "#fff", fontWeight: 600, fontSize: 20 }}>Actum</span>
+        </div>
+        <div className="relative">
+          <Scale size={34} color={COLORS.brass} className="mb-5" />
+          <p style={{ fontFamily: "'Source Serif 4', serif", color: "#fff", fontWeight: 600, fontSize: 30, lineHeight: 1.25 }}>
+            Gestão jurídica e ERP,<br />num só lugar.
+          </p>
+          <p className="text-sm mt-3 max-w-sm" style={{ color: "rgba(255,255,255,0.6)" }}>
+            Processos, prazos, financeiro e equipe do escritório — organizados com o rigor que a advocacia exige.
+          </p>
+        </div>
+        <p className="relative text-xs" style={{ color: "rgba(255,255,255,0.35)" }}>© {new Date().getFullYear()} Actum</p>
+      </div>
+
+      <div className="flex-1 flex items-center justify-center px-4 py-12">
+        {children}
+      </div>
+    </div>
+  );
+}
 
 export default function Login() {
   const [email, setEmail] = useState("");
@@ -44,10 +84,10 @@ export default function Login() {
 
   if (forgot) {
     return (
-      <div className="min-h-screen w-full flex items-center justify-center" style={{ background: COLORS.paper, fontFamily: "'Inter', sans-serif" }}>
+      <AuthShell>
         <Card className="w-full max-w-sm">
           <div className="flex flex-col items-center gap-2 mb-6">
-            <img src="/brand/logo-icon.png" alt="Actum" className="w-9 h-9" />
+            <img src="/brand/logo-icon.png" alt="Actum" className="w-9 h-9 lg:hidden" />
             <p style={{ fontFamily: "'Source Serif 4', serif", color: COLORS.ink, fontWeight: 600, fontSize: 18 }}>
               Redefinir senha
             </p>
@@ -91,15 +131,15 @@ export default function Login() {
             Voltar ao login
           </button>
         </Card>
-      </div>
+      </AuthShell>
     );
   }
 
   return (
-    <div className="min-h-screen w-full flex items-center justify-center" style={{ background: COLORS.paper, fontFamily: "'Inter', sans-serif" }}>
+    <AuthShell>
       <Card className="w-full max-w-sm">
         <div className="flex flex-col items-center gap-2 mb-6">
-          <img src="/brand/logo-icon.png" alt="Actum" className="w-9 h-9" />
+          <img src="/brand/logo-icon.png" alt="Actum" className="w-9 h-9 lg:hidden" />
           <p style={{ fontFamily: "'Source Serif 4', serif", color: COLORS.ink, fontWeight: 600, fontSize: 18 }}>
             Actum
           </p>
@@ -184,6 +224,6 @@ export default function Login() {
         </p>
       </Card>
       {mostrarPrivacidade && <PoliticaPrivacidadeModal onClose={() => setMostrarPrivacidade(false)} />}
-    </div>
+    </AuthShell>
   );
 }
