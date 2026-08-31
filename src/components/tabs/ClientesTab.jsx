@@ -16,6 +16,7 @@ import { buscarEnderecoPorCep } from "../../lib/viaCep.js";
 import { buscarEmpresaPorCnpj } from "../../lib/brasilApi.js";
 import { formatCelular } from "../../lib/celular.js";
 import { formatDocumento } from "../../lib/documento.js";
+import { avisoLimitePlano } from "../../lib/limitesPlano.js";
 
 // wa.me quer só dígitos com DDI — assume Brasil (55) quando o número não veio com DDI
 // (celular BR sempre tem 10 ou 11 dígitos com DDD; deixa passar como veio se já for maior).
@@ -62,6 +63,15 @@ export default function ClientesTab({ currentRole, orgId, profile, onAbrirProces
   const [clienteAberto, setClienteAberto] = useState(null); // cliente aberto na página cheia (processos+financeiro)
   const [busca, setBusca] = useState("");
   const podeExcluir = currentRole === "admin" || currentRole === "socio"; // RLS (clientes_del) já barra no banco — isso só esconde o botão
+
+  // Limite do plano (plan_limits.limite_clientes) — checagem client-side só pra avisar antes
+  // e oferecer upgrade; a trava de verdade é a RLS clientes_ins, que barra mesmo que essa
+  // checagem falhe/esteja desatualizada.
+  const abrirNovoCliente = () => {
+    const aviso = avisoLimitePlano(profile?.organizations, "limite_clientes", clientes.length, "clientes cadastrados");
+    if (aviso) return alert(aviso);
+    setEditing({});
+  };
 
   // Mesmo motivo do ProcessosTab: <main> é quem rola, não a window — sem isso o botão
   // "Voltar" da página de documentos/cliente sai da tela se a lista estava rolada.
@@ -135,7 +145,7 @@ export default function ClientesTab({ currentRole, orgId, profile, onAbrirProces
           <div className="flex flex-wrap items-center gap-2">
             <SearchInput value={busca} onChange={setBusca} placeholder="Buscar cliente..." />
             <button
-              onClick={() => setEditing({})}
+              onClick={abrirNovoCliente}
               className="flex items-center gap-1.5 px-3 py-2 rounded-md text-sm font-semibold"
               style={{ background: COLORS.ink, color: "#fff" }}
             >

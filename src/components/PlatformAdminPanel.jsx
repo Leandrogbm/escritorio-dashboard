@@ -8,21 +8,15 @@ import EmpresaCobrancas from "./EmpresaCobrancas.jsx";
 import { COLORS } from "../lib/theme.js";
 import { BRL } from "../data/mockData.js";
 import { supabase } from "../lib/supabaseClient.js";
+import { PLANOS, planoLabelCompleto } from "../config/planos.js";
 
 const STATUS_TONE = { pago: COLORS.success, pendente: COLORS.brass, atrasado: COLORS.wine };
-// Espelha a tabela plan_limits — só pra UX (auto-preencher valor_mensal e mostrar o preço
-// na lista). O limite de verdade é aplicado no banco (RLS de processos, Edge Function de
-// criar colaborador), não aqui; mudar aqui sem mudar lá só desalinha o texto da tela.
-const PLANOS = [
-  { value: "basic", label: "Basic — R$100/mês (5 usuários, 50 processos)", valor: 100 },
-  { value: "intermediario", label: "Intermediário — R$300/mês (15 usuários, 200 processos)", valor: 300 },
-  { value: "plus", label: "Plus — R$500/mês (ilimitado)", valor: 500 },
-];
 const CONFIG_FIELDS = [
   { key: "nome", label: "Nome da empresa" },
   { key: "cnpj", label: "CNPJ", optional: true },
   {
-    key: "plano", label: "Plano", type: "select", optional: true, options: PLANOS,
+    key: "plano", label: "Plano", type: "select", optional: true,
+    options: PLANOS.map((p) => ({ value: p.value, label: planoLabelCompleto(p) })),
     onSelect: (value) => ({ valor_mensal: PLANOS.find((p) => p.value === value)?.valor }),
   },
   { key: "valor_mensal", label: "Valor mensal (R$)", type: "number", optional: true },

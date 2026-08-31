@@ -54,7 +54,7 @@ export default function ProcessoPagina({ processo: p, atrasos, equipe, orgId, pr
           </div>
           <div>
             <p className="text-xs uppercase tracking-wide" style={{ color: COLORS.slate }}>Responsável</p>
-            <p className="mt-0.5" style={{ color: COLORS.ink, fontWeight: 600 }}>{p.responsavel?.nome ?? "—"}</p>
+            <p className="mt-0.5" style={{ color: COLORS.ink, fontWeight: 600 }}>{p.responsavel_socios ? "Sócios" : (p.responsavel?.nome ?? "—")}</p>
           </div>
           <div>
             <p className="text-xs uppercase tracking-wide" style={{ color: COLORS.slate }}>Valor da causa</p>

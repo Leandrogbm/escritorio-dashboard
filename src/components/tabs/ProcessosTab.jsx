@@ -12,9 +12,23 @@ import { COLORS } from "../../lib/theme.js";
 import { useSupabaseTable } from "../../hooks/useSupabaseTable.js";
 import { supabase } from "../../lib/supabaseClient.js";
 import { AREAS_DIREITO_COMUNS } from "../../config/areasDireito.js";
+import { avisoLimitePlano } from "../../lib/limitesPlano.js";
 
 const STATUS_TONE = { "Em andamento": "ok", "Aguardando decisão": "warn", "Suspenso": "neutral", "Encerrado": "neutral" };
 const STATUS_OPTIONS = Object.keys(STATUS_TONE).map((s) => ({ value: s, label: s }));
+const RESPONSAVEL_SOCIOS = "__socios__";
+
+// Traduz o valor sentinela do select "Responsável" antes de salvar — RecordFormModal não
+// sabe nada disso, só manda o value escolhido pra frente.
+function prepararValoresProcesso(values) {
+  let v = values;
+  // processos.valor é not null (default 0) — campo é opcional na tela, mas mandar null pro
+  // banco quebra a constraint com um erro cru em vez do "opcional" que o form promete.
+  if ("valor" in v && v.valor == null) v = { ...v, valor: 0 };
+  if (!("responsavel_id" in v)) return v;
+  if (v.responsavel_id === RESPONSAVEL_SOCIOS) return { ...v, responsavel_id: null, responsavel_socios: true };
+  return { ...v, responsavel_socios: false };
+}
 
 const PRAZO_FIELDS = [
   { key: "tipo", label: "Tipo de prazo (ex: Contestação, Recurso)" },
@@ -35,7 +49,10 @@ export default function ProcessosTab({ currentRole, orgId, profile, abrirProcess
     select: "*, cliente:clientes(id,nome), responsavel:profiles!processos_responsavel_id_fkey(id,nome)", eq: orgEq,
   });
   const { data: clientes } = useSupabaseTable("clientes", { select: "id,nome", orderBy: "nome", ascending: true, eq: orgEq });
-  const { data: equipe } = useSupabaseTable("profiles", { select: "id,nome", orderBy: "nome", ascending: true, eq: orgEq });
+  // role vem junto só pra filtrar admin fora do dropdown de Responsável — "Dev - adm" é a
+  // conta de suporte, não alguém que carrega processo (ela já vê tudo por outra via).
+  const { data: equipeRaw } = useSupabaseTable("profiles", { select: "id,nome,role", orderBy: "nome", ascending: true, eq: orgEq });
+  const equipe = useMemo(() => equipeRaw.filter((e) => e.role !== "admin"), [equipeRaw]);
   const { insert: insertPrazo } = useSupabaseTable("prazos", { eq: orgEq });
   // Sem módulo financeiro liberado pro perfil, a RLS de honorarios devolve vazio — o aviso
   // só aparece pra quem já enxerga essa informação de qualquer forma.
@@ -57,6 +74,15 @@ export default function ProcessosTab({ currentRole, orgId, profile, abrirProcess
   const [busca, setBusca] = useState("");
 
   const podeSincronizar = currentRole === "admin" || currentRole === "socio";
+
+  // Limite do plano conta só processo ATIVO (mesma regra da RLS processos_ins) — arquivado
+  // não deveria travar a criação de um novo.
+  const abrirNovoProcesso = () => {
+    const ativos = processos.filter((p) => p.status !== "Encerrado").length;
+    const aviso = avisoLimitePlano(profile?.organizations, "limite_processos", ativos, "processos ativos");
+    if (aviso) return alert(aviso);
+    setEditing({});
+  };
 
   // <main> (App.jsx) é quem rola, não a window — sem isso, abrir/fechar a página cheia do
   // processo mantém a posição de rolagem de antes, e o botão "Voltar" (que fica no topo)
@@ -100,7 +126,13 @@ export default function ProcessosTab({ currentRole, orgId, profile, abrirProcess
     { key: "area", label: "Área do direito", type: "datalist", options: AREAS_DIREITO_COMUNS.map((a) => ({ value: a })) },
     { key: "status", label: "Situação", type: "select", options: STATUS_OPTIONS },
     { key: "valor", label: "Valor da causa (R$)", type: "number", optional: true },
-    { key: "responsavel_id", label: "Responsável", type: "select", options: equipe.map((e) => ({ value: e.id, label: e.nome })), optional: true },
+    // "Sócios" (RESPONSAVEL_SOCIOS): valor sentinela, não é um id de verdade — o
+    // submit troca isso por { responsavel_id: null, responsavel_socios: true } antes de
+    // salvar (ver prepararValores). Processo assim marcado é enxergado por qualquer sócio,
+    // não só por 1 pessoa.
+    { key: "responsavel_id", label: "Responsável", type: "select",
+      options: [{ value: RESPONSAVEL_SOCIOS, label: "Sócios (todos os sócios veem)" }, ...equipe.map((e) => ({ value: e.id, label: e.nome }))],
+      optional: true },
     // Só sócio/admin decide sigilo — RLS (processos_sel/upd/del) restringe visão E edição a
     // quem é o responsável quando marcado; financeiro do processo confidencial some junto
     // (honorarios_sel). Pedido do usuário, versão sem repetir o incidente: só entra em vigor
@@ -147,7 +179,7 @@ export default function ProcessosTab({ currentRole, orgId, profile, abrirProcess
           orgId={orgId}
           profile={profile}
           onVoltar={() => setProcessoAberto(null)}
-          onEditar={() => setEditing({ ...atual, cliente_id: atual.cliente?.id, responsavel_id: atual.responsavel?.id })}
+          onEditar={() => setEditing({ ...atual, cliente_id: atual.cliente?.id, responsavel_id: atual.responsavel_socios ? RESPONSAVEL_SOCIOS : atual.responsavel?.id })}
           onExcluir={() => { remove(atual.id); setProcessoAberto(null); }}
           onRegistrarPrazo={abrirRegistrarPrazo(atual.id)}
           onMudarStatus={(status) => update(atual.id, { status })}
@@ -158,7 +190,7 @@ export default function ProcessosTab({ currentRole, orgId, profile, abrirProcess
           fields={fields}
           initialValues={editing}
           onClose={() => setEditing(null)}
-          onSubmit={(values) => (editing?.id ? update(editing.id, values) : insert(values))}
+          onSubmit={(values) => { const v = prepararValoresProcesso(values); return editing?.id ? update(editing.id, v) : insert(v); }}
         />
         <RecordFormModal
           open={registrandoPrazo !== null}
@@ -193,7 +225,7 @@ export default function ProcessosTab({ currentRole, orgId, profile, abrirProcess
                 <RefreshCw size={14} className={sincronizando ? "animate-spin" : ""} /> {sincronizando ? "Sincronizando..." : "Sincronizar DataJud"}
               </button>
             )}
-            <button onClick={() => setEditing({})} className="flex items-center gap-1.5 px-3 py-2 rounded-md text-sm font-semibold" style={{ background: COLORS.ink, color: "#fff" }}>
+            <button onClick={abrirNovoProcesso} className="flex items-center gap-1.5 px-3 py-2 rounded-md text-sm font-semibold" style={{ background: COLORS.ink, color: "#fff" }}>
               <Plus size={14} /> Novo
             </button>
           </div>
@@ -234,12 +266,12 @@ export default function ProcessosTab({ currentRole, orgId, profile, abrirProcess
             )}
             <div className="flex items-center justify-between mt-4 pt-4" style={{ borderTop: `1px solid ${COLORS.line}` }}>
               <span className="text-xs uppercase tracking-wide" style={{ color: COLORS.brassText, fontWeight: 600 }}>{p.area}</span>
-              <span className="text-sm" style={{ color: COLORS.slate }}>{p.responsavel?.nome ?? "—"}</span>
+              <span className="text-sm" style={{ color: COLORS.slate }}>{p.responsavel_socios ? "Sócios" : (p.responsavel?.nome ?? "—")}</span>
               <span className="text-sm font-semibold" style={{ color: COLORS.ink }}>{p.valor ? p.valor.toLocaleString("pt-BR", { style: "currency", currency: "BRL" }) : "—"}</span>
             </div>
             <div className="flex items-center justify-end mt-2" onClick={(e) => e.stopPropagation()}>
               <RowActions
-                onEdit={() => setEditing({ ...p, cliente_id: p.cliente?.id, responsavel_id: p.responsavel?.id })}
+                onEdit={() => setEditing({ ...p, cliente_id: p.cliente?.id, responsavel_id: p.responsavel_socios ? RESPONSAVEL_SOCIOS : p.responsavel?.id })}
                 onDelete={() => remove(p.id)}
               />
             </div>

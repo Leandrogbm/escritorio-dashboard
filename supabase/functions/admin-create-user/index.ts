@@ -91,8 +91,12 @@ Deno.serve(async (req) => {
       if (limite?.limite_usuarios != null) {
         const { count } = await admin.from("profiles").select("id", { count: "exact", head: true }).eq("org_id", targetOrgId);
         if ((count ?? 0) >= limite.limite_usuarios) {
+          // Espelha a ordem de PLANOS (src/config/planos.js) — só pra nomear o próximo
+          // plano na mensagem de erro, não é a fonte de verdade do limite (essa é plan_limits).
+          const proximo: Record<string, string> = { basic: "Intermediário (R$300/mês)", intermediario: "Plus (R$500/mês)" };
+          const sugestao = proximo[targetOrg.plano] ? ` Faça upgrade para o plano ${proximo[targetOrg.plano]}.` : " Fale com o suporte da plataforma.";
           return new Response(
-            JSON.stringify({ error: `Limite de ${limite.limite_usuarios} usuários do plano ${targetOrg.plano} atingido. Fale com o suporte pra fazer upgrade.` }),
+            JSON.stringify({ error: `Limite de ${limite.limite_usuarios} usuários do plano ${targetOrg.plano} atingido.${sugestao}` }),
             { status: 400, headers: corsHeaders }
           );
         }

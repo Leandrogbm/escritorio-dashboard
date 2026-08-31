@@ -96,6 +96,11 @@ create table processos (
   -- na edição do processo — nunca automático, pra não repetir o incidente de "1 responsável
   -- sócio = privado" (todo processo real compartilhava o mesmo sócio padrão).
   confidencial boolean not null default false,
+  -- "Responsável" = Sócios: em vez de nomear 1 pessoa, marca que o processo é de todos os
+  -- sócios (responsavel_id fica null nesse caso). Sem isso, não muda nada — sócio já
+  -- enxergava todo processo não-confidencial por não ser advogado (ver processos_sel); isso
+  -- só importa quando confidencial=true, pra abrir pra QUALQUER sócio em vez de só 1 pessoa.
+  responsavel_socios boolean not null default false,
   unique (org_id, numero)
 );
 create index processos_org_id_idx on processos (org_id);
@@ -364,17 +369,18 @@ create table documentos_assinatura (
 create index documentos_assinatura_org_id_idx on documentos_assinatura (org_id);
 
 -- Os 3 planos e seus limites — fonte única de verdade (Edge Function admin-create-user e
--- a policy processos_ins leem daqui). limite_usuarios/limite_processos null = sem limite.
+-- as policies processos_ins/clientes_ins leem daqui). Qualquer limite null = sem limite.
 create table plan_limits (
   plano text primary key,
   valor_mensal numeric(10,2) not null,
   limite_usuarios int,
-  limite_processos int
+  limite_processos int,
+  limite_clientes int
 );
-insert into plan_limits (plano, valor_mensal, limite_usuarios, limite_processos) values
-  ('basic', 100.00, 5, 50),
-  ('intermediario', 300.00, 15, 200),
-  ('plus', 500.00, null, null);
+insert into plan_limits (plano, valor_mensal, limite_usuarios, limite_processos, limite_clientes) values
+  ('basic', 100.00, 5, 50, 50),
+  ('intermediario', 300.00, 15, 200, 200),
+  ('plus', 500.00, null, null, null);
 alter table plan_limits enable row level security;
 -- todo mundo autenticado lê (é a lista de preços, não é segredo)
 create policy plan_limits_select on plan_limits for select using (true);
@@ -540,7 +546,14 @@ create policy role_permissions_write on role_permissions for all
 alter table clientes enable row level security;
 create trigger trg_set_org_id before insert on clientes for each row execute function set_org_id();
 create policy clientes_sel on clientes for select using ((org_id = auth_org_id() and has_module('clientes')) or is_platform_admin());
-create policy clientes_ins on clientes for insert with check ((org_id = auth_org_id() and has_module('clientes')) or is_platform_admin());
+-- limite de clientes do plano — mesmo mecanismo do limite de processos (plan_limits.limite_clientes).
+create policy clientes_ins on clientes for insert with check (
+  is_platform_admin() or (org_id = auth_org_id() and has_module('clientes') and (
+    (select limite_clientes from plan_limits pl join organizations o on o.plano = pl.plano where o.id = auth_org_id()) is null
+    or (select count(*) from clientes c2 where c2.org_id = auth_org_id())
+       < (select limite_clientes from plan_limits pl join organizations o on o.plano = pl.plano where o.id = auth_org_id())
+  ))
+);
 create policy clientes_upd on clientes for update
   using ((org_id = auth_org_id() and has_module('clientes')) or is_platform_admin()) with check (true);
 -- só admin/sócio excluem cliente (diferente das outras policies, que valem pra quem tem o
@@ -640,16 +653,18 @@ create policy processos_sel on processos for select using (
   (org_id = auth_org_id() and has_module('processos') and (
     auth_role() = 'admin'
     or (not confidencial and (auth_role() <> 'advogado' or responsavel_id = auth.uid()))
-    or (confidencial and responsavel_id = auth.uid())
+    or (confidencial and (responsavel_id = auth.uid() or (responsavel_socios and auth_role() = 'socio')))
   ))
   or is_platform_admin()
 );
 -- limite de processos do plano entra aqui — org sem plano (plano null) fica sem limite.
 -- platform admin pula o limite do plano (é suporte, não é o uso normal da empresa).
+-- Conta só processo ATIVO (não Encerrado) contra o limite — processo arquivado não deveria
+-- travar a criação de um novo (pedido do usuário: "tem que ser processo (ativos)").
 create policy processos_ins on processos for insert with check (
   is_platform_admin() or (org_id = auth_org_id() and has_module('processos') and (
     (select limite_processos from plan_limits pl join organizations o on o.plano = pl.plano where o.id = auth_org_id()) is null
-    or (select count(*) from processos p2 where p2.org_id = auth_org_id())
+    or (select count(*) from processos p2 where p2.org_id = auth_org_id() and p2.status <> 'Encerrado')
        < (select limite_processos from plan_limits pl join organizations o on o.plano = pl.plano where o.id = auth_org_id())
   ))
 );
@@ -657,14 +672,14 @@ create policy processos_upd on processos for update
   using ((org_id = auth_org_id() and has_module('processos') and (
     auth_role() = 'admin'
     or (not confidencial and (auth_role() <> 'advogado' or responsavel_id = auth.uid()))
-    or (confidencial and responsavel_id = auth.uid())
+    or (confidencial and (responsavel_id = auth.uid() or (responsavel_socios and auth_role() = 'socio')))
   )) or is_platform_admin())
   with check (true);
 create policy processos_del on processos for delete using (
   (org_id = auth_org_id() and has_module('processos') and (
     auth_role() = 'admin'
     or (not confidencial and (auth_role() <> 'advogado' or responsavel_id = auth.uid()))
-    or (confidencial and responsavel_id = auth.uid())
+    or (confidencial and (responsavel_id = auth.uid() or (responsavel_socios and auth_role() = 'socio')))
   )) or is_platform_admin()
 );
 
@@ -687,7 +702,10 @@ create trigger trg_set_org_id before insert on honorarios for each row execute f
 create policy honorarios_sel on honorarios for select using (
   (org_id = auth_org_id() and has_module('financeiro') and (
     auth_role() = 'admin' or processo_id is null
-    or not exists (select 1 from processos p where p.id = honorarios.processo_id and p.confidencial and p.responsavel_id <> auth.uid())
+    or not exists (
+      select 1 from processos p where p.id = honorarios.processo_id and p.confidencial
+      and not (p.responsavel_id = auth.uid() or (p.responsavel_socios and auth_role() = 'socio'))
+    )
   ))
   or is_platform_admin()
 );
