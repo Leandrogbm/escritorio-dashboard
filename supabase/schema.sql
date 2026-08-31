@@ -722,6 +722,42 @@ $$;
 grant execute on function is_platform_admin() to authenticated;
 grant execute on function platform_org_metrics() to authenticated;
 
+-- ── Cobrança mês a mês que a empresa paga PRA plataforma (Actum) ────────────────────────
+-- Diferente de organizations.valor_mensal/status_pagamento (que é só o snapshot atual) —
+-- aqui fica o histórico/ledger real, um registro por mês. Pedido do usuário: todo plano
+-- lançado cobre um mínimo de 6 meses de uma vez (contrato mínimo).
+create table platform_cobrancas (
+  id uuid primary key default gen_random_uuid(),
+  org_id uuid not null references organizations(id) on delete cascade,
+  mes_referencia date not null, -- sempre dia 1 do mês
+  valor numeric(10,2) not null,
+  status text not null check (status in ('pago','pendente','atrasado')) default 'pendente',
+  created_at timestamptz not null default now(),
+  unique (org_id, mes_referencia)
+);
+create index platform_cobrancas_org_id_idx on platform_cobrancas (org_id);
+alter table platform_cobrancas enable row level security;
+create policy platform_cobrancas_all on platform_cobrancas for all using (is_platform_admin()) with check (is_platform_admin());
+
+-- Sempre que um plano é (re)atribuído (Configurar → salva plano diferente do anterior),
+-- lança os 6 meses seguintes de cobrança de uma vez — on conflict do nothing pra não duplicar
+-- mês já lançado se o plano for reconfigurado de novo.
+create or replace function lancar_cobrancas_plano() returns trigger
+  language plpgsql security definer set search_path = public as $$
+begin
+  if new.plano is not null and new.valor_mensal is not null and (old.plano is distinct from new.plano) then
+    insert into platform_cobrancas (org_id, mes_referencia, valor, status)
+    select new.id, (date_trunc('month', now()) + (n || ' months')::interval)::date, new.valor_mensal,
+      case when n = 0 and new.status_pagamento = 'pago' then 'pago' else 'pendente' end
+    from generate_series(0,5) as n
+    on conflict (org_id, mes_referencia) do nothing;
+  end if;
+  return new;
+end;
+$$;
+create trigger trg_lancar_cobrancas_plano after update on organizations
+  for each row execute function lancar_cobrancas_plano();
+
 -- Log de auditoria: só registra quando quem mexeu é platform admin — uso normal da própria
 -- empresa não gera log nenhum aqui, senão vira ruído.
 create table platform_admin_audit_log (

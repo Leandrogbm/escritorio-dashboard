@@ -4,6 +4,7 @@ import Card from "./Card.jsx";
 import KpiCard from "./KpiCard.jsx";
 import RecordFormModal from "./RecordFormModal.jsx";
 import EmpresaInspector from "./EmpresaInspector.jsx";
+import EmpresaCobrancas from "./EmpresaCobrancas.jsx";
 import { COLORS } from "../lib/theme.js";
 import { BRL } from "../data/mockData.js";
 import { supabase } from "../lib/supabaseClient.js";
@@ -37,6 +38,7 @@ export default function PlatformAdminPanel({ temPerfilProprio, onEntrarNaEmpresa
   const [empresas, setEmpresas] = useState(null);
   const [editingConfig, setEditingConfig] = useState(null); // {...} = configurando uma empresa
   const [inspecting, setInspecting] = useState(null); // {org_id, nome} = inspetor aberto
+  const [vendoCobrancas, setVendoCobrancas] = useState(null); // {org_id, nome} = clicou na linha
 
   const carregar = () => supabase.rpc("platform_org_metrics").then(({ data }) => setEmpresas(data ?? []));
   useEffect(() => { carregar(); }, []);
@@ -126,7 +128,7 @@ export default function PlatformAdminPanel({ temPerfilProprio, onEntrarNaEmpresa
                 <tr><td colSpan={10} className="px-4 py-6 text-center text-sm" style={{ color: COLORS.slate }}>Nenhuma empresa cadastrada ainda.</td></tr>
               )}
               {(empresas ?? []).map((e, i) => (
-                <tr key={e.org_id} style={{ borderTop: `1px solid ${COLORS.line}`, background: i % 2 ? "#FAF9F5" : COLORS.paperRaised }}>
+                <tr key={e.org_id} onClick={() => setVendoCobrancas(e)} className="cursor-pointer" style={{ borderTop: `1px solid ${COLORS.line}`, background: i % 2 ? "#FAF9F5" : COLORS.paperRaised }}>
                   <td className="px-4 py-3" style={{ color: COLORS.ink, fontWeight: 600 }}>{e.nome}</td>
                   <td className="px-4 py-3" style={{ color: COLORS.slate }}>{e.cnpj ?? "—"}</td>
                   <td className="px-4 py-3" style={{ color: COLORS.slate }}>{new Date(e.created_at).toLocaleDateString("pt-BR")}</td>
@@ -139,7 +141,7 @@ export default function PlatformAdminPanel({ temPerfilProprio, onEntrarNaEmpresa
                     <span className="text-xs font-semibold uppercase" style={{ color: STATUS_TONE[e.status_pagamento] }}>{e.status_pagamento}</span>
                     {e.suspenso && <span className="ml-2 text-xs font-semibold uppercase" style={{ color: COLORS.wine }}>· suspensa</span>}
                   </td>
-                  <td className="px-4 py-3 flex items-center gap-2">
+                  <td className="px-4 py-3 flex items-center gap-2" onClick={(e2) => e2.stopPropagation()}>
                     <button
                       onClick={() => { if (confirm(`Entrar em "${e.nome}" como se fosse o admin de lá? Você vai poder criar/editar/excluir tudo — cliente, processo, financeiro, equipe. Fica registrado no log de auditoria.`)) onEntrarComoAdmin(e); }}
                       aria-label="Entrar como admin"
@@ -186,6 +188,10 @@ export default function PlatformAdminPanel({ temPerfilProprio, onEntrarNaEmpresa
 
       {inspecting && (
         <EmpresaInspector orgId={inspecting.org_id} orgNome={inspecting.nome} onClose={() => setInspecting(null)} />
+      )}
+
+      {vendoCobrancas && (
+        <EmpresaCobrancas orgId={vendoCobrancas.org_id} orgNome={vendoCobrancas.nome} onClose={() => setVendoCobrancas(null)} />
       )}
     </div>
   );
