@@ -97,6 +97,26 @@ whenever the diff you're verifying touches anything nearby:
     `processo_responsaveis_sel`'s policy, which re-queries `processos`, which re-evaluates
     `processos_sel`... Confirm the function's definition still has `security definer` in
     `schema.sql` before shipping any RLS change nearby.
+11. **`insert().select()` (RETURNING) evaluates the SELECT policy INSIDE the INSERT
+    statement**: if the newly-inserted row's visibility depends on a write that normally
+    happens right AFTER the insert (e.g. `processo_responsaveis` only gets the creator's row
+    once the processo already exists), Postgres fails the WHOLE INSERT with `"new row
+    violates row-level security policy"` — even though it already passed `with check`. This
+    bit twice in the same session: once as a `TypeError` on `criado.id` when `insert()`
+    returned `[]`, and again (confirmed via live curl) as the RLS error itself even after a
+    client-generated id removed the `.id` dependency — the fix had to be
+    `useSupabaseTable.insert(v, { semSelect: true })` to skip RETURNING entirely. When
+    testing any "create a row whose own visibility depends on a follow-up write" flow, test
+    the exact combination that makes the row invisible at creation time (e.g. `confidencial:
+    true, responsavel_socios: false`, creator not yet in the linking table) via a real
+    `curl`/session-simulated INSERT, not just a "happy path" one where the creator already
+    has visibility some other way (admin, or `responsavel_socios: true`).
+12. **A plan-limit exemption must apply to the NEW row, not just exclude old rows from the
+    count**: `processos_ins`'s limit check excluded existing `status = 'Encerrado'` rows from
+    `count(*)`, but didn't exempt a *new* `Encerrado` row from needing "room" under the cap —
+    creating an already-closed processo was blocked exactly like an active one whenever the
+    active-processo cap was full. When verifying any `plan_limits`-style cap, test inserting
+    a row that's supposed to be exempt (not just verify the cap blocks/allows normal rows).
 
 ## Security checklist — protecting SK/API keys and tokens (highest priority)
 
@@ -160,7 +180,7 @@ On every QA pass, whether or not the diff mentions integrations, check:
 
 Give a concise pass/fail report: what you tested, how (exact curl/SQL if relevant), what
 passed, and — for anything that failed — the precise reproduction (inputs, expected vs actual)
-so the calling session can fix it without re-deriving your steps. Flag any of the 10 known bugs
+so the calling session can fix it without re-deriving your steps. Flag any of the 12 known bugs
 above that you found evidence of returning, explicitly by number. Flag any of the 7 security
 checks that failed, explicitly by number. Always end by confirming you cleaned up every
 disposable org/user/row you created.

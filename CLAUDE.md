@@ -81,9 +81,26 @@ o histórico de bugs de regressão pra conferir.
    coluna também entra numa regra de RLS (ex.: `processos.confidencial`), a lógica de 3
    valores do SQL (`null and X` nunca é `true`) esconde a própria linha até de quem acabou
    de criar — aparece como `"new row violates row-level security policy"` num INSERT que
-   "deveria" funcionar. Corrigido: `f.type === "checkbox"` sempre vira `!!v` (nunca null).
-   Se aparecer esse erro de novo em qualquer tabela, suspeitar primeiro de checkbox
-   não-marcado antes de mexer em RLS.
+   "deveria" funcionar. Corrigido: `f.type === "checkbox"` sempre vira `!!v` (nunca null) —
+   e, como cinto de segurança extra pra colunas assim que também alimentam RLS, o trigger
+   dessa tabela (`guard_processos_confidencial`) trata `null` recebido de QUALQUER lugar
+   (inclusive um build antigo em cache) como `false`, nunca deixa passar. Se aparecer esse
+   erro de novo em qualquer tabela nova, suspeitar primeiro de checkbox não-marcado antes de
+   mexer em RLS.
+9. **`insert().select()` (RETURNING) roda a policy de SELECT DENTRO do próprio INSERT** —
+   se a visibilidade da linha recém-criada depende de uma escrita SEGUINTE numa tabela
+   diferente (ex.: `processo_responsaveis`, que só ganha a linha do criador DEPOIS do
+   processo existir), o Postgres derruba o INSERT INTEIRO com `"new row violates row-level
+   security policy"` — mesmo já tendo passado no `with check`. `useSupabaseTable.insert()`
+   tem uma opção `{ semSelect: true }` pra pular o RETURNING quando quem chama já sabe o id
+   (gerado no client) e não precisa reler a linha de volta. Qualquer INSERT numa tabela cuja
+   RLS de SELECT depende de outra tabela normalmente escrita depois precisa disso.
+10. **Limite de plano (`plan_limits`) precisa isentar explicitamente a linha NOVA quando ela
+    já nasce fora da contagem** — `processos_ins` excluía processo `Encerrado` do `count(*)`
+    mas não isentava a própria linha sendo inserida: cadastrar um processo já arquivado
+    travava igual um "Em andamento" quando o teto de ativos já estava cheio. A condição
+    precisa checar `status = 'Encerrado'` (ou equivalente) na própria linha nova, não só
+    filtrar o que já existe.
 
 ## Visibilidade de processo — confidencial, múltiplos responsáveis, "Sócios"
 
