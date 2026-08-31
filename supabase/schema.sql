@@ -699,9 +699,14 @@ $$;
 create trigger trg_guard_processos_confidencial before insert or update on processos
   for each row execute function guard_processos_confidencial();
 
+-- status = 'Encerrado' pula o teto de vez -- a exclusao do "select count(*)" so tira os
+-- Encerrado JA existentes da conta, mas nao isentava a linha NOVA sendo inserida: cadastrar
+-- um processo ja arquivado (status Encerrado) travava do mesmo jeito que um "Em andamento"
+-- quando o teto de ativos ja estava cheio, contrariando o proprio motivo da regra existir.
 create policy processos_ins on processos for insert with check (
   is_platform_admin() or (org_id = auth_org_id() and has_module('processos') and (
-    (select limite_processos from plan_limits pl join organizations o on o.plano = pl.plano where o.id = auth_org_id()) is null
+    status = 'Encerrado'
+    or (select limite_processos from plan_limits pl join organizations o on o.plano = pl.plano where o.id = auth_org_id()) is null
     or (select count(*) from processos p2 where p2.org_id = auth_org_id() and p2.status <> 'Encerrado')
        < (select limite_processos from plan_limits pl join organizations o on o.plano = pl.plano where o.id = auth_org_id())
   ))

@@ -13,6 +13,7 @@ import { useSupabaseTable } from "../../hooks/useSupabaseTable.js";
 import { supabase } from "../../lib/supabaseClient.js";
 import { AREAS_DIREITO_COMUNS } from "../../config/areasDireito.js";
 import { avisoLimitePlano } from "../../lib/limitesPlano.js";
+import { formatNumeroProcesso } from "../../lib/numeroProcesso.js";
 
 const STATUS_TONE = { "Em andamento": "ok", "Aguardando decisão": "warn", "Suspenso": "neutral", "Encerrado": "neutral" };
 const STATUS_OPTIONS = Object.keys(STATUS_TONE).map((s) => ({ value: s, label: s }));
@@ -47,7 +48,7 @@ export default function ProcessosTab({ currentRole, orgId, profile, abrirProcess
   // orgId só vem preenchido quando o platform admin "entrou" numa empresa alheia — filtra
   // explicitamente porque a RLS libera geral pra ele, não fica restrita a uma org só.
   const orgEq = orgId ? ["org_id", orgId] : undefined;
-  const { data: processos, loading, error: erroProcessos, insert, update, remove } = useSupabaseTable("processos", {
+  const { data: processos, loading, error: erroProcessos, insert, update, remove, refresh: refreshProcessos } = useSupabaseTable("processos", {
     // FK explícito (!processos_responsavel_id_fkey): a tabela processo_responsaveis (ponytail,
     // dormant) criou um segundo caminho processos<->profiles, e sem isso o PostgREST recusa o
     // embed por ambiguidade ("more than one relationship was found").
@@ -114,17 +115,18 @@ export default function ProcessosTab({ currentRole, orgId, profile, abrirProcess
     const { responsaveis, ...resto } = values;
     const v = prepararValoresProcesso(resto);
     let processoId = editing?.id;
-    // Processo novo já nasce com id gerado aqui (em vez de deixar o banco gerar e ler de
-    // volta via RETURNING/.select()) — se o processo nascer confidencial sem "Sócios"
-    // marcado, na hora do INSERT ainda não existe linha em processo_responsaveis pra ele, a
-    // RLS de processos_sel esconde a linha recém-criada do próprio RETURNING, insert()
-    // devolve [] e `criado.id` estourava um TypeError com o processo já gravado — órfão, sem
-    // responsável, invisível pra sempre (mesma classe do bug do checkbox->null: RLS mordendo
-    // a própria criação). Sabendo o id de antemão, não dependemos de ler a linha de volta.
+    // Processo novo já nasce com id gerado aqui, e o insert pula o RETURNING (semSelect) —
+    // se o processo nascer confidencial sem "Sócios" marcado, na hora do INSERT ainda não
+    // existe linha em processo_responsaveis pra ele; com RETURNING, a RLS de processos_sel
+    // roda DENTRO do próprio insert pra reler a linha, não passa (criador ainda não é
+    // responsável de nada) e o Postgres derruba o INSERT INTEIRO com "new row violates row-
+    // level security policy" — mesmo já tendo passado no WITH CHECK. Sem select() depois do
+    // insert, isso não acontece; sabendo o id de antemão (gerado aqui), também não
+    // precisamos ler a linha de volta pra saber o id.
     if (!processoId) { processoId = crypto.randomUUID(); v.id = processoId; }
     try {
       if (editing?.id) await update(processoId, v);
-      else await insert(v);
+      else await insert(v, { semSelect: true });
     } catch (err) {
       if (err.code === "23505") throw new Error(`Já existe um processo cadastrado com o número "${v.numero}".`);
       throw err;
@@ -136,6 +138,11 @@ export default function ProcessosTab({ currentRole, orgId, profile, abrirProcess
       if (errIns) throw new Error(`Processo salvo, mas não deu pra gravar os responsáveis: ${errIns.message}`);
     }
     await refreshResponsaveis();
+    // insert()/update() já rodam seu próprio refresh, mas pra um processo confidencial
+    // criado agora, aquele refresh aconteceu ANTES de existir responsável — o processo
+    // ficaria fora da lista local até esse segundo refresh, de novo já com o responsável
+    // gravado.
+    await refreshProcessos();
   };
 
   // <main> (App.jsx) é quem rola, não a window — sem isso, abrir/fechar a página cheia do
@@ -175,7 +182,7 @@ export default function ProcessosTab({ currentRole, orgId, profile, abrirProcess
   }, [honorarios]);
 
   const fields = useMemo(() => [
-    { key: "numero", label: "Número do processo (formato CNJ p/ sincronizar com o DataJud)" },
+    { key: "numero", label: "Número do processo (formato CNJ p/ sincronizar com o DataJud)", mask: (raw) => formatNumeroProcesso(raw) },
     { key: "cliente_id", label: "Cliente", type: "select", options: clientes.map((c) => ({ value: c.id, label: c.nome })) },
     { key: "area", label: "Área do direito", type: "datalist", options: AREAS_DIREITO_COMUNS.map((a) => ({ value: a })) },
     { key: "status", label: "Situação", type: "select", options: STATUS_OPTIONS },

@@ -24,7 +24,13 @@ export function useSupabaseTable(table, { select = "*", orderBy = "created_at", 
 
   useEffect(() => { refresh(); }, [refresh]);
 
-  const insert = async (values) => {
+  // semSelect: pula o .select() (RETURNING) — necessário quando a visibilidade da linha
+  // recém-criada pode depender de uma escrita SEGUINTE (ex.: processo confidencial só fica
+  // visível pro criador depois que processo_responsaveis ganha a linha dele). Com RETURNING,
+  // a policy de select roda ainda dentro do INSERT e a linha "não visível ainda" derruba o
+  // insert inteiro com "new row violates row-level security policy" — mesmo já tendo passado
+  // no WITH CHECK do insert. Sem `select()`, o insert não depende de reler a linha de volta.
+  const insert = async (values, { semSelect = false } = {}) => {
     // eq=["org_id", X]: contexto de organização explícito (usado pelo platform admin
     // operando em empresa alheia — set_org_id() só respeita org_id explícito vindo dele).
     // Sem isso, um insert dentro do "Entrar" de outra empresa cairia na empresa do próprio
@@ -32,7 +38,9 @@ export function useSupabaseTable(table, { select = "*", orderBy = "created_at", 
     const comOrg = eq?.[0] === "org_id"
       ? (Array.isArray(values) ? values.map((v) => ({ ...v, org_id: eq[1] })) : { ...values, org_id: eq[1] })
       : values;
-    const { data, error: err } = await supabase.from(table).insert(comOrg).select();
+    let query = supabase.from(table).insert(comOrg);
+    if (!semSelect) query = query.select();
+    const { data, error: err } = await query;
     if (err) throw err;
     await refresh();
     return data;
