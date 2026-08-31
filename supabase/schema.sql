@@ -676,6 +676,14 @@ create policy processos_sel on processos for select using (
 create or replace function guard_processos_confidencial() returns trigger
   language plpgsql security definer set search_path = public as $$
 begin
+  -- Nunca deixa virar null -- nem pra admin/socio, nem vindo de um build antigo em cache
+  -- que ainda manda null explicito. Coluna not null defende a maioria dos casos, mas null
+  -- explicito no INSERT ignora o default, e null quebra a propria logica de 3 valores da
+  -- RLS que le essas colunas (ver bug do checkbox->null). Trata null como "mantém como
+  -- estava" (update) ou "false" (insert), sempre, pra qualquer role.
+  if new.confidencial is null then new.confidencial := coalesce(old.confidencial, false); end if;
+  if new.responsavel_socios is null then new.responsavel_socios := coalesce(old.responsavel_socios, false); end if;
+
   if auth_role() not in ('admin', 'socio') and not is_platform_admin() then
     if tg_op = 'INSERT' then
       new.confidencial := false;
