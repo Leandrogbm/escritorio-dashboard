@@ -82,6 +82,21 @@ whenever the diff you're verifying touches anything nearby:
 8. **`ImportarExtratoModal.jsx` stale state**: switching to a new `arquivo` prop must reset
    `entradas`/`saidas`/`erro` state at the top of the effect, or a previous file's result can
    flash before the new one loads.
+9. **`RecordFormModal.jsx` checkbox → null**: an untouched checkbox field must clean to
+   `false`, never `null` (line: `f.type === "checkbox" ? !!v : ...`). A boolean column that's
+   `not null default false` receiving explicit `null` skips the default entirely, and if that
+   column also appears in an RLS policy (e.g. `processos.confidencial`/`responsavel_socios`),
+   3-valued SQL logic (`null and X` is never `true`) can hide the row from its own creator —
+   surfaces as `"new row violates row-level security policy"` on an INSERT that "should" work.
+   If you see that exact error on a table with boolean RLS columns, check this before touching
+   RLS at all. Also re-check any processo row for `confidencial`/`responsavel_socios is null`
+   (should never happen post-fix; if found, it's stuck invisible and needs a manual `update ...
+   set x = false where x is null`).
+10. **`processo_responsaveis`/`eh_responsavel_do_processo` circular RLS**: the function MUST
+    stay `security definer` — `processos_sel` calling it non-security-definer would trigger
+    `processo_responsaveis_sel`'s policy, which re-queries `processos`, which re-evaluates
+    `processos_sel`... Confirm the function's definition still has `security definer` in
+    `schema.sql` before shipping any RLS change nearby.
 
 ## Security checklist — protecting SK/API keys and tokens (highest priority)
 
@@ -145,7 +160,21 @@ On every QA pass, whether or not the diff mentions integrations, check:
 
 Give a concise pass/fail report: what you tested, how (exact curl/SQL if relevant), what
 passed, and — for anything that failed — the precise reproduction (inputs, expected vs actual)
-so the calling session can fix it without re-deriving your steps. Flag any of the 8 known bugs
+so the calling session can fix it without re-deriving your steps. Flag any of the 10 known bugs
 above that you found evidence of returning, explicitly by number. Flag any of the 7 security
 checks that failed, explicitly by number. Always end by confirming you cleaned up every
 disposable org/user/row you created.
+
+## Processo visibility — what "correct" means before you sign off
+
+If the diff touches `processos`, `processo_responsaveis`, `confidencial`, or
+`responsavel_socios`, don't just grep — simulate real sessions and compare against these
+truth-table rows (see `CLAUDE.md`'s "Visibilidade de processo" section for the full model):
+
+| confidencial | responsavel_socios | quem vê |
+|---|---|---|
+| false | false | admin, sócio, financeiro, recepção sempre; advogado só se estiver em `processo_responsaveis` |
+| true | false | admin sempre; qualquer outro role só se estiver em `processo_responsaveis` |
+| true | true | admin sempre; qualquer sócio sempre; advogado só se estiver em `processo_responsaveis` |
+
+Simulate via `begin; set local role authenticated; set local request.jwt.claims = '{"sub":"<uuid>","role":"authenticated"}'; select ...; rollback;` — never trust a policy's SQL text alone, the incident that created this whole section happened because the text "looked right" but the real data (100% of processos sharing one default sócio) broke the rule the moment it went live. Confirm at minimum: (a) a sócio NOT in `processo_responsaveis` for a `confidencial=true, responsavel_socios=false` processo sees nothing, (b) the same sócio sees it once `responsavel_socios=true`, (c) admin sees it in every row of the table above.

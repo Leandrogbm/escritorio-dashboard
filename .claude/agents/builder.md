@@ -87,6 +87,36 @@ business decision (search `{false && (` for the pattern).
 - Edge Functions calling an external LLM/API always wrap the `fetch` in an `AbortController`
   with a real timeout (~25s) — a hung external call must not hang the whole function until
   Supabase's own worker limit kills it.
+- **`RecordFormModal` checkbox fields must clean to `false`, never `null`**, when untouched —
+  a `not null default false` column receiving explicit `null` skips the default, and if that
+  column feeds an RLS policy, 3-valued SQL logic can hide the row from its own creator (real
+  bug: `processos.confidencial`/`responsavel_socios` did exactly this — see `CLAUDE.md`'s
+  known-bugs list, item 8). Any NEW checkbox field added to `fields` inherits this fix
+  automatically; don't build a parallel form component that skips it.
+- **Multi-value ownership → junction table + `security definer` membership check**, not a
+  single nullable FK column with a sentinel value. `processos.responsavel_id` used to be the
+  only "responsible person" column; the real fix for "processo pode ter mais de 1
+  responsável" was `processo_responsaveis` (processo_id, profile_id) + `RecordFormModal`
+  `type: "multiselect"` + a `sincroniza_..._principal` trigger keeping the old single column
+  in sync for backward-compat readers. If an RLS policy on table A needs to call a function
+  that reads table B, and table B's own RLS policy reads back from table A, mark that
+  function `security definer` (scoped to `auth.uid()` only, never a caller-supplied id) — a
+  cross-table RLS-calling-RLS cycle otherwise happens (see `eh_responsavel_do_processo()`).
+  Don't build a sentinel-value-inside-a-`<select>` hack (e.g. a fake option like
+  `"__algumacoisa__"` in a dropdown of real foreign-key ids) — it silently breaks the moment a
+  second form/call-site forgets to translate the sentinel before sending it to Postgres
+  (`invalid input syntax for type uuid`). Use a separate boolean/checkbox field instead.
+- **Limit + upgrade-offer pattern**: a plan/tier limit lives in one table (`plan_limits`) as
+  the enforced truth (RLS `with check` + Edge Function pre-check), mirrored read-only in
+  `src/config/planos.js` for UX (price, next-tier name). Client-side pre-check
+  (`src/lib/limitesPlano.js`) exists only to show a friendly "you're at the limit, next plan
+  is X" message before attempting the write — never as the actual enforcement.
+- **Destructive delete with real cascade risk → typed confirmation**, not a plain
+  `confirm()`. `RowActions`'s `confirmLabel`/`confirmCampo` props (backed by
+  `src/lib/confirmarExclusao.js`) ask the user to type the record's identifying value back —
+  reuse this for any new entity whose deletion cascades into other tables (processo, cliente,
+  colaborador already use it); a single leaf record with no dependents is fine with the plain
+  `confirm()`.
 
 ## Testing your own work before calling it done
 

@@ -31,6 +31,10 @@ em produção: **Gimenes e Pires Sociedade de Advogados**. Nome anterior do proj
   as próprias tarefas, igual qualquer outro cargo.
 - **Platform admin** (não confundir com `admin` de uma org): entra em "modo suporte"
   (`emSuporte` em App.jsx) e opera como admin completo de QUALQUER empresa escolhida.
+- **DataJud sync**: cron `datajud-sync-horario` roda de hora em hora (`pg_cron`, era 1x/dia
+  antes) chamando a Edge Function `datajud-sync` — não depende mais de alguém clicar em
+  "Sincronizar agora" (botão continua existindo pra forçar na hora). Ver `x-cron-secret` /
+  `DATAJUD_CRON_SECRET` no header pra distinguir chamada do cron da chamada manual.
 
 ## ⚠️ Segurança — credenciais de integração (leia antes de mexer em Configurações/Integrações)
 
@@ -71,6 +75,95 @@ o histórico de bugs de regressão pra conferir.
    (~25s) — sem isso uma chamada lenta pendura a function até o limite do Supabase matar.
 7. `extratoParser.js`: não filtrar valor negativo — positivo é entrada (honorário), negativo
    é saída (despesa). `ImportarExtratoModal.jsx` casa os dois na mesma leitura.
+8. **Checkbox nunca marcado não pode virar `null` antes de salvar** — `RecordFormModal.jsx`
+   convertia todo campo `undefined` (inclusive checkbox nunca clicado) em `null`. Coluna
+   boolean `not null default false` recebendo `null` explícito ignora o default; se essa
+   coluna também entra numa regra de RLS (ex.: `processos.confidencial`), a lógica de 3
+   valores do SQL (`null and X` nunca é `true`) esconde a própria linha até de quem acabou
+   de criar — aparece como `"new row violates row-level security policy"` num INSERT que
+   "deveria" funcionar. Corrigido: `f.type === "checkbox"` sempre vira `!!v` (nunca null).
+   Se aparecer esse erro de novo em qualquer tabela, suspeitar primeiro de checkbox
+   não-marcado antes de mexer em RLS.
+
+## Visibilidade de processo — confidencial, múltiplos responsáveis, "Sócios"
+
+Já teve um **incidente real em produção** aqui: uma regra de "processo com 1 único
+responsável que é sócio fica privado só pra esse sócio" foi ativada direto e escondeu TODOS
+os processos de TODO mundo, porque na prática 100% dos processos reais compartilhavam o
+mesmo sócio como responsável padrão (convenção de cadastro do cliente, não uma marcação de
+confidencial). Foi revertida na hora. **Não inferir privacidade a partir da contagem de
+responsável — só a partir de um campo explícito, ligado à mão.** É por isso que o desenho
+atual é assim:
+
+- `processo_responsaveis` (processo_id, profile_id): 1 processo pode ter **vários**
+  advogados/sócios responsáveis. `processos.responsavel_id` continua existindo só como
+  "responsável principal" (herdado por `set_prazo_data()`, usado no gráfico de carga de
+  trabalho da Visão Executiva) — sincronizado sozinho por trigger
+  (`sincroniza_responsavel_principal`, sempre o menor `profile_id` da lista atual).
+  **Nunca escrever em `responsavel_id` direto** pra mudar quem é responsável — sempre via
+  `processo_responsaveis` (inserir/apagar linha), o trigger cuida do resto.
+- `eh_responsavel_do_processo(id)`: checa se `auth.uid()` é UM dos responsáveis (não só o
+  principal). É `security definer` de propósito — sem isso, a RLS de `processos` chamando
+  essa função dispara a RLS de `processo_responsaveis`, que reconsulta `processos` pro mesmo
+  id → referência circular entre as duas policies. Como só responde sobre o PRÓPRIO
+  `auth.uid()` (não aceita id de terceiro), rodar ignorando RLS por dentro não vaza nada.
+- `processos.confidencial` (boolean): explícito, ligado por sócio/admin no form. Quando
+  `true`, só quem está em `processo_responsaveis` (mais admin) enxerga o processo E o
+  financeiro vinculado a ele (`honorarios_sel` segue a mesma regra via `processo_id`).
+  Quando `false` (padrão), continua igual a sempre: só `advogado` é restrito ao próprio
+  responsável, os outros cargos veem tudo.
+- `processos.responsavel_socios` (boolean): explícito, separado de `confidencial`. Quando
+  `true`, QUALQUER sócio (não só quem tá listado em `processo_responsaveis`) enxerga o
+  processo mesmo sendo confidencial — pensado pra "isso é do escritório todo, não de 1
+  pessoa só". Aparece como checkbox próprio no form, não é um valor dentro do dropdown de
+  Responsáveis (já foi isso — um sentinela tipo `"__socios__"` dentro do mesmo `<select>` de
+  responsável — e quebrou: a segunda cópia do formulário em `ProcessosTab.jsx` não sabia
+  traduzir esse valor antes de mandar pro banco, e um `uuid` esperando receber a string
+  `"__socios__"` estourava `invalid input syntax for type uuid`).
+- `processo_privado_de_socio()`/`processo_visivel()`: **funções mortas**, ficam no
+  `schema.sql` só de referência/histórico do que já foi tentado — nenhuma policy chama elas.
+  Não reativar sem um critério novo que não seja "contar responsável".
+- Editar quem é responsável no form é **multiselect** (`RecordFormModal` field
+  `type: "multiselect"`), não select único — ver `ProcessosTab.jsx` (`salvarProcesso`): salva
+  o processo primeiro, depois substitui o conjunto inteiro em `processo_responsaveis`
+  (apaga tudo + insere de novo), nunca faz diff incremental.
+
+## Limite de plano com oferta de upgrade
+
+`plan_limits` (`limite_usuarios`/`limite_processos`/`limite_clientes`, `null` = sem limite) é
+a fonte de verdade, aplicada de verdade via RLS (`processos_ins`/`clientes_ins` com check) e
+na Edge Function `admin-create-user`. **Processo conta só ATIVO** (`status <> 'Encerrado'`)
+contra o limite — arquivado não deveria travar a criação de um novo.
+
+`src/config/planos.js` espelha isso só pra UX (rótulo, preço, checagem client-side antes de
+abrir o form de "Novo" — `src/lib/limitesPlano.js` → `avisoLimitePlano()`) — **mudar limite
+aqui sem mudar em `plan_limits` só desalinha o texto**, a trava real continua no banco. Ao
+bater no limite, a mensagem já nomeia o próximo plano (preço/limites) em vez de deixar
+estourar um erro cru de RLS/constraint.
+
+## Exclusão de registro com peso real — confirmação digitada
+
+`RowActions` aceita `confirmLabel`/`confirmCampo`: quando presentes, pede pra digitar o
+valor exato (`src/lib/confirmarExclusao.js`) em vez do `confirm()` genérico de sempre — usado
+em processo (número), cliente (nome, lista e página cheia), colaborador (nome — apaga o
+login junto). Registro sem cascata de dado (prazo avulso, tarefa, depósito, lead) continua no
+`confirm()` simples; só vale o esforço extra pra entidade que arrasta outras tabelas junto.
+Mesmo padrão que `excluirEmpresa` (`PlatformAdminPanel.jsx`) já usava antes disso existir
+como utilitário genérico.
+
+## Cobrança da plataforma (Actum cobrando a própria empresa cliente)
+
+Duas coisas diferentes, não confundir:
+- `organizations.plano/valor_mensal/status_pagamento`: snapshot ATUAL (plano ativo agora).
+- `platform_cobrancas`: ledger mês a mês de verdade (1 linha por mês), lançado 6 meses de
+  uma vez (mínimo de contrato) toda vez que um plano é atribuído/trocado em "Configurar"
+  (trigger `lancar_cobrancas_plano`). Clicar na linha da empresa no painel da plataforma
+  (`PlatformAdminPanel.jsx`) abre `EmpresaCobrancas.jsx` com esse histórico.
+
+`profiles.minutos_uso_total`/`ultimo_uso`: tempo de uso da plataforma por colaborador, só
+admin lê (`equipe_tempo_uso()`, security definer — RLS não restringe coluna, só linha, por
+isso a leitura passa por função em vez de vir direto da tabela/view). Incrementado por
+heartbeat no client (`useAuth.js`, a cada 2min de aba visível).
 
 ## Convenção de teste (sempre, antes de dar como pronto)
 

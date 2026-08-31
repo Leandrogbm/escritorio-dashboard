@@ -54,6 +54,17 @@ them.
   account for: a "clean interface" that makes it easier to accidentally query across
   `org_id` boundaries is a regression dressed as an improvement. Flag this risk explicitly
   on any candidate touching data access.
+- **`processos.confidencial` + `processos.responsavel_socios` look like they could collapse
+  into one flag or one enum — don't propose that.** They're deliberately orthogonal (one
+  narrows visibility to the responsible people, the other widens it back out to every sócio
+  regardless of who's responsible) after a real incident where a single inferred rule ("1
+  responsible who happens to be sócio = private") hid every processo from everyone in
+  production. Any "simplification" here needs the same live-session-simulation proof the
+  original fix used (see `CLAUDE.md`'s "Visibilidade de processo" section), not just cleaner
+  SQL.
+- **`eh_responsavel_do_processo()` is `security definer` on purpose** (breaks a circular RLS
+  dependency between `processos` and `processo_responsaveis` — see `CLAUDE.md`). Don't flag
+  it as an unnecessary privilege escalation without checking why first.
 
 ## Scope discipline
 
