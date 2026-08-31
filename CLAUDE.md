@@ -191,6 +191,19 @@ teste — feito isso pra validar `classificarComIA`.
 
 ## Como publicar
 
+Desde que `.github/workflows/deploy.yml` foi criado, **`git push origin main` já builda e
+sobe pro Hostinger sozinho via FTP** (GitHub Actions) — não depende mais de gerar
+`actum-build.zip` e subir manual pelo File Manager. Só falta o usuário configurar os
+secrets do repositório no GitHub uma vez (Settings → Secrets and variables → Actions):
+`FTP_SERVER`, `FTP_USERNAME`, `FTP_PASSWORD` (Hostinger hPanel → Files → Contas FTP),
+`FTP_SERVER_DIR` (pasta de destino, ex. `public_html/` ou
+`domains/seudominio.com/public_html/`), `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`
+(mesmos valores do `.env` local — o build do Actions não tem acesso ao `.env`, que não é
+commitado). Sem esses secrets configurados, o workflow falha e o site NÃO é atualizado —
+checar a aba "Actions" do repo no GitHub se uma mudança não aparecer no ar.
+
+Ainda dá pra gerar o zip manualmente como fallback (rodar sem o workflow, ou se os secrets
+ainda não estiverem configurados):
 ```
 npx vite build
 powershell -Command "Compress-Archive -Path dist\* -DestinationPath actum-build.zip -Force"
@@ -198,9 +211,11 @@ git add -A
 git commit -m "..."
 git push origin main
 ```
-**O usuário sobe o zip manualmente no Hostinger** — isso já foi confundido com "bug" mais de
-uma vez (feature simplesmente não tinha sido publicada ainda). Sempre lembrar disso no fim de
-qualquer entrega de frontend.
+Se os secrets do Actions ainda não estiverem configurados, **o usuário ainda precisa subir o
+zip manualmente** — isso já foi confundido com "bug" mais de uma vez (feature simplesmente
+não tinha sido publicada ainda). Enquanto não confirmar que o deploy automático está
+funcionando (checar a aba Actions), continuar lembrando disso no fim de qualquer entrega de
+frontend.
 
 Edge Function nova/alterada: `npx supabase functions deploy <nome>` (`--no-verify-jwt` só
 pra function chamada sem JWT de usuário — cron, webhook interno com secret próprio no

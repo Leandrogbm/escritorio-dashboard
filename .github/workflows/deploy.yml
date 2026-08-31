@@ -1,0 +1,37 @@
+name: Deploy pro Hostinger
+
+# Builda e sobe dist/ direto no Hostinger via FTP toda vez que main recebe um push --
+# substitui o fluxo manual de "gerar zip e subir pelo File Manager" (ver CLAUDE.md).
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - run: npm ci
+
+      - name: Build
+        run: npm run build
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+
+      - name: Deploy via FTP
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ${{ secrets.FTP_SERVER }}
+          username: ${{ secrets.FTP_USERNAME }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          local-dir: ./dist/
+          # pasta de destino no Hostinger -- ajustar se o site não estiver na raiz do FTP
+          # (ex.: "public_html/" ou "domains/seudominio.com/public_html/")
+          server-dir: ${{ secrets.FTP_SERVER_DIR }}
