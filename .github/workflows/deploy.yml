@@ -7,6 +7,11 @@ on:
     branches: [main]
   workflow_dispatch: {}
 
+# Só precisa ler o repo pra buildar — nunca escreve nada nele. Reduz o que um token
+# comprometido desse workflow conseguiria fazer.
+permissions:
+  contents: read
+
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
@@ -25,13 +30,24 @@ jobs:
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
 
-      - name: Deploy via FTP
+      - name: Deploy via FTPS
         uses: SamKirkland/FTP-Deploy-Action@v4.3.5
         with:
           server: ${{ secrets.FTP_SERVER }}
           username: ${{ secrets.FTP_USERNAME }}
           password: ${{ secrets.FTP_PASSWORD }}
+          # ftps (explicit, criptografado) em vez de ftp puro -- senha nunca trafega em
+          # texto claro. Hostinger aceita FTPS na mesma conta de FTP normal; se a conexão
+          # falhar por causa disso, trocar pra "ftp" é o único ajuste necessário.
+          protocol: ftps
           local-dir: ./dist/
           # pasta de destino no Hostinger -- ajustar se o site não estiver na raiz do FTP
           # (ex.: "public_html/" ou "domains/seudominio.com/public_html/")
           server-dir: ${{ secrets.FTP_SERVER_DIR }}
+          # nunca apaga arquivo extra que já esteja no servidor e não veio desse build --
+          # dangerous-clean-slate:true um dia apagaria algo colocado manualmente sem aviso.
+          dangerous-clean-slate: false
+          exclude: |
+            **/.git*
+            **/.git*/**
+            **/.env*
