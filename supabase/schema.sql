@@ -48,7 +48,13 @@ create table profiles (
   cargo text,
   horas_mes int not null default 0,
   meta_horas int not null default 160,
-  created_at timestamptz not null default now()
+  created_at timestamptz not null default now(),
+  -- Tempo de uso da plataforma — incrementado por heartbeat do client (useAuth.js, a cada
+  -- 2min de aba ativa/visível) via registrar_uso_heartbeat(). Só o admin lê (equipe_tempo_uso,
+  -- security definer — mesmo padrão do platform_org_metrics: filtra por quem chama, não RLS
+  -- de linha, porque profiles_sel já libera a org inteira ver umas às outras pro resto da UI).
+  minutos_uso_total int not null default 0,
+  ultimo_uso timestamptz
 );
 create index profiles_org_id_idx on profiles (org_id);
 
@@ -721,6 +727,23 @@ $$;
 
 grant execute on function is_platform_admin() to authenticated;
 grant execute on function platform_org_metrics() to authenticated;
+
+-- ── Tempo de uso por colaborador (Equipe, só admin vê) ───────────────────────────────────
+create or replace function registrar_uso_heartbeat(minutos int default 2) returns void
+  language plpgsql security definer set search_path = public as $$
+begin
+  update profiles set minutos_uso_total = minutos_uso_total + minutos, ultimo_uso = now() where id = auth.uid();
+end;
+$$;
+grant execute on function registrar_uso_heartbeat(int) to authenticated;
+
+create or replace function equipe_tempo_uso()
+returns table (profile_id uuid, minutos_uso_total int, ultimo_uso timestamptz)
+  language sql stable security definer set search_path = public as $$
+  select id, minutos_uso_total, ultimo_uso from profiles
+  where org_id = auth_org_id() and auth_role() = 'admin'
+$$;
+grant execute on function equipe_tempo_uso() to authenticated;
 
 -- ── Cobrança mês a mês que a empresa paga PRA plataforma (Actum) ────────────────────────
 -- Diferente de organizations.valor_mensal/status_pagamento (que é só o snapshot atual) —

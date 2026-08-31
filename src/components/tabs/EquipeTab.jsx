@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-import { Building2, Plus, Trash2, KeyRound } from "lucide-react";
+import React, { useEffect, useState } from "react";
+import { Building2, Plus, Trash2, KeyRound, Clock } from "lucide-react";
 import Card from "../Card.jsx";
 import SectionTitle from "../SectionTitle.jsx";
 import Stamp from "../Stamp.jsx";
@@ -16,6 +16,13 @@ import { supabase } from "../../lib/supabaseClient.js";
 // Cargo "Administrador(a)" tirado da lista pra todo mundo (pedido do usuário) — promover a
 // admin não passa mais por esse dropdown, nem sócio nem o próprio admin escolhem por aqui.
 const cargoOptions = () => ROLES.filter((r) => r.key !== "admin").map((r) => ({ value: r.key, label: r.label }));
+
+function formatMinutos(min) {
+  if (!min) return "0min";
+  const h = Math.floor(min / 60);
+  const m = min % 60;
+  return h > 0 ? `${h}h${m ? ` ${m}min` : ""}` : `${m}min`;
+}
 
 const metricFields = () => [
   { key: "nome", label: "Nome" },
@@ -50,6 +57,16 @@ export default function EquipeTab({ currentRole, orgId }) {
   // Lê de equipe_view (agregado, não editável diretamente — é view com group by).
   // Escreve na tabela profiles, que é a fonte real dessas colunas.
   const { data: equipe, loading, refresh } = useSupabaseTable("equipe_view", { orderBy: "nome", ascending: true, eq: orgEq });
+  // Tempo de uso: RPC própria (security definer, só devolve linha se quem chama for admin)
+  // em vez de vir junto de equipe_view — não dá pra restringir coluna por role dentro de uma
+  // view/tabela normal, só linha inteira. Mesmo padrão do platform_org_metrics.
+  const [tempoUso, setTempoUso] = useState(new Map());
+  useEffect(() => {
+    if (currentRole !== "admin") return;
+    supabase.rpc("equipe_tempo_uso").then(({ data }) => {
+      setTempoUso(new Map((data ?? []).map((r) => [r.profile_id, r])));
+    });
+  }, [currentRole, equipe.length]);
   const [editing, setEditing] = useState(null); // {...} = editar métricas de quem já existe
   const [creating, setCreating] = useState(false); // novo colaborador
   // sócio mexe geral, menos no admin; admin mexe em todo mundo — mesma regra das Edge
@@ -138,6 +155,12 @@ export default function EquipeTab({ currentRole, orgId }) {
               <div>
                 <p style={{ fontFamily: "'Source Serif 4', serif", fontWeight: 600, color: COLORS.ink }}>{e.nome}</p>
                 <p className="text-xs" style={{ color: COLORS.brassText, letterSpacing: "0.04em" }}>{(e.cargo || "—").toUpperCase()}</p>
+                {currentRole === "admin" && tempoUso.has(e.id) && (
+                  <p className="text-xs flex items-center gap-1 mt-1" style={{ color: COLORS.slate }}>
+                    <Clock size={11} /> {formatMinutos(tempoUso.get(e.id).minutos_uso_total)} de uso
+                    {tempoUso.get(e.id).ultimo_uso && ` · último acesso ${new Date(tempoUso.get(e.id).ultimo_uso).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}`}
+                  </p>
+                )}
               </div>
               <div className="flex items-center gap-2">
                 <Stamp tone="neutral">{e.ativos} ativos</Stamp>
