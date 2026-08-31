@@ -5,6 +5,7 @@ import { COLORS } from "../lib/theme.js";
 import { useSupabaseTable } from "../hooks/useSupabaseTable.js";
 import { useEscClose } from "../hooks/useEscClose.js";
 import { supabase } from "../lib/supabaseClient.js";
+import { formatNumeroProcesso } from "../lib/numeroProcesso.js";
 
 // Busca processos do cliente na Escavador (Configurações → Integrações) e mostra pra
 // revisão — nada entra em Processos sem o usuário marcar e confirmar (resultado de busca
@@ -42,8 +43,11 @@ export default function EscavadorBuscaModal({ cliente, orgId, onClose }) {
   const adicionar = async () => {
     setSalvando(true);
     const escolhidos = (resultados ?? []).filter((r) => marcados.has(r.numeroProcesso));
+    // normaliza pro formato CNJ com pontos/traços mesmo se a Escavador devolver só dígitos
+    // (numeroCnjValido/extrairTribunalAlias no datajud-sync já ignoram pontuação, então
+    // reformatar aqui não afeta a sincronização, só padroniza a exibição).
     await insertProcesso(escolhidos.map((r) => ({
-      numero: r.numeroProcesso,
+      numero: formatNumeroProcesso(r.numeroProcesso),
       cliente_id: cliente.id,
       area: r.assunto || "A classificar",
       status: "Em andamento",
