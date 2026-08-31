@@ -145,6 +145,18 @@ atual é assim:
   o processo primeiro, depois substitui o conjunto inteiro em `processo_responsaveis`
   (apaga tudo + insere de novo), nunca faz diff incremental.
 
+## Número do processo — formatado sozinho, no banco
+
+`processos.numero` tem um trigger (`formatar_numero_processo`) que reformata pro padrão CNJ
+(`NNNNNNN-DD.AAAA.J.TR.OOOO`) sempre que os 20 dígitos vierem sem pontuação — roda em
+qualquer INSERT/UPDATE, direto no banco, então funciona independente de qual frontend fez a
+chamada (form manual, importação do Escavador, uma versão antiga em cache, uma chamada
+direta na API). O form também tem uma máscara client-side (`src/lib/numeroProcesso.js`,
+`formatNumeroProcesso`) pra já mostrar formatado enquanto digita — mas o trigger é quem
+garante de verdade, não a máscara. `numeroCnjValido`/`extrairTribunalAlias`
+(`datajud-sync/tribunais.ts`) já ignoravam pontuação de qualquer forma, então isso nunca
+afetou a sincronização, só a exibição.
+
 ## Limite de plano com oferta de upgrade
 
 `plan_limits` (`limite_usuarios`/`limite_processos`/`limite_clientes`, `null` = sem limite) é

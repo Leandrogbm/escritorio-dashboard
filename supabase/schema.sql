@@ -653,6 +653,26 @@ $$;
 
 alter table processos enable row level security;
 create trigger trg_set_org_id before insert on processos for each row execute function set_org_id();
+
+-- Formata sozinho pro padrão CNJ (NNNNNNN-DD.AAAA.J.TR.OOOO) sempre que numero tiver os 20
+-- dígitos mas vier sem pontuação (ou com pontuação errada) — não depende de nenhum
+-- frontend fazer isso certo (form, Escavador, build antigo em cache, chamada direta na API).
+create or replace function formatar_numero_processo() returns trigger
+  language plpgsql as $$
+declare
+  digitos text;
+begin
+  digitos := regexp_replace(new.numero, '\D', '', 'g');
+  if length(digitos) = 20 then
+    new.numero := substring(digitos from 1 for 7) || '-' || substring(digitos from 8 for 2) || '.'
+      || substring(digitos from 10 for 4) || '.' || substring(digitos from 14 for 1) || '.'
+      || substring(digitos from 15 for 2) || '.' || substring(digitos from 17 for 4);
+  end if;
+  return new;
+end;
+$$;
+create trigger trg_formatar_numero_processo before insert or update on processos
+  for each row execute function formatar_numero_processo();
 -- advogado só vê/edita/exclui processos onde é UM dos responsáveis (processo_responsaveis —
 -- pode ter mais de 1 advogado; eh_responsavel_do_processo checa "algum" ali, não só o
 -- "principal" em responsavel_id) — sócio/admin/financeiro/recepção continuam vendo todos os
