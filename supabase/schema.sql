@@ -368,11 +368,18 @@ create table documentos_assinatura (
 );
 create index documentos_assinatura_org_id_idx on documentos_assinatura (org_id);
 
--- Os 3 planos e seus limites — fonte única de verdade (Edge Function admin-create-user e
--- as policies processos_ins/clientes_ins leem daqui). Qualquer limite null = sem limite.
+-- Os 3 planos e seus LIMITES — fonte única de verdade só pra isso (Edge Function
+-- admin-create-user e as policies processos_ins/clientes_ins leem daqui). Qualquer limite
+-- null = sem limite.
+--
+-- ⚠️ valor_mensal aqui NÃO é a fonte de verdade do que é cobrado — ninguém lê esta coluna.
+-- O preço real vem de src/config/planos.js (client), que preenche organizations.valor_mensal
+-- na tela "Configurar" (PlatformAdminPanel.jsx), e é esse valor que lancar_cobrancas_plano()
+-- usa pra faturar. Mudar preço só aqui não muda o que é cobrado — mudar só em planos.js
+-- desalinha esta tabela. Os DOIS precisam ser editados juntos até isso virar 1 fonte só.
 create table plan_limits (
   plano text primary key,
-  valor_mensal numeric(10,2) not null,
+  valor_mensal numeric(10,2) not null, -- ver aviso acima — não é lido por nada, só referência
   limite_usuarios int,
   limite_processos int,
   limite_clientes int
@@ -580,8 +587,14 @@ create policy processo_responsaveis_sel on processo_responsaveis for select usin
   exists (select 1 from processos p where p.id = processo_id and p.org_id = auth_org_id() and has_module('processos'))
   or is_platform_admin()
 );
+-- Adicionar responsável a um processo CONFIDENCIAL é decisão de sócio/admin (é o que dá
+-- acesso a ele); em processo normal continua liberado pra qualquer um com o módulo (gestão
+-- de equipe do dia a dia, sem risco de sigilo).
 create policy processo_responsaveis_ins on processo_responsaveis for insert with check (
-  exists (select 1 from processos p where p.id = processo_id and p.org_id = auth_org_id() and has_module('processos'))
+  exists (
+    select 1 from processos p where p.id = processo_id and p.org_id = auth_org_id() and has_module('processos')
+    and (not p.confidencial or auth_role() in ('admin', 'socio'))
+  )
   or is_platform_admin()
 );
 create policy processo_responsaveis_del on processo_responsaveis for delete using (
@@ -656,6 +669,28 @@ create policy processos_sel on processos for select using (
 -- platform admin pula o limite do plano (é suporte, não é o uso normal da empresa).
 -- Conta só processo ATIVO (não Encerrado) contra o limite — processo arquivado não deveria
 -- travar a criação de um novo (pedido do usuário: "tem que ser processo (ativos)").
+-- Sigilo é decisão de sócio/admin — esconder o campo na UI pra quem não é não impede um
+-- PATCH direto via REST. Mesma defesa que organizations.plano/valor_mensal já tem
+-- (guard_organizations_protected_cols): reverte pro valor anterior (update) ou força false
+-- (insert) quando quem está escrevendo não é sócio/admin/platform admin.
+create or replace function guard_processos_confidencial() returns trigger
+  language plpgsql security definer set search_path = public as $$
+begin
+  if auth_role() not in ('admin', 'socio') and not is_platform_admin() then
+    if tg_op = 'INSERT' then
+      new.confidencial := false;
+      new.responsavel_socios := false;
+    else
+      new.confidencial := old.confidencial;
+      new.responsavel_socios := old.responsavel_socios;
+    end if;
+  end if;
+  return new;
+end;
+$$;
+create trigger trg_guard_processos_confidencial before insert or update on processos
+  for each row execute function guard_processos_confidencial();
+
 create policy processos_ins on processos for insert with check (
   is_platform_admin() or (org_id = auth_org_id() and has_module('processos') and (
     (select limite_processos from plan_limits pl join organizations o on o.plano = pl.plano where o.id = auth_org_id()) is null

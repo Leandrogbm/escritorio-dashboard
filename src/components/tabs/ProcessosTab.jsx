@@ -114,19 +114,26 @@ export default function ProcessosTab({ currentRole, orgId, profile, abrirProcess
     const { responsaveis, ...resto } = values;
     const v = prepararValoresProcesso(resto);
     let processoId = editing?.id;
+    // Processo novo já nasce com id gerado aqui (em vez de deixar o banco gerar e ler de
+    // volta via RETURNING/.select()) — se o processo nascer confidencial sem "Sócios"
+    // marcado, na hora do INSERT ainda não existe linha em processo_responsaveis pra ele, a
+    // RLS de processos_sel esconde a linha recém-criada do próprio RETURNING, insert()
+    // devolve [] e `criado.id` estourava um TypeError com o processo já gravado — órfão, sem
+    // responsável, invisível pra sempre (mesma classe do bug do checkbox->null: RLS mordendo
+    // a própria criação). Sabendo o id de antemão, não dependemos de ler a linha de volta.
+    if (!processoId) { processoId = crypto.randomUUID(); v.id = processoId; }
     try {
-      if (processoId) await update(processoId, v);
-      else {
-        const [criado] = await insert(v);
-        processoId = criado.id;
-      }
+      if (editing?.id) await update(processoId, v);
+      else await insert(v);
     } catch (err) {
       if (err.code === "23505") throw new Error(`Já existe um processo cadastrado com o número "${v.numero}".`);
       throw err;
     }
-    await supabase.from("processo_responsaveis").delete().eq("processo_id", processoId);
+    const { error: errDel } = await supabase.from("processo_responsaveis").delete().eq("processo_id", processoId);
+    if (errDel) throw new Error(`Processo salvo, mas não deu pra atualizar os responsáveis: ${errDel.message}`);
     if (responsaveis?.length) {
-      await supabase.from("processo_responsaveis").insert(responsaveis.map((profile_id) => ({ processo_id: processoId, profile_id })));
+      const { error: errIns } = await supabase.from("processo_responsaveis").insert(responsaveis.map((profile_id) => ({ processo_id: processoId, profile_id })));
+      if (errIns) throw new Error(`Processo salvo, mas não deu pra gravar os responsáveis: ${errIns.message}`);
     }
     await refreshResponsaveis();
   };

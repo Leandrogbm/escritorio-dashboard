@@ -7,6 +7,14 @@ on:
     branches: [main]
   workflow_dispatch: {}
 
+# Dois pushes seguidos em main não podem rodar dois deploys em paralelo pra mesma pasta FTP
+# — interfere no arquivo de estado do FTP-Deploy-Action e pode intercalar upload de builds
+# diferentes. cancel-in-progress:false deixa o mais novo esperar o de antes terminar, em vez
+# de cancelar um deploy potencialmente já em andamento no meio do upload.
+concurrency:
+  group: deploy-hostinger
+  cancel-in-progress: false
+
 # Só precisa ler o repo pra buildar — nunca escreve nada nele. Reduz o que um token
 # comprometido desse workflow conseguiria fazer.
 permissions:

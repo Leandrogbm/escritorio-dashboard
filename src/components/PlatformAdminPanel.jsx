@@ -122,7 +122,7 @@ export default function PlatformAdminPanel({ temPerfilProprio, onEntrarNaEmpresa
                 <tr><td colSpan={10} className="px-4 py-6 text-center text-sm" style={{ color: COLORS.slate }}>Nenhuma empresa cadastrada ainda.</td></tr>
               )}
               {(empresas ?? []).map((e, i) => (
-                <tr key={e.org_id} onClick={() => setVendoCobrancas(e)} className="cursor-pointer" style={{ borderTop: `1px solid ${COLORS.line}`, background: i % 2 ? "#FAF9F5" : COLORS.paperRaised }}>
+                <tr key={e.org_id} onClick={() => setVendoCobrancas(e)} className="cursor-pointer hover:!bg-[rgba(165,121,59,0.06)]" style={{ borderTop: `1px solid ${COLORS.line}`, background: i % 2 ? "#FAF9F5" : COLORS.paperRaised }}>
                   <td className="px-4 py-3" style={{ color: COLORS.ink, fontWeight: 600 }}>{e.nome}</td>
                   <td className="px-4 py-3" style={{ color: COLORS.slate }}>{e.cnpj ?? "—"}</td>
                   <td className="px-4 py-3" style={{ color: COLORS.slate }}>{new Date(e.created_at).toLocaleDateString("pt-BR")}</td>

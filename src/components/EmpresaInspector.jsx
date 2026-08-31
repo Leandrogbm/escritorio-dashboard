@@ -6,6 +6,7 @@ import { BRL } from "../data/mockData.js";
 import { useSupabaseTable } from "../hooks/useSupabaseTable.js";
 import { useEscClose } from "../hooks/useEscClose.js";
 import { supabase } from "../lib/supabaseClient.js";
+import { confirmarExclusao } from "../lib/confirmarExclusao.js";
 
 // Acesso de suporte do platform admin. Processos/honorários continuam só-leitura (corrigir
 // de verdade ali é código/banco). Colaboradores e clientes já podem ser excluídos daqui —
@@ -51,8 +52,9 @@ export default function EmpresaInspector({ orgId, orgNome, onClose }) {
   const { data: processos } = useSupabaseTable("processos", { select: "id,numero,area,status", eq: ["org_id", orgId] });
   const { data: honorarios } = useSupabaseTable("honorarios", { select: "id,valor,vencimento,status", eq: ["org_id", orgId] });
 
-  const excluirColaborador = async (c) => {
-    if (!confirm(`Excluir o colaborador "${c.nome}"? A conta de login dele também é apagada.`)) return;
+  // Suporte da plataforma mexendo em dado de OUTRA empresa — peso maior que o normal,
+  // mesma confirmação digitada usada em processo/cliente/colaborador dentro da própria org.
+  const excluirColaborador = (c) => confirmarExclusao("o nome do colaborador (apaga o login junto)", c.nome, async () => {
     const { error } = await supabase.functions.invoke("admin-delete-user", { body: { userId: c.id } });
     if (error) {
       const body = await error.context?.json?.().catch(() => null);
@@ -60,14 +62,13 @@ export default function EmpresaInspector({ orgId, orgNome, onClose }) {
       return;
     }
     await refreshColaboradores();
-  };
+  });
 
-  const excluirCliente = async (c) => {
-    if (!confirm(`Excluir o cliente "${c.nome}"? Se ele tiver processos vinculados, a exclusão é bloqueada.`)) return;
+  const excluirCliente = (c) => confirmarExclusao("o nome do cliente", c.nome, async () => {
     const { error } = await supabase.from("clientes").delete().eq("id", c.id);
     if (error) return alert(error.message);
     await refreshClientes();
-  };
+  });
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end">
