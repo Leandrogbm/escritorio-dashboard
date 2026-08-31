@@ -8,13 +8,14 @@ import DepositosPanel from "./DepositosPanel.jsx";
 import DocumentosPanel from "./DocumentosPanel.jsx";
 import { COLORS } from "../lib/theme.js";
 import { useEscClose } from "../hooks/useEscClose.js";
+import { confirmarExclusao } from "../lib/confirmarExclusao.js";
 
 const STATUS_TONE = { "Em andamento": "ok", "Aguardando decisão": "warn", "Suspenso": "neutral", "Encerrado": "neutral" };
 
 // Página cheia do processo (substitui a lista dentro da própria aba Processos, não é popup)
 // — clicar num processo troca o conteúdo da tela, com botão "Voltar", em vez de empilhar
 // modal em cima de modal (era confuso: Esc fechava um de cada vez, fora de ordem).
-export default function ProcessoPagina({ processo: p, atrasos, equipe, orgId, profile, onVoltar, onEditar, onExcluir, onRegistrarPrazo, onMudarStatus }) {
+export default function ProcessoPagina({ processo: p, responsaveis, atrasos, equipe, orgId, profile, onVoltar, onEditar, onExcluir, onRegistrarPrazo, onMudarStatus }) {
   useEscClose(onVoltar, true);
   const [aba, setAba] = useState("andamentos");
 
@@ -53,8 +54,10 @@ export default function ProcessoPagina({ processo: p, atrasos, equipe, orgId, pr
             <p className="mt-0.5" style={{ color: COLORS.ink, fontWeight: 600 }}>{p.area}</p>
           </div>
           <div>
-            <p className="text-xs uppercase tracking-wide" style={{ color: COLORS.slate }}>Responsável</p>
-            <p className="mt-0.5" style={{ color: COLORS.ink, fontWeight: 600 }}>{p.responsavel_socios ? "Sócios" : (p.responsavel?.nome ?? "—")}</p>
+            <p className="text-xs uppercase tracking-wide" style={{ color: COLORS.slate }}>Responsáveis</p>
+            <p className="mt-0.5" style={{ color: COLORS.ink, fontWeight: 600 }}>
+              {[...(responsaveis ?? []).map((r) => r.nome), ...(p.responsavel_socios ? ["Sócios"] : [])].join(", ") || "—"}
+            </p>
           </div>
           <div>
             <p className="text-xs uppercase tracking-wide" style={{ color: COLORS.slate }}>Valor da causa</p>
@@ -69,7 +72,7 @@ export default function ProcessoPagina({ processo: p, atrasos, equipe, orgId, pr
           <button onClick={onEditar} className="flex items-center gap-1.5 px-3 py-2 rounded-md text-sm font-semibold" style={{ border: `1px solid ${COLORS.line}`, color: COLORS.ink }}>
             <Pencil size={14} /> Editar
           </button>
-          <button onClick={() => { if (confirm("Excluir este processo?")) onExcluir(); }} className="flex items-center gap-1.5 px-3 py-2 rounded-md text-sm font-semibold" style={{ border: `1px solid ${COLORS.line}`, color: COLORS.wine }}>
+          <button onClick={() => confirmarExclusao("o número do processo", p.numero, onExcluir)} className="flex items-center gap-1.5 px-3 py-2 rounded-md text-sm font-semibold" style={{ border: `1px solid ${COLORS.line}`, color: COLORS.wine }}>
             <Trash2 size={14} /> Excluir
           </button>
         </div>

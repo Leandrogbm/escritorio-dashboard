@@ -64,7 +64,31 @@ export default function RecordFormModal({ open, title, fields, initialValues, on
         </p>
 
         {fields.map((f) => (
-          f.type === "checkbox" ? (
+          f.type === "multiselect" ? (
+            <div key={f.key} className="flex flex-col gap-1 text-xs" style={{ color: COLORS.slate }}>
+              {f.label}
+              <div className="flex flex-col gap-1 px-3 py-2 rounded-md max-h-36 overflow-y-auto" style={{ border: `1px solid ${COLORS.line}` }}>
+                {f.options.length === 0 && <span style={{ color: COLORS.slate }}>Nenhuma opção disponível.</span>}
+                {f.options.map((o) => {
+                  const selecionados = values[f.key] ?? [];
+                  const marcado = selecionados.includes(o.value);
+                  return (
+                    <label key={o.value} className="flex items-center gap-2" style={{ color: COLORS.ink }}>
+                      <input
+                        type="checkbox"
+                        checked={marcado}
+                        onChange={(e) => setValues((v) => ({
+                          ...v,
+                          [f.key]: e.target.checked ? [...selecionados, o.value] : selecionados.filter((x) => x !== o.value),
+                        }))}
+                      />
+                      {o.label}
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+          ) : f.type === "checkbox" ? (
             <label key={f.key} className="flex items-center gap-2 text-xs" style={{ color: COLORS.ink }}>
               <input
                 type="checkbox"

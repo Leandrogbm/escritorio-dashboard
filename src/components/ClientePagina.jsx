@@ -8,6 +8,7 @@ import { useSupabaseTable } from "../hooks/useSupabaseTable.js";
 import { useEscClose } from "../hooks/useEscClose.js";
 import { formatCelular } from "../lib/celular.js";
 import { formatDocumento } from "../lib/documento.js";
+import { confirmarExclusao } from "../lib/confirmarExclusao.js";
 
 const STATUS_PROCESSO = { "Em andamento": "ok", "Aguardando decisão": "warn", "Suspenso": "neutral", "Encerrado": "neutral" };
 const STATUS_HONORARIO = { "Em aberto": "warn", "Vencido": "urgent", "Pago": "ok" };
@@ -52,7 +53,7 @@ export default function ClientePagina({ cliente, orgId, podeExcluir, onVoltar, o
             <Pencil size={14} /> Editar dados
           </button>
           {podeExcluir && (
-            <button onClick={() => { if (confirm("Excluir este cliente?")) onExcluir(); }} className="flex items-center gap-1.5 px-3 py-2 rounded-md text-sm font-semibold" style={{ border: `1px solid ${COLORS.line}`, color: COLORS.wine }}>
+            <button onClick={() => confirmarExclusao("o nome do cliente", cliente.nome, onExcluir)} className="flex items-center gap-1.5 px-3 py-2 rounded-md text-sm font-semibold" style={{ border: `1px solid ${COLORS.line}`, color: COLORS.wine }}>
               <Trash2 size={14} />
             </button>
           )}

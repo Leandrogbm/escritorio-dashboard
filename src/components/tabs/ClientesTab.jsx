@@ -210,7 +210,7 @@ export default function ClientesTab({ currentRole, orgId, profile, onAbrirProces
                         </button>
                       )
                     )}
-                    <RowActions onEdit={() => setClienteAberto(c)} onDelete={podeExcluir ? () => remove(c.id) : undefined} />
+                    <RowActions onEdit={() => setClienteAberto(c)} onDelete={podeExcluir ? () => remove(c.id) : undefined} confirmLabel={c.nome} confirmCampo="o nome do cliente" />
                   </div>
                 </td>
               </Tr>

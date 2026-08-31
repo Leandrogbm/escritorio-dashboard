@@ -609,12 +609,10 @@ create trigger trg_sincroniza_responsavel_principal
   after insert or delete on processo_responsaveis
   for each row execute function sincroniza_responsavel_principal();
 
--- ponytail: regra de privacidade construída (processo com 1 único responsável que é sócio
--- só seria visível pra esse sócio) mas NENHUMA policy chama processo_visivel() agora — ver
--- comentário em processos_sel mais abaixo pro motivo (dado real do cliente quebrou a regra
--- assim que ativei: todo processo já tem o mesmo sócio como responsável padrão). Funções
--- ficam prontas pra quando houver um critério real de "confidencial" que não seja "só tem
--- 1 responsável".
+-- ponytail: processo_privado_de_socio()/processo_visivel() ficam sem uso — a regra real de
+-- "confidencial" acabou virando um campo explícito (processos.confidencial), não inferida
+-- por "só tem 1 responsável" (isso já causou incidente — ver git log). eh_responsavel_do_processo()
+-- abaixo é a única das três em uso de verdade, pelas policies de processos/honorarios.
 create or replace function processo_privado_de_socio(p_processo_id uuid) returns boolean
   language sql stable as $$
   select count(*) = 1 and bool_or(pf.role = 'socio')
@@ -622,8 +620,12 @@ create or replace function processo_privado_de_socio(p_processo_id uuid) returns
   where pr.processo_id = p_processo_id
 $$;
 
+-- security definer: sem isso, processos_sel chamando esta função dispara a RLS de
+-- processo_responsaveis, que reconsulta processos (processos_sel) pro mesmo id — referência
+-- circular entre as duas policies. Como só devolve true/false pro PRÓPRIO auth.uid() (não
+-- aceita id de terceiro, não vaza nada), é seguro rodar ignorando RLS por dentro.
 create or replace function eh_responsavel_do_processo(p_processo_id uuid) returns boolean
-  language sql stable as $$
+  language sql stable security definer set search_path = public as $$
   select exists (select 1 from processo_responsaveis pr where pr.processo_id = p_processo_id and pr.profile_id = auth.uid())
 $$;
 
@@ -638,22 +640,15 @@ $$;
 
 alter table processos enable row level security;
 create trigger trg_set_org_id before insert on processos for each row execute function set_org_id();
--- advogado só vê/edita/exclui processos onde é o responsável designado (pelo sócio/admin,
--- via o campo "Responsável" do form) — sócio/admin/financeiro/recepção continuam vendo
--- todos os processos da org (só precisam do módulo liberado em role_permissions).
---
--- ponytail: tentei uma 2ª regra aqui (processo com responsável único que é sócio ficar
--- privado só pra esse sócio) e tive que reverter na hora — na prática TODO processo do
--- cliente real já tem o mesmo sócio como responsável padrão (convenção de cadastro deles,
--- não uma marcação de confidencial), então a regra escondia tudo de todo mundo. `
--- processo_responsaveis`/`processo_visivel()` (funções abaixo) ficam prontas mas SEM efeito
--- em nenhuma policy — não usar até decidir um critério real de "isso é privado" (ex.: um
--- campo explícito tipo `processos.confidencial`, não inferido pela contagem de responsável).
+-- advogado só vê/edita/exclui processos onde é UM dos responsáveis (processo_responsaveis —
+-- pode ter mais de 1 advogado; eh_responsavel_do_processo checa "algum" ali, não só o
+-- "principal" em responsavel_id) — sócio/admin/financeiro/recepção continuam vendo todos os
+-- processos da org (só precisam do módulo liberado em role_permissions).
 create policy processos_sel on processos for select using (
   (org_id = auth_org_id() and has_module('processos') and (
     auth_role() = 'admin'
-    or (not confidencial and (auth_role() <> 'advogado' or responsavel_id = auth.uid()))
-    or (confidencial and (responsavel_id = auth.uid() or (responsavel_socios and auth_role() = 'socio')))
+    or (not confidencial and (auth_role() <> 'advogado' or eh_responsavel_do_processo(id)))
+    or (confidencial and (eh_responsavel_do_processo(id) or (responsavel_socios and auth_role() = 'socio')))
   ))
   or is_platform_admin()
 );
@@ -671,15 +666,15 @@ create policy processos_ins on processos for insert with check (
 create policy processos_upd on processos for update
   using ((org_id = auth_org_id() and has_module('processos') and (
     auth_role() = 'admin'
-    or (not confidencial and (auth_role() <> 'advogado' or responsavel_id = auth.uid()))
-    or (confidencial and (responsavel_id = auth.uid() or (responsavel_socios and auth_role() = 'socio')))
+    or (not confidencial and (auth_role() <> 'advogado' or eh_responsavel_do_processo(id)))
+    or (confidencial and (eh_responsavel_do_processo(id) or (responsavel_socios and auth_role() = 'socio')))
   )) or is_platform_admin())
   with check (true);
 create policy processos_del on processos for delete using (
   (org_id = auth_org_id() and has_module('processos') and (
     auth_role() = 'admin'
-    or (not confidencial and (auth_role() <> 'advogado' or responsavel_id = auth.uid()))
-    or (confidencial and (responsavel_id = auth.uid() or (responsavel_socios and auth_role() = 'socio')))
+    or (not confidencial and (auth_role() <> 'advogado' or eh_responsavel_do_processo(id)))
+    or (confidencial and (eh_responsavel_do_processo(id) or (responsavel_socios and auth_role() = 'socio')))
   )) or is_platform_admin()
 );
 
@@ -704,7 +699,7 @@ create policy honorarios_sel on honorarios for select using (
     auth_role() = 'admin' or processo_id is null
     or not exists (
       select 1 from processos p where p.id = honorarios.processo_id and p.confidencial
-      and not (p.responsavel_id = auth.uid() or (p.responsavel_socios and auth_role() = 'socio'))
+      and not (eh_responsavel_do_processo(p.id) or (p.responsavel_socios and auth_role() = 'socio'))
     )
   ))
   or is_platform_admin()

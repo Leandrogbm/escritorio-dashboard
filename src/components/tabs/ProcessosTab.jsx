@@ -16,18 +16,23 @@ import { avisoLimitePlano } from "../../lib/limitesPlano.js";
 
 const STATUS_TONE = { "Em andamento": "ok", "Aguardando decisão": "warn", "Suspenso": "neutral", "Encerrado": "neutral" };
 const STATUS_OPTIONS = Object.keys(STATUS_TONE).map((s) => ({ value: s, label: s }));
-const RESPONSAVEL_SOCIOS = "__socios__";
 
-// Traduz o valor sentinela do select "Responsável" antes de salvar — RecordFormModal não
-// sabe nada disso, só manda o value escolhido pra frente.
+// "responsaveis" (array de profile id) não é coluna de processos — vira linhas em
+// processo_responsaveis à parte (ver salvarProcesso). Só limpa o resto e garante default.
 function prepararValoresProcesso(values) {
   let v = values;
   // processos.valor é not null (default 0) — campo é opcional na tela, mas mandar null pro
   // banco quebra a constraint com um erro cru em vez do "opcional" que o form promete.
   if ("valor" in v && v.valor == null) v = { ...v, valor: 0 };
-  if (!("responsavel_id" in v)) return v;
-  if (v.responsavel_id === RESPONSAVEL_SOCIOS) return { ...v, responsavel_id: null, responsavel_socios: true };
-  return { ...v, responsavel_socios: false };
+  return v;
+}
+
+// Junta o nome de todos os responsáveis (0+) com "Sócios" quando marcado — cobre os 3 estados
+// possíveis: ninguém designado, 1+ pessoa nomeada, e/ou aberto pra todos os sócios.
+function nomesResponsaveis(lista, socios) {
+  const nomes = (lista ?? []).map((r) => r.nome);
+  if (socios) nomes.push("Sócios");
+  return nomes.length ? nomes.join(", ") : "—";
 }
 
 const PRAZO_FIELDS = [
@@ -53,6 +58,19 @@ export default function ProcessosTab({ currentRole, orgId, profile, abrirProcess
   // conta de suporte, não alguém que carrega processo (ela já vê tudo por outra via).
   const { data: equipeRaw } = useSupabaseTable("profiles", { select: "id,nome,role", orderBy: "nome", ascending: true, eq: orgEq });
   const equipe = useMemo(() => equipeRaw.filter((e) => e.role !== "admin"), [equipeRaw]);
+  // 1 processo pode ter mais de 1 responsável (processo_responsaveis) — sem `eq` aqui porque
+  // a tabela não tem org_id próprio, a RLS já escopa pelo join com processos.org_id.
+  const { data: responsaveisRaw, refresh: refreshResponsaveis } = useSupabaseTable("processo_responsaveis", {
+    select: "processo_id, profile:profiles(id,nome)", orderBy: "processo_id", ascending: true,
+  });
+  const responsaveisPorProcesso = useMemo(() => {
+    const map = new Map();
+    for (const r of responsaveisRaw) {
+      if (!map.has(r.processo_id)) map.set(r.processo_id, []);
+      if (r.profile) map.get(r.processo_id).push(r.profile);
+    }
+    return map;
+  }, [responsaveisRaw]);
   const { insert: insertPrazo } = useSupabaseTable("prazos", { eq: orgEq });
   // Sem módulo financeiro liberado pro perfil, a RLS de honorarios devolve vazio — o aviso
   // só aparece pra quem já enxerga essa informação de qualquer forma.
@@ -86,14 +104,31 @@ export default function ProcessosTab({ currentRole, orgId, profile, abrirProcess
 
   // Constraint unique (org_id, numero) já barra duplicado no banco — aqui só troca o erro
   // cru do Postgres (23505) por uma mensagem que faz sentido pra quem tá preenchendo o form.
+  //
+  // "responsaveis" não é coluna de processos — é a lista (0+ pessoas) que vira linhas em
+  // processo_responsaveis à parte. Salva o processo primeiro, depois substitui o conjunto de
+  // responsáveis inteiro (apaga tudo que tinha e insere o que foi marcado); o trigger
+  // sincroniza_responsavel_principal cuida sozinho de manter responsavel_id ("principal",
+  // usado por set_prazo_data/ExecutivoTab) em dia a partir disso.
   const salvarProcesso = async (values) => {
-    const v = prepararValoresProcesso(values);
+    const { responsaveis, ...resto } = values;
+    const v = prepararValoresProcesso(resto);
+    let processoId = editing?.id;
     try {
-      return editing?.id ? await update(editing.id, v) : await insert(v);
+      if (processoId) await update(processoId, v);
+      else {
+        const [criado] = await insert(v);
+        processoId = criado.id;
+      }
     } catch (err) {
       if (err.code === "23505") throw new Error(`Já existe um processo cadastrado com o número "${v.numero}".`);
       throw err;
     }
+    await supabase.from("processo_responsaveis").delete().eq("processo_id", processoId);
+    if (responsaveis?.length) {
+      await supabase.from("processo_responsaveis").insert(responsaveis.map((profile_id) => ({ processo_id: processoId, profile_id })));
+    }
+    await refreshResponsaveis();
   };
 
   // <main> (App.jsx) é quem rola, não a window — sem isso, abrir/fechar a página cheia do
@@ -138,19 +173,20 @@ export default function ProcessosTab({ currentRole, orgId, profile, abrirProcess
     { key: "area", label: "Área do direito", type: "datalist", options: AREAS_DIREITO_COMUNS.map((a) => ({ value: a })) },
     { key: "status", label: "Situação", type: "select", options: STATUS_OPTIONS },
     { key: "valor", label: "Valor da causa (R$)", type: "number", optional: true },
-    // "Sócios" (RESPONSAVEL_SOCIOS): valor sentinela, não é um id de verdade — o
-    // submit troca isso por { responsavel_id: null, responsavel_socios: true } antes de
-    // salvar (ver prepararValores). Processo assim marcado é enxergado por qualquer sócio,
-    // não só por 1 pessoa.
-    { key: "responsavel_id", label: "Responsável", type: "select",
-      options: [{ value: RESPONSAVEL_SOCIOS, label: "Sócios (todos os sócios veem)" }, ...equipe.map((e) => ({ value: e.id, label: e.nome }))],
-      optional: true },
-    // Só sócio/admin decide sigilo — RLS (processos_sel/upd/del) restringe visão E edição a
-    // quem é o responsável quando marcado; financeiro do processo confidencial some junto
-    // (honorarios_sel). Pedido do usuário, versão sem repetir o incidente: só entra em vigor
-    // quando alguém liga esse campo à mão, nunca sozinho pelo simples fato de ter 1 responsável.
+    // 1 processo pode ter mais de 1 advogado responsável (processo_responsaveis) — advogado
+    // só vê/edita o que estiver aqui (qualquer um da lista, não só "o principal"). Vazio =
+    // sem responsável designado ainda.
+    { key: "responsaveis", label: "Responsáveis", type: "multiselect", options: equipe.map((e) => ({ value: e.id, label: e.nome })) },
+    // Sigilo — só sócio/admin decide. RLS (processos_sel/upd/del) restringe visão E edição:
+    // "Confidencial" sozinho vale só pra quem tá em Responsáveis; "Visível pra todos os
+    // sócios" abre pra qualquer sócio mesmo sem estar listado (financeiro do processo
+    // confidencial segue junto — honorarios_sel). Pedido do usuário, versão sem repetir o
+    // incidente: só entra em vigor quando alguém liga isso à mão.
     ...(currentRole === "admin" || currentRole === "socio"
-      ? [{ key: "confidencial", label: "Confidencial — só o responsável enxerga (processo e financeiro)", type: "checkbox" }]
+      ? [
+          { key: "confidencial", label: "Confidencial — só quem está em Responsáveis enxerga (processo e financeiro)", type: "checkbox" },
+          { key: "responsavel_socios", label: "Visível pra todos os sócios (mesmo sem estar em Responsáveis)", type: "checkbox" },
+        ]
       : []),
   ], [clientes, equipe, currentRole]);
 
@@ -186,12 +222,13 @@ export default function ProcessosTab({ currentRole, orgId, profile, abrirProcess
       <>
         <ProcessoPagina
           processo={atual}
+          responsaveis={responsaveisPorProcesso.get(atual.id)}
           atrasos={clientesInadimplentes.get(atual.cliente?.id)}
           equipe={equipe}
           orgId={orgId}
           profile={profile}
           onVoltar={() => setProcessoAberto(null)}
-          onEditar={() => setEditing({ ...atual, cliente_id: atual.cliente?.id, responsavel_id: atual.responsavel_socios ? RESPONSAVEL_SOCIOS : atual.responsavel?.id })}
+          onEditar={() => setEditing({ ...atual, cliente_id: atual.cliente?.id, responsaveis: (responsaveisPorProcesso.get(atual.id) ?? []).map((r) => r.id) })}
           onExcluir={() => { remove(atual.id); setProcessoAberto(null); }}
           onRegistrarPrazo={abrirRegistrarPrazo(atual.id)}
           onMudarStatus={(status) => update(atual.id, { status })}
@@ -278,13 +315,17 @@ export default function ProcessosTab({ currentRole, orgId, profile, abrirProcess
             )}
             <div className="flex items-center justify-between mt-4 pt-4" style={{ borderTop: `1px solid ${COLORS.line}` }}>
               <span className="text-xs uppercase tracking-wide" style={{ color: COLORS.brassText, fontWeight: 600 }}>{p.area}</span>
-              <span className="text-sm" style={{ color: COLORS.slate }}>{p.responsavel_socios ? "Sócios" : (p.responsavel?.nome ?? "—")}</span>
+              <span className="text-sm" style={{ color: COLORS.slate }}>
+                {nomesResponsaveis(responsaveisPorProcesso.get(p.id), p.responsavel_socios)}
+              </span>
               <span className="text-sm font-semibold" style={{ color: COLORS.ink }}>{p.valor ? p.valor.toLocaleString("pt-BR", { style: "currency", currency: "BRL" }) : "—"}</span>
             </div>
             <div className="flex items-center justify-end mt-2" onClick={(e) => e.stopPropagation()}>
               <RowActions
-                onEdit={() => setEditing({ ...p, cliente_id: p.cliente?.id, responsavel_id: p.responsavel_socios ? RESPONSAVEL_SOCIOS : p.responsavel?.id })}
+                onEdit={() => setEditing({ ...p, cliente_id: p.cliente?.id, responsaveis: (responsaveisPorProcesso.get(p.id) ?? []).map((r) => r.id) })}
                 onDelete={() => remove(p.id)}
+                confirmLabel={p.numero}
+                confirmCampo="o número do processo"
               />
             </div>
           </Card>

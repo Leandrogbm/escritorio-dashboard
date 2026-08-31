@@ -8,6 +8,7 @@ import { COLORS } from "../../lib/theme.js";
 import { ROLES } from "../../config/permissions.js";
 import { useSupabaseTable } from "../../hooks/useSupabaseTable.js";
 import { supabase } from "../../lib/supabaseClient.js";
+import { confirmarExclusao } from "../../lib/confirmarExclusao.js";
 
 // ponytail: horas faturáveis tiradas da tela por pedido — colunas continuam no banco
 // (profiles.horas_mes/meta_horas), só não aparecem/editam por aqui por enquanto.
@@ -105,8 +106,9 @@ export default function EquipeTab({ currentRole, orgId }) {
     if (data?.warning) throw new Error(data.warning);
   };
 
-  const excluirColaborador = async (id) => {
-    if (!confirm("Excluir este colaborador? A conta de login dele também é apagada.")) return;
+  const excluirColaborador = (colaborador) => confirmarExclusao("o nome do colaborador (apaga o login junto)", colaborador.nome, () => excluirColaboradorConfirmado(colaborador.id));
+
+  const excluirColaboradorConfirmado = async (id) => {
     const { error } = await supabase.functions.invoke("admin-delete-user", { body: { userId: id } });
     if (error) {
       const msg = await tratarErroFuncao(error);
@@ -177,7 +179,7 @@ export default function EquipeTab({ currentRole, orgId }) {
                 )}
                 {podeGerenciar(e) && (
                   <button
-                    onClick={(ev) => { ev.stopPropagation(); excluirColaborador(e.id); }}
+                    onClick={(ev) => { ev.stopPropagation(); excluirColaborador(e); }}
                     aria-label="Excluir colaborador"
                     className="p-1.5 rounded hover:opacity-70"
                     style={{ color: COLORS.wine }}

@@ -32,9 +32,10 @@ export function useSupabaseTable(table, { select = "*", orderBy = "created_at", 
     const comOrg = eq?.[0] === "org_id"
       ? (Array.isArray(values) ? values.map((v) => ({ ...v, org_id: eq[1] })) : { ...values, org_id: eq[1] })
       : values;
-    const { error: err } = await supabase.from(table).insert(comOrg);
+    const { data, error: err } = await supabase.from(table).insert(comOrg).select();
     if (err) throw err;
     await refresh();
+    return data;
   };
   const update = async (id, values) => {
     const { error: err } = await supabase.from(table).update(values).eq("id", id);
