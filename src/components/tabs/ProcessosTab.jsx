@@ -84,6 +84,18 @@ export default function ProcessosTab({ currentRole, orgId, profile, abrirProcess
     setEditing({});
   };
 
+  // Constraint unique (org_id, numero) já barra duplicado no banco — aqui só troca o erro
+  // cru do Postgres (23505) por uma mensagem que faz sentido pra quem tá preenchendo o form.
+  const salvarProcesso = async (values) => {
+    const v = prepararValoresProcesso(values);
+    try {
+      return editing?.id ? await update(editing.id, v) : await insert(v);
+    } catch (err) {
+      if (err.code === "23505") throw new Error(`Já existe um processo cadastrado com o número "${v.numero}".`);
+      throw err;
+    }
+  };
+
   // <main> (App.jsx) é quem rola, não a window — sem isso, abrir/fechar a página cheia do
   // processo mantém a posição de rolagem de antes, e o botão "Voltar" (que fica no topo)
   // sai da tela. Parecia bug de clique; era só a rolagem não voltando pro topo.
@@ -190,7 +202,7 @@ export default function ProcessosTab({ currentRole, orgId, profile, abrirProcess
           fields={fields}
           initialValues={editing}
           onClose={() => setEditing(null)}
-          onSubmit={(values) => { const v = prepararValoresProcesso(values); return editing?.id ? update(editing.id, v) : insert(v); }}
+          onSubmit={salvarProcesso}
         />
         <RecordFormModal
           open={registrandoPrazo !== null}
@@ -286,7 +298,7 @@ export default function ProcessosTab({ currentRole, orgId, profile, abrirProcess
         fields={fields}
         initialValues={editing}
         onClose={() => setEditing(null)}
-        onSubmit={(values) => (editing?.id ? update(editing.id, values) : insert(values))}
+        onSubmit={salvarProcesso}
       />
     </div>
   );
