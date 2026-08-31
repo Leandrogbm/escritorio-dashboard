@@ -38,8 +38,12 @@ export default function RecordFormModal({ open, title, fields, initialValues, on
       // só envia as colunas reais do form — initialValues pode trazer joins/metadados
       // (ex.: p.cliente aninhado) que não são colunas da tabela.
       // string vazia em campo opcional vira null (date/numeric não aceitam "").
+      // checkbox nunca marcado é false, não null — coluna boolean costuma ser not null
+      // (default false), e null explícito em vez de false quebra qualquer RLS que leia essa
+      // coluna (lógica de 3 valores: "null and X" nunca dá true, mesmo quando devia).
       const clean = Object.fromEntries(fields.map((f) => {
         const v = values[f.key];
+        if (f.type === "checkbox") return [f.key, !!v];
         return [f.key, v === "" || v === undefined ? null : v];
       }));
       await onSubmit(clean);
