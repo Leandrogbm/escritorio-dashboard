@@ -10,8 +10,9 @@ em produção: **Gimenes e Pires Sociedade de Advogados**. Nome anterior do proj
 - **Frontend**: React 18 + Vite, Tailwind CSS. Sem router — navegação é `activeTab` (state)
   em `src/App.jsx`, cada módulo é um componente em `src/components/tabs/`.
 - **Backend**: Supabase (Postgres + RLS + Auth + Edge Functions em Deno/TypeScript + Storage).
-- **Deploy do frontend**: build estático, zip, upload manual pro Hostinger (não é CI/CD).
-  Ver "Como publicar" abaixo.
+- **Deploy do frontend**: automático — `git push origin main` builda e sobe sozinho no
+  Hostinger via GitHub Actions (`.github/workflows/deploy.yml`, FTPS). Não depende mais de
+  gerar zip/subir manual. Ver "Como publicar" abaixo.
 - Gráficos: Recharts. Ícones: lucide-react. Mapa (feature em back log): Leaflet/react-leaflet
   **pinado em v4** (react-leaflet v5 exige React 19, esse projeto é React 18).
 - OCR client-side (extrato em foto): tesseract.js. PDF: pdfjs-dist.
@@ -46,6 +47,24 @@ em produção: **Gimenes e Pires Sociedade de Advogados**. Nome anterior do proj
     custo novo. Sem teste contra uma chamada paga real ainda (mesma ressalva de
     `escavador-buscar-processos`) — se o formato da resposta mudou, só cai fora da 2ª
     tentativa, não quebra o sync.
+
+## Regra permanente: rodar os sub-agentes sempre, não só quando lembrar
+
+Pedido explícito do usuário. Antes de dar QUALQUER mudança como pronta:
+
+- **`qa-guardian`** — sempre, sem exceção, pra qualquer mudança que toque banco/RLS/Edge
+  Function/regra de negócio. É o que já pegou bug real que passaria despercebido (processo
+  órfão em `confidencial`, limite de plano não isentando `Encerrado`) — não pular achando
+  que "dessa vez é simples o suficiente".
+- **`arquiteto`** — em qualquer mudança de arquitetura/schema não trivial (nova tabela, nova
+  policy, nova relação entre tabelas) — já achou risco real de referência circular em RLS que
+  só apareceria em produção.
+- **`frontend-designer`** — em qualquer mudança visual nova (tela nova, componente novo,
+  padrão visual novo) — não precisa pra ajuste de 1 linha de texto/copy.
+
+Isso é processo, não sugestão: não entregar como "pronto" sem pelo menos `qa-guardian` ter
+rodado (background é aceitável — dá pra seguir trabalhando enquanto ele roda), e reportar o
+resultado real pro usuário, não só assumir que passou.
 
 ## ⚠️ Segurança — credenciais de integração (leia antes de mexer em Configurações/Integrações)
 
@@ -275,31 +294,23 @@ teste — feito isso pra validar `classificarComIA`.
 
 ## Como publicar
 
-Desde que `.github/workflows/deploy.yml` foi criado, **`git push origin main` já builda e
-sobe pro Hostinger sozinho via FTP** (GitHub Actions) — não depende mais de gerar
-`actum-build.zip` e subir manual pelo File Manager. Só falta o usuário configurar os
-secrets do repositório no GitHub uma vez (Settings → Secrets and variables → Actions):
-`FTP_SERVER`, `FTP_USERNAME`, `FTP_PASSWORD` (Hostinger hPanel → Files → Contas FTP),
-`FTP_SERVER_DIR` (pasta de destino, ex. `public_html/` ou
-`domains/seudominio.com/public_html/`), `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`
-(mesmos valores do `.env` local — o build do Actions não tem acesso ao `.env`, que não é
-commitado). Sem esses secrets configurados, o workflow falha e o site NÃO é atualizado —
-checar a aba "Actions" do repo no GitHub se uma mudança não aparecer no ar.
+**Deploy automático já configurado e confirmado funcionando** (1º deploy de teste rodou
+verde em 2026-09-01) — `.github/workflows/deploy.yml`: todo `git push origin main` builda e
+sobe pro Hostinger sozinho via FTPS (GitHub Actions). Os 6 secrets do repo (Settings →
+Secrets and variables → Actions) já estão configurados: `FTP_SERVER`, `FTP_USERNAME`,
+`FTP_PASSWORD`, `FTP_SERVER_DIR`, `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`. **Não gerar
+mais `actum-build.zip` nem pedir pro usuário subir manual** — isso já causou muita confusão
+nesta sessão (bug "não corrigido" que na real só não tinha sido publicado ainda, várias
+vezes). Só checar a aba "Actions" do repo no GitHub se uma mudança não aparecer no ar depois
+de um push — se o workflow falhar, é isso que precisa de atenção, não gerar zip de novo.
 
-Ainda dá pra gerar o zip manualmente como fallback (rodar sem o workflow, ou se os secrets
-ainda não estiverem configurados):
+Fallback manual (só se o workflow realmente quebrar de novo e precisar publicar às pressas
+enquanto não conserta):
 ```
 npx vite build
 powershell -Command "Compress-Archive -Path dist\* -DestinationPath actum-build.zip -Force"
-git add -A
-git commit -m "..."
-git push origin main
 ```
-Se os secrets do Actions ainda não estiverem configurados, **o usuário ainda precisa subir o
-zip manualmente** — isso já foi confundido com "bug" mais de uma vez (feature simplesmente
-não tinha sido publicada ainda). Enquanto não confirmar que o deploy automático está
-funcionando (checar a aba Actions), continuar lembrando disso no fim de qualquer entrega de
-frontend.
+e o usuário sobe esse zip pelo File Manager do Hostinger.
 
 Edge Function nova/alterada: `npx supabase functions deploy <nome>` (`--no-verify-jwt` só
 pra function chamada sem JWT de usuário — cron, webhook interno com secret próprio no
@@ -325,6 +336,16 @@ lugar, não acrescentar `ALTER`/`DROP` no fim).
 - **Sino por entidade** (`ClienteBell`, `ProcessoBell`, `FornecedorBell`): "possível
   pagamento"/notificação específica daquele registro, com confirmar/rejeitar — diferente do
   sino geral (que só cobre movimentação/prazo, não pagamento).
+- **`AREAS_DIREITO_COMUNS`** (`src/config/areasDireito.js`): lista de sugestão (datalist, não
+  fechada) reaproveitada em mais de um campo — "Área do direito" (`ProcessosTab`) e "Origem"
+  (`ClientesTab`). Precisar de outra lista parecida de área jurídica → reaproveitar essa
+  constante, não criar uma nova.
+- **Trello embutido de verdade, não iframe**: `TrelloQuadro.jsx` busca listas/cards ao vivo
+  via `trello-proxy` (Edge Function — credencial nunca chega no browser) porque a Trello
+  bloqueia iframe de terceiro via CSP própria. `TrelloCardModal.jsx` abre o card clicado com
+  etiqueta/data/descrição completa/comentários (ler e escrever) — pedido explícito do
+  usuário foi "tudo que funciona lá tem que funcionar aqui". Cor de etiqueta centralizada em
+  `src/lib/trelloLabelColor.js` (paleta fixa da API do Trello).
 
 ## Onde procurar antes de perguntar
 
