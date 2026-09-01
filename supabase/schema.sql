@@ -1359,7 +1359,7 @@ insert into organizations (nome, slug) values ('Gimenes & Pires', 'gimenes-pires
 insert into role_permissions (org_id, role, module)
 select (select id from organizations where slug = 'gimenes-pires'), role, module
 from (values
-  ('socio','prazos'),('socio','processos'),('socio','financeiro'),('socio','clientes'),('socio','equipe'),('socio','executivo'),('socio','leads_captacao'),
+  ('socio','prazos'),('socio','processos'),('socio','financeiro'),('socio','clientes'),('socio','equipe'),('socio','executivo'),
   ('advogado','prazos'),('advogado','processos'),('advogado','clientes'),
   ('financeiro','financeiro'),('financeiro','clientes'),
   ('recepcao','prazos'),('recepcao','clientes')

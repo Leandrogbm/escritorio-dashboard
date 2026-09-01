@@ -328,15 +328,22 @@ lugar, não acrescentar `ALTER`/`DROP` no fim).
 - **"ponytail" — features prontas mas seguradas em back log**: código/schema/Edge Function
   ficam intactos, só a UI some (`{false && (<JSX/>)}` com comentário explicando por que e
   onde reativar). Usado pra Asaas, rentabilidade por área, funil de leads (Kanban interno,
-  `LeadsTab.jsx`, módulo `leads`). Ver `ROADMAP-comparativo.md` pro motivo de cada um.
-- **Aba "Leads" (`leads_captacao`)** — reativada. Mapa clicável por região + lista, mostra
-  empresa/responsável/telefone/email de quem **preencheu o formulário público sozinho**
-  (`LeadForm.jsx`, embutido via `?leadform=1&org=<id>` — ver `App.jsx`). Contato
-  (telefone/email) mascarado pra quem não é admin/sócio (`leads_captacao_view`). **Isso já
-  foi pedido 2x nessa forma errada** (1ª vez: vasculhar rede social/fórum atrás de gente com
-  dúvida jurídica; 2ª vez: "clicar na região e trazer empresa que não te procurou") e as duas
-  vezes recusado — só o sentido INBOUND (empresa vem até vocês) é construído, nunca busca
-  ativa. Ver `ROADMAP-comparativo.md` pro histórico completo.
+  `LeadsTab.jsx`, módulo `leads`) e captação de leads (`leads_captacao` — ver próximo item).
+  Ver `ROADMAP-comparativo.md` pro motivo de cada um.
+- **Captação de Leads (`leads_captacao`) — ciclo completo já aconteceu, não reabrir sem
+  pedido explícito e refletido**: foi pedida 3x seguidas uma versão de busca ATIVA de empresa
+  por região (1ª: vasculhar rede social/fórum atrás de dúvida jurídica; 2ª: "clicar na região
+  e trazer empresa que não te procurou"; 3ª: "escolher área + local + raio + Buscar", depois
+  "buscar no Google as proximidades") — as três recusadas pela mesma vedação da OAB (captação
+  de causa/angariação de clientela, arts. 5º-7º/39-41; a doutrina trata a própria COMPILAÇÃO
+  sistemática de contato de quem não procurou como o ato vedado, não só o envio da mensagem).
+  Entre a 2ª e a 3ª tentativa, reativei brevemente a versão INBOUND (empresa preenche
+  formulário público sozinha, `LeadForm.jsx`/`?leadform=1&org=<id>`, mapa por
+  `LeadsMap.jsx`/`LeadsList.jsx`) — o usuário pediu pra **tirar essa aba também** depois de eu
+  recusar a versão ativa pela 3ª vez, então voltou tudo ao back log (`leads_captacao` fora de
+  `MODULES`, rota `?leadform=1` desativada em `App.jsx`, `role_permissions` da org real sem
+  esse módulo). Componentes/schema/Edge Function continuam intactos, só não tem UI. Se pedirem
+  de novo pra reativar (mesmo só a versão inbound), é decisão nova do usuário, não presumir.
 - **Clique na linha inteira** abre editar/ver, não só o ícone de lápis — padrão em
   Clientes/Processos/Financeiro/Prazos/Depósitos/ERP.
 - **StatusPicker**: clicar direto no badge de status muda ele (em vez de precisar abrir

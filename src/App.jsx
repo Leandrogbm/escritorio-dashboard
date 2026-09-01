@@ -32,10 +32,11 @@ const MinhaEmpresaTab = lazy(() => import("./components/tabs/MinhaEmpresaTab.jsx
 const LeadsCaptacaoTab = lazy(() => import("./components/tabs/LeadsCaptacaoTab.jsx"));
 
 export default function App() {
-  // Captação de Leads reativada (ver ROADMAP-comparativo.md) — formulário público embutido
-  // via iframe no site do escritório: <URL_DO_ACTUM>?leadform=1&org=<org_id da empresa>.
+  // ponytail: Captação de Leads em back log de novo (ver CLAUDE.md/ROADMAP-comparativo.md) —
+  // formulário público (?leadform=1&org=...) desativado junto com o módulo/tela. Reativar:
+  // trocar "false" por "paramsPublicos.get('leadform') === '1'" de novo.
   const paramsPublicos = new URLSearchParams(window.location.search);
-  if (paramsPublicos.get("leadform") === "1") {
+  if (false && paramsPublicos.get("leadform") === "1") {
     return <LeadForm orgId={paramsPublicos.get("org")} />;
   }
 

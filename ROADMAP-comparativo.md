@@ -142,16 +142,17 @@ Pergunta do usuário: "o que falta pra plataforma ser também um ERP bom" — re
 faltava o lado de contas a pagar/fluxo de caixa/DRE (só existia contas a receber). Construída
 a peça mínima que destrava o resto, sem virar ERP genérico (isso é outro produto):
 
-- [x] **Captação de Leads (formulário público + mapa)** — reativada (2026-09-01), aba
-  "Leads" no MODULES. Ganhou campo `empresa` e `email` (antes só nome+telefone) — pedido do
-  usuário foi "leads voltados a áreas de direito, como empresas", com mapa clicável por
-  região mostrando empresa/responsável/telefone/email. **Segunda vez que o usuário pede
-  busca ATIVA de empresa por região (nome+responsável+telefone+email de quem não procurou o
-  escritório) e é recusado** pela mesma linha ética (captação de causa/angariação de
-  clientela, Código de Ética OAB arts. 5º-7º/39-41) — da 1ª vez era rede social/fórum, dessa
-  vez seria "buscar empresa por região". Resolvido do mesmo jeito nas duas vezes: só o modelo
-  INBOUND (empresa que procura o escritório sozinha pelo formulário) é construído — mapa
-  mostra QUEM JÁ PROCUROU, nunca busca quem não procurou.
+- [x→back log] **Captação de Leads (formulário público + mapa)** — reativada em 2026-09-01
+  (ganhou campo `empresa`/`email`, aba "Leads" no MODULES), e voltou pro back log no mesmo
+  dia a pedido do usuário ("tire essa aba leads"). Contexto: pedido 3x seguidas por uma
+  versão de busca ATIVA de empresa por região/raio (1ª: rede social/fórum; 2ª: "clicar na
+  região"; 3ª: "escolher área+local+raio+Buscar", depois "buscar no Google as
+  proximidades") — recusada as três vezes pela mesma vedação da OAB (captação de causa/
+  angariação de clientela, arts. 5º-7º/39-41; a doutrina trata a própria compilação
+  sistemática de contato de quem não procurou como o ato vedado, não só o envio da
+  mensagem). Só o modelo INBOUND (empresa que procura sozinha pelo formulário) chegou a
+  existir com UI, e mesmo esse foi pedido pra sair depois da 3ª recusa. Componentes/schema/
+  Edge Function continuam intactos — ver `CLAUDE.md` pro histórico completo antes de reabrir.
 - [x] **Nova aba "ERP"** — tabela `despesas` (contas a pagar: descrição, categoria, valor,
   vencimento, situação), mesmo padrão de `honorarios`. Cards de resumo (pago/a pagar/
   atrasado), gráfico de fluxo de caixa (entrada de honorário x saída de despesa, por mês) e
