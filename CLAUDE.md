@@ -294,15 +294,31 @@ teste — feito isso pra validar `classificarComIA`.
 
 ## Como publicar
 
-**Deploy automático já configurado e confirmado funcionando** (1º deploy de teste rodou
-verde em 2026-09-01) — `.github/workflows/deploy.yml`: todo `git push origin main` builda e
-sobe pro Hostinger sozinho via FTPS (GitHub Actions). Os 6 secrets do repo (Settings →
-Secrets and variables → Actions) já estão configurados: `FTP_SERVER`, `FTP_USERNAME`,
-`FTP_PASSWORD`, `FTP_SERVER_DIR`, `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`. **Não gerar
-mais `actum-build.zip` nem pedir pro usuário subir manual** — isso já causou muita confusão
-nesta sessão (bug "não corrigido" que na real só não tinha sido publicado ainda, várias
-vezes). Só checar a aba "Actions" do repo no GitHub se uma mudança não aparecer no ar depois
-de um push — se o workflow falhar, é isso que precisa de atenção, não gerar zip de novo.
+**Deploy automático configurado** — `.github/workflows/deploy.yml`: todo `git push origin
+main` builda e sobe pro Hostinger sozinho via FTPS (GitHub Actions). 6 secrets no repo
+(Settings → Secrets and variables → Actions): `FTP_SERVER`, `FTP_USERNAME`, `FTP_PASSWORD`,
+`FTP_SERVER_DIR` (**vazio/raiz `/`** — ver incidente abaixo, NÃO `public_html/`),
+`VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`.
+
+**⚠️ Incidente real já corrigido (2026-09-01): "deploy successo" ≠ "site atualizado".**
+`FTP_SERVER_DIR` estava configurado como `public_html/`, mas a conta FTP desse Hostinger já
+loga direto na raiz do domínio (sem precisar entrar em `public_html/`) — isso criou uma
+SUBPASTA `public_html/` dentro da raiz real, e todo deploy (~10 seguidos, todos "✅ sucesso"
+no GitHub Actions) subiu certinho pro lugar ERRADO, enquanto o site ao vivo ficou congelado
+no primeiro deploy de teste por HORAS, sem nenhum erro aparecer em lugar nenhum. Só foi
+descoberto comparando visualmente localhost:4173 vs produção (Trello sem os selos de
+data/etiqueta que já tinham sido implementados) e confirmando via
+`curl https://mysaldo.com.br/` + inspecionar qual arquivo `assets/index-*.js` estava
+referenciado — o hash batia com um commit de HORAS atrás, não o mais recente. Corrigido
+trocando o secret pro caminho certo (raiz).
+
+**Lição: "GitHub Actions verde" não é prova de que o site mudou — só prova que o UPLOAD não
+deu erro.** Se um usuário disser "isso que você fez não apareceu no site" mesmo depois de um
+push com sucesso, antes de assumir cache do navegador, **confirme de verdade**: `curl -s
+https://mysaldo.com.br/ | grep assets` pra achar o hash do bundle ao vivo, compare com o
+hash que o `Build` step do último workflow run gerou (`gh run view <id> --log | grep
+"dist/assets/index-"`). Só depois de confirmar que os hashes BATEM é que faz sentido
+investigar cache do navegador/SW do lado do usuário.
 
 Fallback manual (só se o workflow realmente quebrar de novo e precisar publicar às pressas
 enquanto não conserta):
