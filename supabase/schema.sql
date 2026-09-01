@@ -587,15 +587,38 @@ create policy processo_responsaveis_sel on processo_responsaveis for select usin
   exists (select 1 from processos p where p.id = processo_id and p.org_id = auth_org_id() and has_module('processos'))
   or is_platform_admin()
 );
--- Adicionar responsável a um processo CONFIDENCIAL é decisão de sócio/admin (é o que dá
--- acesso a ele); em processo normal continua liberado pra qualquer um com o módulo (gestão
--- de equipe do dia a dia, sem risco de sigilo).
+-- Quem CRIA o processo decide o time inicial (processo ainda sem NENHUM responsável
+-- gravado) — é parte de cadastrar, qualquer role pode. ADICIONAR mais gente depois, num
+-- processo confidencial que já tem responsável definido, exige sócio/admin (protege contra
+-- escalar acesso mais tarde, sem supervisão). Em processo não-confidencial, sempre liberado.
+--
+-- security definer: a leitura de "processos p" aqui também passa pela RLS de processos
+-- (processos_sel), que pra processo confidencial exige já ser responsável
+-- (eh_responsavel_do_processo) — no exato momento de virar o 1º responsável, ainda não é.
+-- Mesmo círculo vicioso do eh_responsavel_do_processo, só que nessa direção
+-- (processo_responsaveis lendo processos, em vez de processos lendo processo_responsaveis).
+create or replace function processo_ja_tem_responsavel(p_processo_id uuid) returns boolean
+  language sql stable security definer set search_path = public as $$
+  select exists (select 1 from processo_responsaveis where processo_id = p_processo_id)
+$$;
+
+create or replace function pode_inserir_responsavel(p_processo_id uuid) returns boolean
+  language plpgsql stable security definer set search_path = public as $$
+declare
+  proc record;
+begin
+  select org_id, confidencial into proc from processos where id = p_processo_id;
+  if proc is null then return false; end if;
+  if proc.org_id <> auth_org_id() then return false; end if;
+  if not has_module('processos') then return false; end if;
+  if not proc.confidencial then return true; end if;
+  if auth_role() in ('admin', 'socio') then return true; end if;
+  return not processo_ja_tem_responsavel(p_processo_id);
+end;
+$$;
+
 create policy processo_responsaveis_ins on processo_responsaveis for insert with check (
-  exists (
-    select 1 from processos p where p.id = processo_id and p.org_id = auth_org_id() and has_module('processos')
-    and (not p.confidencial or auth_role() in ('admin', 'socio'))
-  )
-  or is_platform_admin()
+  pode_inserir_responsavel(processo_id) or is_platform_admin()
 );
 create policy processo_responsaveis_del on processo_responsaveis for delete using (
   exists (select 1 from processos p where p.id = processo_id and p.org_id = auth_org_id() and has_module('processos'))
@@ -689,10 +712,12 @@ create policy processos_sel on processos for select using (
 -- platform admin pula o limite do plano (é suporte, não é o uso normal da empresa).
 -- Conta só processo ATIVO (não Encerrado) contra o limite — processo arquivado não deveria
 -- travar a criação de um novo (pedido do usuário: "tem que ser processo (ativos)").
--- Sigilo é decisão de sócio/admin — esconder o campo na UI pra quem não é não impede um
--- PATCH direto via REST. Mesma defesa que organizations.plano/valor_mensal já tem
--- (guard_organizations_protected_cols): reverte pro valor anterior (update) ou força false
--- (insert) quando quem está escrevendo não é sócio/admin/platform admin.
+-- Quem CRIA o processo decide o sigilo dele desde o início — é o dono do caso, ninguém mais
+-- tem acesso ainda (e normalmente é o advogado que cadastra, não o sócio). Só MUDAR um
+-- processo já existente é que continua exigindo sócio/admin — outros já podem estar
+-- contando com o estado atual, então essa mudança de sigilo não pode ser unilateral.
+-- Mesma defesa que organizations.plano/valor_mensal já tem (guard_organizations_protected_cols),
+-- só que restrita a UPDATE em vez de também travar o INSERT.
 create or replace function guard_processos_confidencial() returns trigger
   language plpgsql security definer set search_path = public as $$
 begin
@@ -704,14 +729,9 @@ begin
   if new.confidencial is null then new.confidencial := coalesce(old.confidencial, false); end if;
   if new.responsavel_socios is null then new.responsavel_socios := coalesce(old.responsavel_socios, false); end if;
 
-  if auth_role() not in ('admin', 'socio') and not is_platform_admin() then
-    if tg_op = 'INSERT' then
-      new.confidencial := false;
-      new.responsavel_socios := false;
-    else
-      new.confidencial := old.confidencial;
-      new.responsavel_socios := old.responsavel_socios;
-    end if;
+  if tg_op = 'UPDATE' and auth_role() not in ('admin', 'socio') and not is_platform_admin() then
+    new.confidencial := old.confidencial;
+    new.responsavel_socios := old.responsavel_socios;
   end if;
   return new;
 end;

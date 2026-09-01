@@ -124,11 +124,10 @@ atual é assim:
   essa função dispara a RLS de `processo_responsaveis`, que reconsulta `processos` pro mesmo
   id → referência circular entre as duas policies. Como só responde sobre o PRÓPRIO
   `auth.uid()` (não aceita id de terceiro), rodar ignorando RLS por dentro não vaza nada.
-- `processos.confidencial` (boolean): explícito, ligado por sócio/admin no form. Quando
-  `true`, só quem está em `processo_responsaveis` (mais admin) enxerga o processo E o
-  financeiro vinculado a ele (`honorarios_sel` segue a mesma regra via `processo_id`).
-  Quando `false` (padrão), continua igual a sempre: só `advogado` é restrito ao próprio
-  responsável, os outros cargos veem tudo.
+- `processos.confidencial` (boolean): explícito. Quando `true`, só quem está em
+  `processo_responsaveis` (mais admin) enxerga o processo E o financeiro vinculado a ele
+  (`honorarios_sel` segue a mesma regra via `processo_id`). Quando `false` (padrão), continua
+  igual a sempre: só `advogado` é restrito ao próprio responsável, os outros cargos veem tudo.
 - `processos.responsavel_socios` (boolean): explícito, separado de `confidencial`. Quando
   `true`, QUALQUER sócio (não só quem tá listado em `processo_responsaveis`) enxerga o
   processo mesmo sendo confidencial — pensado pra "isso é do escritório todo, não de 1
@@ -137,6 +136,28 @@ atual é assim:
   responsável — e quebrou: a segunda cópia do formulário em `ProcessosTab.jsx` não sabia
   traduzir esse valor antes de mandar pro banco, e um `uuid` esperando receber a string
   `"__socios__"` estourava `invalid input syntax for type uuid`).
+- **Quem decide o sigilo, CRIAR vs EDITAR**: quem CRIA o processo decide `confidencial`/
+  `responsavel_socios` dele — é o dono do caso desde o início (e normalmente é o advogado
+  que cadastra no dia a dia, não o sócio; primeira versão disso exigia sócio/admin pra
+  cadastrar E TRAVAVA o fluxo normal de cadastro de qualquer advogado). Só MUDAR um processo
+  JÁ EXISTENTE (`guard_processos_confidencial`, roda só em `UPDATE`) é que continua exigindo
+  sócio/admin — outros já podem estar contando com o estado atual. Mesma lógica pro time
+  inicial de responsáveis: adicionar o(s) primeiro(s) responsável(is) num processo
+  confidencial recém-criado (`processo_ja_tem_responsavel(id) = false`) é liberado pra
+  qualquer role; adicionar MAIS gente depois de já ter 1+ responsável exige sócio/admin
+  (`pode_inserir_responsavel()`, `processo_responsaveis_ins`) — sem essa distinção, qualquer
+  advogado responsável por um processo confidencial já estabelecido podia unilateralmente dar
+  acesso a mais gente. `ProcessosTab.jsx` espelha isso na UI: os 2 checkboxes de sigilo
+  aparecem pra qualquer role ao **criar** (`!editing?.id`), só pra admin/sócio ao **editar**.
+  `pode_inserir_responsavel()` é `security definer` pelo mesmo motivo de
+  `eh_responsavel_do_processo()` — ler `processos` de dentro da policy de
+  `processo_responsaveis` também passa pela RLS de `processos`, que pra confidencial exige
+  já ser responsável; no exato momento de virar o 1º responsável, ainda não é (círculo
+  vicioso na direção oposta do outro).
+- **`salvarProcesso` faz DIFF, nunca apaga-tudo-e-recria os responsáveis** — apagar e
+  reinserir o mesmo conjunto conta como "adicionar" pra `processo_responsaveis_ins`, o que
+  travava até quem já era responsável legítimo só de reabrir e salvar o form sem mexer em
+  Responsáveis. Só grava quem de fato entrou/saiu da lista.
 - `processo_privado_de_socio()`/`processo_visivel()`: **funções mortas**, ficam no
   `schema.sql` só de referência/histórico do que já foi tentado — nenhuma policy chama elas.
   Não reativar sem um critério novo que não seja "contar responsável".

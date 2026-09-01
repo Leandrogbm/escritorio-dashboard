@@ -201,18 +201,23 @@ export default function ProcessosTab({ currentRole, orgId, profile, abrirProcess
     // só vê/edita o que estiver aqui (qualquer um da lista, não só "o principal"). Vazio =
     // sem responsável designado ainda.
     { key: "responsaveis", label: "Responsáveis", type: "multiselect", options: equipe.map((e) => ({ value: e.id, label: e.nome })) },
-    // Sigilo — só sócio/admin decide. RLS (processos_sel/upd/del) restringe visão E edição:
-    // "Confidencial" sozinho vale só pra quem tá em Responsáveis; "Visível pra todos os
-    // sócios" abre pra qualquer sócio mesmo sem estar listado (financeiro do processo
-    // confidencial segue junto — honorarios_sel). Pedido do usuário, versão sem repetir o
-    // incidente: só entra em vigor quando alguém liga isso à mão.
-    ...(currentRole === "admin" || currentRole === "socio"
+    // Sigilo. RLS (processos_sel/upd/del, processo_responsaveis_ins) restringe visão E
+    // edição de verdade: "Confidencial" sozinho vale só pra quem tá em Responsáveis;
+    // "Visível pra todos os sócios" abre pra qualquer sócio mesmo sem estar listado
+    // (financeiro do processo confidencial segue junto — honorarios_sel).
+    //
+    // Quem CRIA o processo decide o sigilo dele — é quem cadastra no dia a dia (advogado,
+    // não sócio), e ninguém mais tem acesso ainda nesse momento. MUDAR depois um processo já
+    // existente (outros podem já estar contando com o estado atual) é que continua exigindo
+    // sócio/admin — mesma regra no banco (guard_processos_confidencial), isso aqui só espelha
+    // pra também não mostrar o campo à toa pra quem o banco ia recusar de qualquer forma.
+    ...(currentRole === "admin" || currentRole === "socio" || !editing?.id
       ? [
           { key: "confidencial", label: "Confidencial — só quem está em Responsáveis enxerga (processo e financeiro)", type: "checkbox" },
           { key: "responsavel_socios", label: "Visível pra todos os sócios (mesmo sem estar em Responsáveis)", type: "checkbox" },
         ]
       : []),
-  ], [clientes, equipe, currentRole]);
+  ], [clientes, equipe, currentRole, editing?.id]);
 
   const sincronizarDatajud = async () => {
     setSincronizando(true);
