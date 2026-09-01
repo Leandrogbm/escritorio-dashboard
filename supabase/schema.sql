@@ -405,9 +405,17 @@ alter table organizations add constraint organizations_plano_fkey foreign key (p
 -- deixa reordenar/renomear colunas existentes, só apendar.
 -- Platform admin (usuário "master", acessa várias empresas) nunca aparece na lista de
 -- Equipe — nem pro resto da equipe, nem pra ele mesmo, sem exceção.
+-- "ativos" pra sócio é o TOTAL de processos ativos da org, não só os que ela é responsável
+-- direta — sócio enxerga (e responde por) todo processo do escritório, diferente de
+-- advogado/financeiro/recepção, que só respondem pelo que é atribuído a eles (pedido do
+-- usuário: "os ativos dos sócios são o total").
 create view equipe_view with (security_invoker = true) as
   select p.id, p.org_id, p.nome, p.cargo, p.horas_mes as horas, p.meta_horas as meta,
-         count(pr.id) filter (where pr.status <> 'Encerrado') as ativos, p.role
+    case when p.role = 'socio'
+      then (select count(*) from processos pr2 where pr2.org_id = p.org_id and pr2.status <> 'Encerrado')
+      else count(pr.id) filter (where pr.status <> 'Encerrado')
+    end as ativos,
+    p.role
   from profiles p
   left join processos pr on pr.responsavel_id = p.id
   where p.id not in (select user_id from platform_admins)
