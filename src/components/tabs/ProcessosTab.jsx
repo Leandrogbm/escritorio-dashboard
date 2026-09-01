@@ -228,7 +228,8 @@ export default function ProcessosTab({ currentRole, orgId, profile, abrirProcess
       alert(body?.error ?? error.message);
       return;
     }
-    alert(`Sincronizado: ${data.ok}/${data.processados} processo(s) ok, ${data.novos_movimentos} movimentação(ões) nova(s).`);
+    const viaEscavador = data.via_escavador ? ` (${data.via_escavador} via Escavador, DataJud não tinha)` : "";
+    alert(`Sincronizado: ${data.ok}/${data.processados} processo(s) ok, ${data.novos_movimentos} movimentação(ões) nova(s)${viaEscavador}.`);
   };
 
   // Pré-preenche com a sugestão da IA (tipo/dias/dias_uteis) quando tem — advogado ainda
@@ -300,7 +301,7 @@ export default function ProcessosTab({ currentRole, orgId, profile, abrirProcess
             <SearchInput value={busca} onChange={setBusca} placeholder="Buscar processo ou cliente..." />
             {podeSincronizar && (
               <button onClick={sincronizarDatajud} disabled={sincronizando} className="flex items-center gap-1.5 px-3 py-2 rounded-md text-sm font-semibold" style={{ border: `1px solid ${COLORS.line}`, color: COLORS.ink, opacity: sincronizando ? 0.6 : 1 }}>
-                <RefreshCw size={14} className={sincronizando ? "animate-spin" : ""} /> {sincronizando ? "Sincronizando..." : "Sincronizar DataJud"}
+                <RefreshCw size={14} className={sincronizando ? "animate-spin" : ""} /> {sincronizando ? "Sincronizando..." : "Sincronizar processos"}
               </button>
             )}
             <button onClick={abrirNovoProcesso} className="flex items-center gap-1.5 px-3 py-2 rounded-md text-sm font-semibold" style={{ background: COLORS.ink, color: "#fff" }}>

@@ -33,8 +33,19 @@ em produção: **Gimenes e Pires Sociedade de Advogados**. Nome anterior do proj
   (`emSuporte` em App.jsx) e opera como admin completo de QUALQUER empresa escolhida.
 - **DataJud sync**: cron `datajud-sync-horario` roda de hora em hora (`pg_cron`, era 1x/dia
   antes) chamando a Edge Function `datajud-sync` — não depende mais de alguém clicar em
-  "Sincronizar agora" (botão continua existindo pra forçar na hora). Ver `x-cron-secret` /
-  `DATAJUD_CRON_SECRET` no header pra distinguir chamada do cron da chamada manual.
+  "Sincronizar processos" (botão em `ProcessosTab.jsx`, renomeado de "Sincronizar DataJud" —
+  não é só DataJud mais). Ver `x-cron-secret` / `DATAJUD_CRON_SECRET` no header pra distinguir
+  chamada do cron da chamada manual.
+  - **DataJud é a única fonte pública GRATUITA** pra movimentação processual no Brasil — mas
+    o índice nacional do CNJ não cobre todo processo (vara/comarca menor, processo recém-
+    distribuído, atraso do próprio tribunal em alimentar a base — confirmado testando direto
+    na API real: vários processos reais desse cliente voltam `totalHits: 0`, não é bug
+    nosso). Quando o DataJud vem vazio, `sincronizarProcesso` tenta a **Escavador** como 2ª
+    fonte (`consultaEscavador`) — é paga, mas o escritório já paga (mesmo token de
+    `integracoes.escavador_token` usado em "Buscar processos"/`ClientesTab.jsx`), então não é
+    custo novo. Sem teste contra uma chamada paga real ainda (mesma ressalva de
+    `escavador-buscar-processos`) — se o formato da resposta mudou, só cai fora da 2ª
+    tentativa, não quebra o sync.
 
 ## ⚠️ Segurança — credenciais de integração (leia antes de mexer em Configurações/Integrações)
 

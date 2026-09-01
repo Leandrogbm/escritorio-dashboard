@@ -17,6 +17,12 @@
 // função SQL agendada direto, não precisa de Edge Function) e o cadastro manual de prazo
 // a partir de uma movimentação (ver PrazosTab.jsx).
 //
+// DataJud é a ÚNICA fonte pública gratuita pra isso no Brasil — mas o índice nacional do CNJ
+// não tem todo processo (vara/comarca menor, processo recém-distribuído, atraso de
+// alimentação do próprio tribunal). Quando ele vem vazio, tenta a Escavador como 2ª fonte
+// (consultaEscavador) — paga, mas já contratada pelo escritório (mesmo token usado em
+// "Buscar processos"/ClientesTab), então não é custo novo, só reaproveita o que já existe.
+//
 // Deploy: supabase functions deploy datajud-sync --no-verify-jwt
 // (--no-verify-jwt porque o cron chama sem JWT de usuário — a checagem de quem pode chamar
 // é feita na mão dentro da function, via x-cron-secret OU um JWT de usuário válido)
@@ -59,6 +65,41 @@ async function consultaDataJud(alias: string, numero: string, apiKey: string) {
     if (res.status === 429) throw new Error("Rate limit do DataJud atingido, tenta de novo mais tarde");
     if (!res.ok) throw new Error(`DataJud retornou ${res.status}: ${await res.text()}`);
     return await res.json();
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+const ESCAVADOR_TIMEOUT_MS = 20000;
+
+// Plano B quando o DataJud não tem o processo indexado (comum pra vara/comarca menor, ou
+// processo recém-distribuído — limitação real da base pública do CNJ, não bug daqui, ver
+// CLAUDE.md). A Escavador busca direto nos sistemas de cada tribunal (e-SAJ/PJe), cobertura
+// maior — só dispara quando o DataJud já voltou vazio, então não dobra o custo por processo
+// à toa. Token é o mesmo já usado em "Buscar processos" (ClientesTab), org precisa ter
+// conectado em Configurações → Integrações.
+//
+// Formato de resposta conforme documentação pública da API v2 — sem teste contra uma conta
+// paga real ainda (mesma ressalva já feita em escavador-buscar-processos/index.ts); se o
+// formato mudou, cai no catch e o processo só fica sem essa 2ª tentativa, não quebra o sync.
+async function consultaEscavador(numeroCnj: string, token: string) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), ESCAVADOR_TIMEOUT_MS);
+  try {
+    const res = await fetch(`https://api.escavador.com/api/v2/processos/numero_cnj/${numeroCnj}?com_movimentacoes=1`, {
+      headers: { Authorization: `Bearer ${token}` },
+      signal: controller.signal,
+    });
+    if (!res.ok) return null;
+    const body = await res.json();
+    const andamentos = body?.fontes?.flatMap((f: any) => f.andamentos ?? []) ?? body?.movimentacoes ?? [];
+    return andamentos.map((a: any) => ({
+      nome: a.conteudo ?? a.texto_categoria ?? a.tipo ?? a.nome ?? "Movimentação",
+      dataHora: a.data_hora ?? a.data ?? a.dataHora ?? null,
+      complementosTabelados: null,
+    })).filter((m: any) => m.dataHora);
+  } catch {
+    return null; // rede/timeout/formato inesperado — segue sem essa 2ª fonte, não derruba o sync
   } finally {
     clearTimeout(timeout);
   }
@@ -145,7 +186,18 @@ async function sincronizarProcesso(admin: ReturnType<typeof createClient>, proce
   try {
     const resultado = await consultaDataJud(alias, numeroLimpo, apiKey);
     const hit = resultado?.hits?.hits?.[0]?._source;
-    const movimentos: any[] = hit?.movimentos ?? [];
+    let movimentos: any[] = hit?.movimentos ?? [];
+    let viaEscavador = false;
+
+    // DataJud não achou (limitação real da base pública, ver comentário em
+    // consultaEscavador) — tenta a Escavador como 2ª fonte, só se a org já tiver conectado.
+    if (movimentos.length === 0) {
+      const { data: integ } = await admin.from("integracoes").select("escavador_token").eq("org_id", processo.org_id).maybeSingle();
+      if (integ?.escavador_token) {
+        const viaEsc = await consultaEscavador(numeroLimpo, integ.escavador_token);
+        if (viaEsc && viaEsc.length > 0) { movimentos = viaEsc; viaEscavador = true; }
+      }
+    }
 
     const { data: existentes } = await admin
       .from("movimentacoes_processo")
@@ -206,7 +258,7 @@ async function sincronizarProcesso(admin: ReturnType<typeof createClient>, proce
       ultima_verificacao_datajud: new Date().toISOString(),
     }).eq("id", processo.id);
 
-    return { id: processo.id, status: "ok" as const, novosMovimentos };
+    return { id: processo.id, status: "ok" as const, novosMovimentos, fonte: viaEscavador ? "escavador" : "datajud" };
   } catch (err) {
     await admin.from("processos").update({
       tribunal_alias: alias,
@@ -268,6 +320,7 @@ Deno.serve(async (req) => {
       erros: resultados.filter((r) => r.status === "erro").length,
       nao_suportados: resultados.filter((r) => r.status === "nao_suportado").length,
       novos_movimentos: resultados.reduce((s, r: any) => s + (r.novosMovimentos ?? 0), 0),
+      via_escavador: resultados.filter((r: any) => r.fonte === "escavador").length,
     };
     return new Response(JSON.stringify({ ok: true, ...resumo, detalhes: resultados }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
   } catch (err) {
