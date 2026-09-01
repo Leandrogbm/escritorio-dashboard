@@ -38,6 +38,12 @@
       "skillPath": "skills/engineering/improve-codebase-architecture/SKILL.md",
       "computedHash": "016f12709bff30a27419e8add978a9be70f5ca1fb6738b3be6793038e0aba631"
     },
+    "reddit-leads": {
+      "source": "lignertys/reddit-research-skills",
+      "sourceType": "github",
+      "skillPath": "skills/reddit-leads/SKILL.md",
+      "computedHash": "54baae626ee5cd6d88a80e6fbb94835f72859a3d8a85bad21c18b23c0e2c7815"
+    },
     "ui-design": {
       "source": "uizze.com",
       "sourceUrl": "https://uizze.com/",
