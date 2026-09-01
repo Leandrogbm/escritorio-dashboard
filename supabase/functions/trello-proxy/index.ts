@@ -5,6 +5,10 @@
 // busca a credencial aqui dentro (service role, nunca devolvida na resposta) e repassa a
 // chamada pro Trello — o cliente só manda a AÇÃO, nunca a chave.
 //
+// Ações: listar_listas, listar_cards (agora inclui due/dueComplete/labels — pedido do
+// usuário pra bater com o que ele vê no Trello de verdade), mover_card, criar_card,
+// excluir_card, listar_comentarios e comentar (card aberto em TrelloCardModal.jsx).
+//
 // Deploy: supabase functions deploy trello-proxy
 
 import { createClient } from "npm:@supabase/supabase-js@2";
@@ -37,7 +41,7 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ error: "Trello não conectado nessa organização." }), { status: 400, headers: corsHeaders });
     }
 
-    const { acao, cardId, idList, nome } = await req.json();
+    const { acao, cardId, idList, nome, texto } = await req.json();
     const q = `key=${integ.trello_key}&token=${integ.trello_token}`;
 
     let url, method = "GET";
@@ -46,7 +50,18 @@ Deno.serve(async (req) => {
         url = `https://api.trello.com/1/boards/${integ.trello_board_id}/lists?${q}&fields=name`;
         break;
       case "listar_cards":
-        url = `https://api.trello.com/1/boards/${integ.trello_board_id}/cards?${q}&fields=name,desc,idList`;
+        // due/dueComplete (data do card) e labels (etiquetas coloridas) — mesmos campos que
+        // aparecem no card fechado dentro do Trello de verdade.
+        url = `https://api.trello.com/1/boards/${integ.trello_board_id}/cards?${q}&fields=name,desc,idList,due,dueComplete,labels`;
+        break;
+      case "listar_comentarios":
+        if (!cardId) return new Response(JSON.stringify({ error: "cardId é obrigatório." }), { status: 400, headers: corsHeaders });
+        url = `https://api.trello.com/1/cards/${cardId}/actions?${q}&filter=commentCard&fields=data,date&memberCreator_fields=fullName`;
+        break;
+      case "comentar":
+        if (!cardId || !texto) return new Response(JSON.stringify({ error: "cardId e texto são obrigatórios." }), { status: 400, headers: corsHeaders });
+        url = `https://api.trello.com/1/cards/${cardId}/actions/comments?${q}&text=${encodeURIComponent(texto)}`;
+        method = "POST";
         break;
       case "mover_card":
         if (!cardId || !idList) return new Response(JSON.stringify({ error: "cardId e idList são obrigatórios." }), { status: 400, headers: corsHeaders });

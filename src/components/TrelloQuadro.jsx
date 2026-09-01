@@ -1,7 +1,9 @@
 import React, { useEffect, useState } from "react";
-import { Plus, Trash2, Loader2 } from "lucide-react";
+import { Plus, Trash2, Loader2, Clock } from "lucide-react";
 import { COLORS } from "../lib/theme.js";
 import { supabase } from "../lib/supabaseClient.js";
+import TrelloCardModal from "./TrelloCardModal.jsx";
+import { corLabel } from "../lib/trelloLabelColor.js";
 
 // Mostra o quadro do Trello DE VERDADE (não é cópia/mirror local) — busca listas e cards
 // pelo trello-proxy (Edge Function) a cada abertura da aba, e toda ação (arrastar, criar,
@@ -33,6 +35,7 @@ export default function TrelloQuadro() {
   const [erro, setErro] = useState("");
   const [novaTarefaEm, setNovaTarefaEm] = useState(null); // id da lista com o form aberto
   const [novoTitulo, setNovoTitulo] = useState("");
+  const [cardAberto, setCardAberto] = useState(null); // card clicado (abre TrelloCardModal)
 
   const carregar = async () => {
     setErro("");
@@ -93,16 +96,29 @@ export default function TrelloQuadro() {
                   key={c.id}
                   draggable
                   onDragStart={(e) => e.dataTransfer.setData("text/plain", c.id)}
+                  onClick={() => setCardAberto(c)}
                   className="p-2.5 rounded-md text-sm cursor-grab active:cursor-grabbing group"
                   style={{ background: "#fff", boxShadow: "0 1px 2px rgba(9,30,66,0.25)", minWidth: 0, overflowWrap: "anywhere" }}
                 >
+                  {c.labels?.length > 0 && (
+                    <div className="flex flex-wrap gap-1 mb-1.5">
+                      {c.labels.map((l) => (
+                        <span key={l.id} className="rounded" style={{ width: 32, height: 8, background: corLabel(l.color) }} title={l.name || undefined} />
+                      ))}
+                    </div>
+                  )}
                   <div className="flex items-start justify-between gap-2">
                     <p style={{ color: "#1D2125", minWidth: 0, overflowWrap: "anywhere" }}>{c.name}</p>
-                    <button onClick={() => excluirCard(c.id)} aria-label="Excluir card" className="p-0.5 rounded hover:opacity-70 shrink-0" style={{ color: COLORS.wine }}>
+                    <button onClick={(e) => { e.stopPropagation(); excluirCard(c.id); }} aria-label="Excluir card" className="p-0.5 rounded hover:opacity-70 shrink-0" style={{ color: COLORS.wine }}>
                       <Trash2 size={12} />
                     </button>
                   </div>
                   {c.desc && <p className="text-xs mt-1" style={{ ...clampStyle, color: "#5E6C84", overflowWrap: "anywhere" }}>{c.desc}</p>}
+                  {c.due && (
+                    <span className="inline-flex items-center gap-1 mt-1.5 px-1.5 py-0.5 rounded text-[11px] font-semibold" style={{ background: c.dueComplete ? "#61BD4F" : "#DCDFE4", color: c.dueComplete ? "#fff" : "#44546F" }}>
+                      <Clock size={10} /> {new Date(c.due).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" })}
+                    </span>
+                  )}
                 </div>
               ))}
             </div>
@@ -123,6 +139,10 @@ export default function TrelloQuadro() {
         );
       })}
       {listas.length === 0 && <p className="text-sm" style={{ color: COLORS.slate }}>Esse quadro não tem nenhuma lista.</p>}
+
+      {cardAberto && (
+        <TrelloCardModal card={cardAberto} onClose={() => setCardAberto(null)} onMudou={carregar} />
+      )}
     </div>
   );
 }
