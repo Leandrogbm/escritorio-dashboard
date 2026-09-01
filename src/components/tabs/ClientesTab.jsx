@@ -17,6 +17,7 @@ import { buscarEmpresaPorCnpj } from "../../lib/brasilApi.js";
 import { formatCelular } from "../../lib/celular.js";
 import { formatDocumento } from "../../lib/documento.js";
 import { avisoLimitePlano } from "../../lib/limitesPlano.js";
+import { AREAS_DIREITO_COMUNS } from "../../config/areasDireito.js";
 
 // wa.me quer só dígitos com DDI — assume Brasil (55) quando o número não veio com DDI
 // (celular BR sempre tem 10 ou 11 dígitos com DDD; deixa passar como veio se já for maior).
@@ -48,7 +49,10 @@ const FIELDS = [
   { key: "bairro", label: "Bairro", optional: true },
   { key: "cidade", label: "Cidade", optional: true },
   { key: "uf", label: "UF", optional: true },
-  { key: "origem", label: "Origem", optional: true },
+  // Mesma lista de áreas de atuação já usada em "Área do direito" (ProcessosTab) — datalist,
+  // não é lista fechada: digitar algo fora dela grava normal, só não trava quem quiser
+  // registrar uma origem que não é bem uma área jurídica (ex.: "Indicação").
+  { key: "origem", label: "Origem", type: "datalist", options: AREAS_DIREITO_COMUNS.map((a) => ({ value: a })), optional: true },
   { key: "contrato_renovacao", label: "Início do contrato", type: "date", optional: true },
 ];
 
