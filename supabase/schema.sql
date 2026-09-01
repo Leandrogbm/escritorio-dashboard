@@ -405,15 +405,25 @@ alter table organizations add constraint organizations_plano_fkey foreign key (p
 -- deixa reordenar/renomear colunas existentes, só apendar.
 -- Platform admin (usuário "master", acessa várias empresas) nunca aparece na lista de
 -- Equipe — nem pro resto da equipe, nem pra ele mesmo, sem exceção.
--- "ativos" pra sócio é o TOTAL de processos ativos da org, não só os que ela é responsável
--- direta — sócio enxerga (e responde por) todo processo do escritório, diferente de
--- advogado/financeiro/recepção, que só respondem pelo que é atribuído a eles (pedido do
--- usuário: "os ativos dos sócios são o total").
+-- "ativos" pra sócio conta todo processo ativo que ELA ENXERGA — não é simplesmente o total
+-- da org, porque processo confidencial de outro sócio continua fora da conta dela (mesma
+-- regra de processos_sel: não-confidencial sempre conta; confidencial só conta se ela for
+-- responsável ou responsavel_socios=true). Pedido original do usuário ("ativos do sócio é o
+-- total") mais a correção dele mesmo depois ("Nicole não pode contar os 3 confidenciais da
+-- Nathalia") — sem isso, dois sócios apareciam com o mesmo número mesmo quando um deles não
+-- tinha acesso a parte do que estava sendo somado.
 create view equipe_view with (security_invoker = true) as
   select p.id, p.org_id, p.nome, p.cargo, p.horas_mes as horas, p.meta_horas as meta,
-    case when p.role = 'socio'
-      then (select count(*) from processos pr2 where pr2.org_id = p.org_id and pr2.status <> 'Encerrado')
-      else count(pr.id) filter (where pr.status <> 'Encerrado')
+    case when p.role = 'socio' then (
+      select count(*) from processos pr2
+      where pr2.org_id = p.org_id and pr2.status <> 'Encerrado'
+      and (
+        not pr2.confidencial
+        or pr2.responsavel_socios
+        or exists (select 1 from processo_responsaveis pr3 where pr3.processo_id = pr2.id and pr3.profile_id = p.id)
+      )
+    )
+    else count(pr.id) filter (where pr.status <> 'Encerrado')
     end as ativos,
     p.role
   from profiles p
