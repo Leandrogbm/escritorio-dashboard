@@ -44,7 +44,7 @@ Deno.serve(async (req) => {
   try {
     const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
     const body = await req.json();
-    const { orgId, nome, contato, areaDireito, cidade, latitude, longitude, consentimentoLgpd } = body ?? {};
+    const { orgId, nome, empresa, contato, email, areaDireito, cidade, latitude, longitude, consentimentoLgpd } = body ?? {};
 
     if (!orgId || !nome?.trim() || !contato?.trim() || !areaDireito) {
       return new Response(JSON.stringify({ error: "Preencha nome, contato e área do direito." }), { status: 400, headers: corsHeaders });
@@ -71,7 +71,9 @@ Deno.serve(async (req) => {
     const { error: insErr } = await admin.from("leads_captacao").insert({
       org_id: orgId,
       nome: nome.trim(),
+      empresa: empresa?.trim() || null,
       contato: contato.trim(),
+      email: email?.trim() || null,
       area_direito: areaDireito,
       cidade: cidade?.trim() || null,
       latitude: lat,

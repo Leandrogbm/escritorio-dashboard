@@ -9,7 +9,7 @@ import { COLORS } from "../lib/theme.js";
 const COR_STATUS = { quente: COLORS.wine, morno: COLORS.brass, frio: "#2563a3" };
 const CENTRO_BRASIL = [-14.2, -51.9];
 
-export default function LeadsMap({ leads }) {
+export default function LeadsMap({ leads, podeVerContato }) {
   const comCoordenada = leads.filter((l) => l.latitude != null && l.longitude != null);
   const centro = comCoordenada.length > 0 ? [comCoordenada[0].latitude, comCoordenada[0].longitude] : CENTRO_BRASIL;
 
@@ -21,9 +21,18 @@ export default function LeadsMap({ leads }) {
           {comCoordenada.map((l) => (
             <CircleMarker key={l.id} center={[l.latitude, l.longitude]} radius={9} pathOptions={{ color: "#fff", weight: 2, fillColor: COR_STATUS[l.status], fillOpacity: 0.9 }}>
               <Popup>
-                <p style={{ fontWeight: 600 }}>{l.nome}</p>
+                <p style={{ fontWeight: 600 }}>{l.empresa || l.nome}</p>
+                {l.empresa && <p style={{ fontSize: 12 }}>Responsável: {l.nome}</p>}
                 <p style={{ fontSize: 12 }}>{l.cidade || "—"}</p>
                 <p style={{ fontSize: 12, textTransform: "capitalize" }}>{l.status}</p>
+                {podeVerContato ? (
+                  <>
+                    {l.contato && <p style={{ fontSize: 12 }}>Tel: {l.contato}</p>}
+                    {l.email && <p style={{ fontSize: 12 }}>Email: {l.email}</p>}
+                  </>
+                ) : (
+                  <p style={{ fontSize: 11, fontStyle: "italic", color: "#888" }}>Contato visível só pra admin/sócio</p>
+                )}
               </Popup>
             </CircleMarker>
           ))}

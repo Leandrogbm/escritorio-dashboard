@@ -20,7 +20,7 @@ export default function LeadsList({ leads, onMudarStatus, podeVerContato }) {
       <table className="w-full text-sm">
         <thead>
           <tr style={{ background: COLORS.ink }}>
-            <th className="text-left px-3 py-2 font-semibold" style={{ color: COLORS.paper, fontSize: 11 }}>NOME</th>
+            <th className="text-left px-3 py-2 font-semibold" style={{ color: COLORS.paper, fontSize: 11 }}>EMPRESA / RESPONSÁVEL</th>
             {podeVerContato && <th className="text-left px-3 py-2 font-semibold" style={{ color: COLORS.paper, fontSize: 11 }}>CONTATO</th>}
             <th className="text-left px-3 py-2 font-semibold" style={{ color: COLORS.paper, fontSize: 11 }}>CIDADE</th>
             <th className="text-left px-3 py-2 font-semibold cursor-pointer" style={{ color: COLORS.paper, fontSize: 11 }} onClick={() => setOrdenarPor("status")}>STATUS {ordenarPor === "status" && "▾"}</th>
@@ -33,8 +33,16 @@ export default function LeadsList({ leads, onMudarStatus, podeVerContato }) {
           )}
           {ordenados.map((l, i) => (
             <tr key={l.id} style={{ borderTop: `1px solid ${COLORS.line}`, background: i % 2 ? "#FAF9F5" : COLORS.paperRaised }}>
-              <td className="px-3 py-2" style={{ color: COLORS.ink, fontWeight: 600 }}>{l.nome}</td>
-              {podeVerContato && <td className="px-3 py-2" style={{ color: COLORS.slate }}>{l.contato ?? "—"}</td>}
+              <td className="px-3 py-2" style={{ color: COLORS.ink, fontWeight: 600 }}>
+                {l.empresa || l.nome}
+                {l.empresa && <span className="block text-xs font-normal" style={{ color: COLORS.slate }}>{l.nome}</span>}
+              </td>
+              {podeVerContato && (
+                <td className="px-3 py-2" style={{ color: COLORS.slate }}>
+                  {l.contato ?? "—"}
+                  {l.email && <span className="block text-xs">{l.email}</span>}
+                </td>
+              )}
               <td className="px-3 py-2" style={{ color: COLORS.slate }}>{l.cidade || "—"}</td>
               <td className="px-3 py-2">
                 <select

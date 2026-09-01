@@ -327,8 +327,16 @@ lugar, não acrescentar `ALTER`/`DROP` no fim).
   `true` renderiza só o conteúdo, pra encaixar como sub-aba/painel embutido em outra tela.
 - **"ponytail" — features prontas mas seguradas em back log**: código/schema/Edge Function
   ficam intactos, só a UI some (`{false && (<JSX/>)}` com comentário explicando por que e
-  onde reativar). Usado pra Asaas, rentabilidade por área, funil de leads, captação de leads
-  público. Ver `ROADMAP-comparativo.md` pro motivo de cada um.
+  onde reativar). Usado pra Asaas, rentabilidade por área, funil de leads (Kanban interno,
+  `LeadsTab.jsx`, módulo `leads`). Ver `ROADMAP-comparativo.md` pro motivo de cada um.
+- **Aba "Leads" (`leads_captacao`)** — reativada. Mapa clicável por região + lista, mostra
+  empresa/responsável/telefone/email de quem **preencheu o formulário público sozinho**
+  (`LeadForm.jsx`, embutido via `?leadform=1&org=<id>` — ver `App.jsx`). Contato
+  (telefone/email) mascarado pra quem não é admin/sócio (`leads_captacao_view`). **Isso já
+  foi pedido 2x nessa forma errada** (1ª vez: vasculhar rede social/fórum atrás de gente com
+  dúvida jurídica; 2ª vez: "clicar na região e trazer empresa que não te procurou") e as duas
+  vezes recusado — só o sentido INBOUND (empresa vem até vocês) é construído, nunca busca
+  ativa. Ver `ROADMAP-comparativo.md` pro histórico completo.
 - **Clique na linha inteira** abre editar/ver, não só o ícone de lápis — padrão em
   Clientes/Processos/Financeiro/Prazos/Depósitos/ERP.
 - **StatusPicker**: clicar direto no badge de status muda ele (em vez de precisar abrir

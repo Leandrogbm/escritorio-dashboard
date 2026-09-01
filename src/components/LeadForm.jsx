@@ -24,7 +24,9 @@ function telefoneValido(v) {
 export default function LeadForm({ orgId }) {
   const [areaDireito, setAreaDireito] = useState("");
   const [nome, setNome] = useState("");
+  const [empresa, setEmpresa] = useState("");
   const [contato, setContato] = useState("");
+  const [email, setEmail] = useState("");
   const [cidade, setCidade] = useState("");
   const [coords, setCoords] = useState(null); // {latitude, longitude} | null
   const [localizando, setLocalizando] = useState(false);
@@ -54,7 +56,7 @@ export default function LeadForm({ orgId }) {
     setEnviando(true);
     const { data, error } = await supabase.functions.invoke("leads-captacao-publico", {
       body: {
-        orgId, nome, contato, areaDireito, cidade,
+        orgId, nome, empresa, contato, email, areaDireito, cidade,
         latitude: coords?.latitude, longitude: coords?.longitude,
         consentimentoLgpd: consentimento,
       },
@@ -102,13 +104,23 @@ export default function LeadForm({ orgId }) {
         </label>
 
         <label className="flex flex-col gap-1 text-xs" style={{ color: COLORS.ink, fontWeight: 600 }}>
-          Nome
+          Nome do responsável
           <input value={nome} onChange={(e) => setNome(e.target.value)} className="px-3 py-2 rounded-md text-sm font-normal" style={{ border: `1px solid ${COLORS.line}`, color: COLORS.ink }} />
+        </label>
+
+        <label className="flex flex-col gap-1 text-xs" style={{ color: COLORS.ink, fontWeight: 600 }}>
+          Empresa (se houver)
+          <input value={empresa} onChange={(e) => setEmpresa(e.target.value)} className="px-3 py-2 rounded-md text-sm font-normal" style={{ border: `1px solid ${COLORS.line}`, color: COLORS.ink }} />
         </label>
 
         <label className="flex flex-col gap-1 text-xs" style={{ color: COLORS.ink, fontWeight: 600 }}>
           Telefone / WhatsApp
           <input value={contato} onChange={(e) => setContato(e.target.value)} placeholder="(11) 91234-5678" className="px-3 py-2 rounded-md text-sm font-normal" style={{ border: `1px solid ${COLORS.line}`, color: COLORS.ink }} />
+        </label>
+
+        <label className="flex flex-col gap-1 text-xs" style={{ color: COLORS.ink, fontWeight: 600 }}>
+          Email (opcional)
+          <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="px-3 py-2 rounded-md text-sm font-normal" style={{ border: `1px solid ${COLORS.line}`, color: COLORS.ink }} />
         </label>
 
         <label className="flex flex-col gap-1 text-xs" style={{ color: COLORS.ink, fontWeight: 600 }}>

@@ -196,8 +196,10 @@ create index leads_org_id_idx on leads (org_id);
 create table leads_captacao (
   id uuid primary key default gen_random_uuid(),
   org_id uuid not null references organizations(id),
-  nome text not null,
+  nome text not null, -- nome do responsável (pessoa física ou contato da empresa)
+  empresa text, -- nome da empresa, quando o lead é uma empresa (não obrigatório)
   contato text not null, -- telefone/whatsapp
+  email text,
   area_direito text not null check (area_direito in ('trabalhista','familia','tributario','civel','penal','empresarial')),
   cidade text,
   latitude float8,
@@ -211,13 +213,14 @@ create table leads_captacao (
 create index leads_captacao_org_id_idx on leads_captacao (org_id);
 create index leads_captacao_area_idx on leads_captacao (org_id, area_direito);
 
--- Mascara "contato" (telefone/whatsapp) pra quem não é admin/sócio — resto da equipe vê o
--- lead (área, cidade, status) mas não o telefone direto. security_invoker respeita a RLS de
--- select da tabela base (any org member com módulo liberado já pode ver a linha; a máscara
--- aqui é só sobre a coluna sensível).
+-- Mascara "contato"/"email" pra quem não é admin/sócio — resto da equipe vê o lead
+-- (empresa, área, cidade, status) mas não o contato direto. security_invoker respeita a RLS
+-- de select da tabela base (any org member com módulo liberado já pode ver a linha; a
+-- máscara aqui é só sobre as colunas sensíveis).
 create view leads_captacao_view with (security_invoker = true) as
-  select id, org_id, nome,
+  select id, org_id, nome, empresa,
     case when auth_role() in ('admin','socio') or is_platform_admin() then contato else null end as contato,
+    case when auth_role() in ('admin','socio') or is_platform_admin() then email else null end as email,
     area_direito, cidade, latitude, longitude, status, origem, created_at
   from leads_captacao;
 
@@ -1356,7 +1359,7 @@ insert into organizations (nome, slug) values ('Gimenes & Pires', 'gimenes-pires
 insert into role_permissions (org_id, role, module)
 select (select id from organizations where slug = 'gimenes-pires'), role, module
 from (values
-  ('socio','prazos'),('socio','processos'),('socio','financeiro'),('socio','clientes'),('socio','equipe'),('socio','executivo'),
+  ('socio','prazos'),('socio','processos'),('socio','financeiro'),('socio','clientes'),('socio','equipe'),('socio','executivo'),('socio','leads_captacao'),
   ('advogado','prazos'),('advogado','processos'),('advogado','clientes'),
   ('financeiro','financeiro'),('financeiro','clientes'),
   ('recepcao','prazos'),('recepcao','clientes')

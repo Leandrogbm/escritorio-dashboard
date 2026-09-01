@@ -56,7 +56,7 @@ export default function LeadsCaptacaoTab({ orgId, currentRole }) {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <Card>
-          <LeadsMap leads={daArea} />
+          <LeadsMap leads={daArea} podeVerContato={podeVerContato} />
         </Card>
         <Card className="!p-0 overflow-hidden">
           <LeadsList leads={daArea} onMudarStatus={mudarStatus} podeVerContato={podeVerContato} />
