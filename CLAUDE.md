@@ -145,6 +145,29 @@ atual é assim:
   o processo primeiro, depois substitui o conjunto inteiro em `processo_responsaveis`
   (apaga tudo + insere de novo), nunca faz diff incremental.
 
+## Cache do navegador — causa raiz de vários "já corrigi, por que ainda dá esse erro"
+
+Boa parte dos bugs "reintroduzidos" nesta sessão eram, na real, o navegador do usuário
+rodando um `index.html`/build antigo em cache — Ctrl+F5 nem sempre resolve, porque sem
+header de cache explícito o navegador (ou um cache intermediário) pode continuar achando
+que o `index.html` velho ainda é válido. Camadas de defesa, todas já aplicadas:
+
+- **`public/.htaccess`**: `index.html` e `sw.js` com `Cache-Control: no-cache,
+  must-revalidate` (sempre revalida com o servidor); `assets/*.(js|css|woff2)` (nome com
+  hash do Vite) com cache de 1 ano — isso é seguro porque o conteúdo mudar sempre muda o
+  nome do arquivo.
+- **`public/sw.js`**: service worker do PWA, network-first (só cai pro cache dele quando
+  offline). `CACHE` (`"actum-vN"`) muda quando quiser forçar limpeza — o `activate` apaga
+  qualquer cache com nome diferente do atual.
+- **`src/main.jsx`**: registra o SW com `updateViaCache: "none"` (o arquivo `sw.js` em si
+  nunca vem do cache HTTP) e recarrega a aba sozinha quando um novo SW assume o controle
+  (`controllerchange`) — quem já estava com o site aberto pega a versão nova sem precisar
+  fechar a aba. Só dispara nessa troca de controlador, não na primeira visita.
+
+**Se um bug "já corrigido" aparecer de novo**: antes de suspeitar do código, cogitar cache
+do navegador do usuário — pedir pra abrir em aba anônima/outro navegador é o teste mais
+rápido pra descartar isso.
+
 ## Número do processo — formatado sozinho, no banco
 
 `processos.numero` tem um trigger (`formatar_numero_processo`) que reformata pro padrão CNJ
