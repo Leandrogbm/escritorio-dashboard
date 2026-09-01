@@ -131,10 +131,20 @@ export default function ProcessosTab({ currentRole, orgId, profile, abrirProcess
       if (err.code === "23505") throw new Error(`Já existe um processo cadastrado com o número "${v.numero}".`);
       throw err;
     }
-    const { error: errDel } = await supabase.from("processo_responsaveis").delete().eq("processo_id", processoId);
-    if (errDel) throw new Error(`Processo salvo, mas não deu pra atualizar os responsáveis: ${errDel.message}`);
-    if (responsaveis?.length) {
-      const { error: errIns } = await supabase.from("processo_responsaveis").insert(responsaveis.map((profile_id) => ({ processo_id: processoId, profile_id })));
+    // Diff em vez de apagar tudo e recriar: apagar+inserir de novo o mesmo conjunto conta
+    // como "adicionar" pra RLS (processo_responsaveis_ins exige sócio/admin em processo
+    // confidencial) — travava até quem já era responsável legítimo só de reabrir e salvar o
+    // form sem mexer em Responsáveis. Só toca quem de fato mudou.
+    const atuais = new Set((responsaveisPorProcesso.get(processoId) ?? []).map((r) => r.id));
+    const novos = new Set(responsaveis ?? []);
+    const remover = [...atuais].filter((id) => !novos.has(id));
+    const adicionar = [...novos].filter((id) => !atuais.has(id));
+    if (remover.length) {
+      const { error: errDel } = await supabase.from("processo_responsaveis").delete().eq("processo_id", processoId).in("profile_id", remover);
+      if (errDel) throw new Error(`Processo salvo, mas não deu pra atualizar os responsáveis: ${errDel.message}`);
+    }
+    if (adicionar.length) {
+      const { error: errIns } = await supabase.from("processo_responsaveis").insert(adicionar.map((profile_id) => ({ processo_id: processoId, profile_id })));
       if (errIns) throw new Error(`Processo salvo, mas não deu pra gravar os responsáveis: ${errIns.message}`);
     }
     await refreshResponsaveis();
