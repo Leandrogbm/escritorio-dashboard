@@ -115,7 +115,7 @@ export default function TrelloQuadro() {
                   </div>
                   {c.desc && <p className="text-xs mt-1" style={{ ...clampStyle, color: "#5E6C84", overflowWrap: "anywhere" }}>{c.desc}</p>}
                   {c.due && (
-                    <span className="inline-flex items-center gap-1 mt-1.5 px-1.5 py-0.5 rounded text-[11px] font-semibold" style={{ background: c.dueComplete ? "#61BD4F" : "#DCDFE4", color: c.dueComplete ? "#fff" : "#44546F" }}>
+                    <span className="inline-flex items-center gap-1 mt-1.5 px-1.5 py-0.5 rounded text-[11px] font-semibold" style={{ background: c.dueComplete ? "#61BD4F" : "#DCDFE4", color: c.dueComplete ? "#172B4D" : "#44546F" }}>
                       <Clock size={10} /> {new Date(c.due).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" })}
                     </span>
                   )}

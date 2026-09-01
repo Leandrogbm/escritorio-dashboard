@@ -3,7 +3,7 @@ import { X, Clock, MessageSquare, Send, Loader2 } from "lucide-react";
 import { COLORS } from "../lib/theme.js";
 import { useEscClose } from "../hooks/useEscClose.js";
 import { supabase } from "../lib/supabaseClient.js";
-import { corLabel } from "../lib/trelloLabelColor.js";
+import { corLabel, corTextoLabel } from "../lib/trelloLabelColor.js";
 
 const TRELLO_BG = "#F1F2F4";
 
@@ -74,7 +74,7 @@ export default function TrelloCardModal({ card, onClose, onMudou }) {
           {card.labels?.length > 0 && (
             <div className="flex flex-wrap gap-1.5 mb-3">
               {card.labels.map((l) => (
-                <span key={l.id} className="px-2 py-1 rounded text-xs font-semibold" style={{ background: l.color ? undefined : "#DCDFE4", backgroundColor: corLabel(l.color), color: l.color ? "#fff" : "#44546F" }}>
+                <span key={l.id} className="px-2 py-1 rounded text-xs font-semibold" style={{ backgroundColor: corLabel(l.color), color: corTextoLabel(l.color) }}>
                   {l.name || "    "}
                 </span>
               ))}
@@ -82,7 +82,7 @@ export default function TrelloCardModal({ card, onClose, onMudou }) {
           )}
 
           {card.due && (
-            <div className="flex items-center gap-1.5 mb-3 text-xs font-semibold px-2 py-1 rounded w-fit" style={{ background: card.dueComplete ? "#61BD4F" : "#fff", color: card.dueComplete ? "#fff" : "#44546F", border: card.dueComplete ? "none" : `1px solid ${COLORS.line}` }}>
+            <div className="flex items-center gap-1.5 mb-3 text-xs font-semibold px-2 py-1 rounded w-fit" style={{ background: card.dueComplete ? "#61BD4F" : "#fff", color: card.dueComplete ? "#172B4D" : "#44546F", border: card.dueComplete ? "none" : `1px solid ${COLORS.line}` }}>
               <Clock size={12} /> {formatData(card.due)}{card.dueComplete && " · concluído"}
             </div>
           )}

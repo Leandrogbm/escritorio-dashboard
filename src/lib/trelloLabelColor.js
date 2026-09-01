@@ -10,3 +10,14 @@ const MAPA = {
 export function corLabel(nome) {
   return MAPA[nome] ?? "#B3BAC5";
 }
+
+// Texto branco fixo em cima de qualquer cor de etiqueta não tem contraste suficiente pra
+// leitura (yellow/lime/sky ficam quase ilegíveis, achado real do frontend-designer) — decide
+// entre texto escuro ou claro pela luminância real da cor de fundo, mesmo critério que o
+// próprio Trello usa nas etiquetas dele.
+export function corTextoLabel(nome) {
+  const hex = corLabel(nome).replace("#", "");
+  const [r, g, b] = [0, 2, 4].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255);
+  const luminancia = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  return luminancia > 0.6 ? "#172B4D" : "#fff";
+}
