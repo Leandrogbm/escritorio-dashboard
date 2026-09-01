@@ -34,6 +34,7 @@ export default function EmpresaCobrancas({ orgId, orgNome, onClose }) {
         <p className="text-xs mb-4" style={{ color: COLORS.slate }}>Cobrança mês a mês (plataforma) · recebido: <strong style={{ color: COLORS.success }}>{BRL(totalPago)}</strong></p>
 
         <Card className="overflow-hidden !p-0">
+          <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr><th className="text-left px-4 py-2 font-medium" style={{ color: COLORS.slate, fontSize: 11 }}>MÊS</th>
@@ -58,6 +59,7 @@ export default function EmpresaCobrancas({ orgId, orgNome, onClose }) {
               ))}
             </tbody>
           </table>
+          </div>
         </Card>
       </div>
     </div>
