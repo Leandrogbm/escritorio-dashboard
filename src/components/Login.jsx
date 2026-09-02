@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Eye, EyeOff, Scale, Fingerprint } from "lucide-react";
+import { Eye, EyeOff, Scale } from "lucide-react";
 import Card from "./Card.jsx";
 import Signup from "./Signup.jsx";
 import PoliticaPrivacidadeModal from "./PoliticaPrivacidadeModal.jsx";
@@ -46,7 +46,7 @@ function AuthShell({ children }) {
   );
 }
 
-export default function Login({ onLoginComSenha }) {
+export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -64,19 +64,7 @@ export default function Login({ onLoginComSenha }) {
     const { error: authError } = await supabase.auth.signInWithPassword({ email, password });
     setLoading(false);
     if (authError) setError("E-mail ou senha inválidos.");
-    else onLoginComSenha?.();
   };
-
-  const handlePasskeyLogin = async () => {
-    setError("");
-    setLoading(true);
-    const { error: authError } = await supabase.auth.signInWithPasskey();
-    setLoading(false);
-    if (authError) setError("Não foi possível entrar com biometria. Use e-mail e senha, ou ative a biometria depois de logar.");
-  };
-
-  // WebAuthn não existe em todo navegador/contexto (exige HTTPS) — só mostra o botão quando dá.
-  const suportaPasskey = typeof window !== "undefined" && !!window.PublicKeyCredential;
 
   const handleForgot = async (e) => {
     e.preventDefault();
@@ -205,18 +193,6 @@ export default function Login({ onLoginComSenha }) {
           >
             {loading ? "Entrando..." : "Entrar"}
           </button>
-
-          {suportaPasskey && (
-            <button
-              type="button"
-              onClick={handlePasskeyLogin}
-              disabled={loading}
-              className="flex items-center justify-center gap-1.5 px-3.5 py-2.5 rounded-md text-sm font-semibold"
-              style={{ border: `1px solid ${COLORS.line}`, color: COLORS.ink }}
-            >
-              <Fingerprint size={15} /> Entrar com biometria
-            </button>
-          )}
 
           <div className="flex items-center justify-between">
             <button
