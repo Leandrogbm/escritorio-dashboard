@@ -4,3 +4,4 @@ dist
 *.local
 .env
 supabase/.temp
+graphify-out/

@@ -5,7 +5,11 @@
 // d4sign-webhook (casa por d4sign_uuid, sem precisar identificar a org antes de achar a linha).
 //
 // Configuração: depois de deployar, cadastra essa URL como webhook em Asaas → Integrações →
-// Webhooks, escutando os eventos PAYMENT_RECEIVED e PAYMENT_CONFIRMED.
+// Webhooks, escutando os eventos PAYMENT_RECEIVED e PAYMENT_CONFIRMED, e preenche "Token de
+// acesso" com o mesmo valor do secret ASAAS_WEBHOOK_TOKEN (Asaas manda de volta no header
+// "asaas-access-token" em toda chamada) — sem isso, qualquer um na internet que descobrisse
+// essa URL conseguia marcar qualquer honorário como "Pago" só adivinhando um charge_id
+// (achado real do qa-guardian, ver auditoria de acesso não-autenticado).
 //
 // Deploy: supabase functions deploy asaas-webhook --no-verify-jwt
 
@@ -15,6 +19,11 @@ const EVENTOS_PAGO = ["PAYMENT_RECEIVED", "PAYMENT_CONFIRMED"];
 
 Deno.serve(async (req) => {
   try {
+    const tokenEsperado = Deno.env.get("ASAAS_WEBHOOK_TOKEN");
+    if (tokenEsperado && req.headers.get("asaas-access-token") !== tokenEsperado) {
+      return new Response("token inválido", { status: 401 });
+    }
+
     const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
     const body = await req.json();
     const evento = body?.event;

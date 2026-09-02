@@ -1,8 +1,16 @@
 import React from "react";
-import { Scale, LogOut, Menu, ShieldAlert } from "lucide-react";
+import { Scale, LogOut, Menu, ShieldAlert, Fingerprint } from "lucide-react";
 import { COLORS } from "../lib/theme.js";
 import { ROLES } from "../config/permissions.js";
+import { supabase } from "../lib/supabaseClient.js";
 import NotificacoesBell from "./NotificacoesBell.jsx";
+
+const suportaPasskey = typeof window !== "undefined" && !!window.PublicKeyCredential;
+
+async function ativarBiometria() {
+  const { error } = await supabase.auth.registerPasskey();
+  alert(error ? "Não deu pra ativar a biometria: " + error.message : "Biometria ativada — da próxima vez, use o botão \"Entrar com biometria\" na tela de login.");
+}
 
 // suporte = platform admin "entrou" numa empresa alheia como se fosse o admin de lá.
 // Banner vermelho de propósito: é o modo com mais poder de todos, tem que ficar óbvio que
@@ -36,6 +44,17 @@ export default function TopBar({ profile, signOut, onAbrirMenu, suporte, onSairS
             <p className="text-sm font-semibold" style={{ color: COLORS.ink }}>{profile.nome}</p>
             <p className="text-xs" style={{ color: COLORS.slate }}>{roleLabel}</p>
           </div>
+          {suportaPasskey && (
+            <button
+              onClick={ativarBiometria}
+              aria-label="Ativar biometria"
+              title="Ativar Face ID / digital / Windows Hello"
+              className="flex items-center gap-1.5 px-2.5 sm:px-3 py-2 rounded-md text-sm"
+              style={{ border: `1px solid ${COLORS.line}`, color: COLORS.slate }}
+            >
+              <Fingerprint size={14} /> <span className="hidden lg:inline">Biometria</span>
+            </button>
+          )}
           <button
             onClick={signOut}
             aria-label="Sair"
