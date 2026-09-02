@@ -23,9 +23,20 @@ import { corLabel } from "../lib/trelloLabelColor.js";
 const TRELLO_BG = "#F1F2F4";
 const clampStyle = { display: "-webkit-box", WebkitLineClamp: 4, WebkitBoxOrient: "vertical", overflow: "hidden" };
 
-async function chamarProxy(body) {
+// "Não autenticado" costuma ser token de sessão vencido (aba em segundo plano por muito
+// tempo, supabase-js não teve chance de renovar em background) — não é o proxy nem a
+// credencial do Trello quebrada. Antes de mostrar erro pro usuário, força renovar a sessão e
+// tenta mais uma vez; só desiste (e mostra o erro de verdade) se isso também falhar.
+async function chamarProxy(body, jaTentouRenovar = false) {
   const { data, error } = await supabase.functions.invoke("trello-proxy", { body });
-  if (error) throw new Error((await error.context?.json?.().catch(() => null))?.error ?? error.message);
+  if (error) {
+    const msg = (await error.context?.json?.().catch(() => null))?.error ?? error.message;
+    if (!jaTentouRenovar && msg === "Não autenticado.") {
+      const { error: refreshErr } = await supabase.auth.refreshSession();
+      if (!refreshErr) return chamarProxy(body, true);
+    }
+    throw new Error(msg);
+  }
   return data;
 }
 
