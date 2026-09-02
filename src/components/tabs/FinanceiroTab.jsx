@@ -204,7 +204,7 @@ export default function FinanceiroTab({ orgId, abrirClienteId, onAbriuCliente } 
         }
       />
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
         <KpiCard icon={Wallet} tone="ink" label="Faturamento do mês" value={BRL(faturamentoMes)} />
         <KpiCard icon={CheckCircle2} tone={recebidoMes ? "success" : "slate"} label="Recebido no mês" value={BRL(recebidoMes)} valueColor={recebidoMes ? COLORS.success : COLORS.slate} />
         <KpiCard icon={Clock3} tone={pendenteMes ? "brass" : "slate"} label="Pendente no mês" value={BRL(pendenteMes)} valueColor={pendenteMes ? COLORS.brass : COLORS.slate} />

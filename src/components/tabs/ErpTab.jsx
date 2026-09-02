@@ -270,13 +270,13 @@ export default function ErpTab({ orgId }) {
       )}
 
       {aba === "despesas" && <>
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
         <KpiCard icon={CheckCircle2} tone={totalPago ? "success" : "slate"} label="Despesas pagas (período)" value={BRL(totalPago)} valueColor={totalPago ? COLORS.success : COLORS.slate} />
         <KpiCard icon={Clock3} tone={totalAberto ? "brass" : "slate"} label="A pagar (período)" value={BRL(totalAberto)} valueColor={totalAberto ? COLORS.brass : COLORS.slate} />
         <KpiCard icon={AlertTriangle} tone={totalAtrasado ? "wine" : "slate"} label="Em atraso (total)" value={BRL(totalAtrasado)} valueColor={totalAtrasado ? COLORS.wine : COLORS.slate} caption={`${atrasadas.length} despesa(s) atrasada(s) no total`} />
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
         <KpiCard icon={Wallet} tone="ink" label="Receita recebida (período)" value={BRL(receitaMes)} valueColor={receitaMes ? COLORS.ink : COLORS.slate} />
         <KpiCard icon={Wallet} tone="slate" label="Despesa paga (período)" value={BRL(despesaMes)} valueColor={despesaMes ? COLORS.ink : COLORS.slate} />
         <KpiCard icon={Scale} tone={resultadoMes >= 0 ? "success" : "wine"} label="Resultado do período (DRE simplificado)" value={BRL(resultadoMes)} valueColor={resultadoMes >= 0 ? COLORS.success : COLORS.wine} />

@@ -109,7 +109,7 @@ export default function ExecutivoTab({ orgId, embutido = false } = {}) {
   return (
     <div>
       {!embutido && <SectionTitle icon={TrendingUp} title="Visão Executiva" subtitle="Panorama consolidado do escritório" />}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
         <KpiCard icon={Scale} tone="ink" label="Valor total em causas" value={BRL(totalReceita)} />
         <KpiCard icon={CheckCircle2} tone="brass" label="Processos ativos" value={ativos} />
         <KpiCard icon={Users} tone="slate" label="Total de clientes" value={clientes.length} />
@@ -136,7 +136,7 @@ export default function ExecutivoTab({ orgId, embutido = false } = {}) {
           style={{ border: `1px solid ${COLORS.line}`, color: COLORS.ink, width: modoKpi === "ano" ? 100 : "auto" }}
         />
       </div>
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
         <KpiCard icon={Wallet} tone="ink" label="Total (honorários) — período" value={BRL(totalHonorarios)} />
         <KpiCard icon={CheckCircle2} tone="success" label="Recebido" value={BRL(recebido)} valueColor={COLORS.success} />
         <KpiCard icon={Clock3} tone="brass" label="A receber" value={BRL(aReceber)} valueColor={COLORS.brass} />
