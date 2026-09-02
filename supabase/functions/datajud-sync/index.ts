@@ -43,6 +43,26 @@ function limparNumero(numero: string) {
   return (numero || "").replace(/\D/g, "");
 }
 
+// Só notifica se a movimentação é recente (semana ou mês corrente no momento do sync) — o
+// DataJud/Escavador devolve o HISTÓRICO inteiro do processo, então a primeira sincronização
+// (ou a 1ª vez que a Escavador acha um processo que o DataJud nunca indexou) tratava cada
+// andamento antigo, de anos atrás, como "novo" só por nunca ter sido visto antes, enchendo o
+// painel Hoje de notificação sem sentido (feedback real do usuário vendo isso em produção). A
+// movimentação em si continua indo pra movimentacoes_processo (histórico do processo) sempre
+// — só a notificação (o que aparece pro usuário como "aconteceu agora") fica de fora.
+function movimentacaoRecente(dataHoraISO: string | null): boolean {
+  if (!dataHoraISO) return false;
+  const dt = new Date(dataHoraISO);
+  if (isNaN(dt.getTime())) return false;
+  const agora = new Date();
+  const mesmoMes = dt.getFullYear() === agora.getFullYear() && dt.getMonth() === agora.getMonth();
+  if (mesmoMes) return true;
+  // mesma semana (segunda a domingo) cobre o caso de a semana atravessar a virada do mês
+  const diasDesdeSegunda = (agora.getDay() + 6) % 7;
+  const inicioSemana = new Date(agora.getFullYear(), agora.getMonth(), agora.getDate() - diasDesdeSegunda);
+  return dt >= inicioSemana;
+}
+
 function dedupKey(nome: string, dataHora: string) {
   // hash simples e determinístico — não precisa ser criptográfico, só evitar duplicata
   const s = `${nome}|${dataHora}`;
@@ -240,15 +260,17 @@ async function sincronizarProcesso(admin: ReturnType<typeof createClient>, proce
       if (insErr) continue; // conflito de dedup_key concorrente, ou outro erro pontual — segue o baile
       novosMovimentos++;
 
-      await admin.from("notificacoes").insert({
-        org_id: processo.org_id,
-        processo_id: processo.id,
-        movimentacao_id: inserted.id,
-        tipo: "movimentacao",
-        titulo: `Nova movimentação — processo ${processo.numero}`,
-        texto: c?.prazoTipo ? `${nome} — IA sugere prazo: ${c.prazoTipo}, ${c.prazoDias} dias${c.prazoDiasUteis ? " úteis" : " corridos"}` : nome,
-        requer_atencao: requerAtencao,
-      });
+      if (movimentacaoRecente(m.dataHora)) {
+        await admin.from("notificacoes").insert({
+          org_id: processo.org_id,
+          processo_id: processo.id,
+          movimentacao_id: inserted.id,
+          tipo: "movimentacao",
+          titulo: `Nova movimentação — processo ${processo.numero}`,
+          texto: c?.prazoTipo ? `${nome} — IA sugere prazo: ${c.prazoTipo}, ${c.prazoDias} dias${c.prazoDiasUteis ? " úteis" : " corridos"}` : nome,
+          requer_atencao: requerAtencao,
+        });
+      }
     }
 
     await admin.from("processos").update({
