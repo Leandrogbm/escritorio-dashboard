@@ -48,6 +48,30 @@ em produção: **Gimenes e Pires Sociedade de Advogados**. Nome anterior do proj
     `escavador-buscar-processos`) — se o formato da resposta mudou, só cai fora da 2ª
     tentativa, não quebra o sync.
 
+## Aba "Hoje" — painel inicial
+
+Novo módulo `hoje` (`src/components/tabs/HojeTab.jsx`), agrega numa tela só: prazos vencendo
+(≤10 dias, mesma janela de urgência de `Stamp.jsx`), notificações não lidas e tarefas
+pendentes (`tarefas`, Kanban interno por processo — não é o Quadro/Trello). Só leitura +
+ação rápida (marcar notificação como lida); editar de verdade continua nas abas de origem —
+clicar num item aqui só navega até lá, reaproveitando o mecanismo de deep-link que já existia
+(`abrirProcesso`/`onAbrirProcesso`, mesmo usado por `ClientePagina.jsx`).
+
+Escopo por cargo: **só `advogado` é restrito** ao que é responsável (`responsavel_id` em
+`prazos`/`tarefas`; `notificacoes` não tem essa coluna, então usa o conjunto de `processos`
+que o RLS do próprio advogado já retorna como proxy). Sócio/admin/qualquer outro cargo com o
+módulo liberado vê tudo da org — mesma regra que `processos_sel` já usa. **Não é a mesma
+exceção do Quadro** ("admin não é sócio automático") — essa é específica da tela de Quadro
+geral de tarefas, não se aplica aqui; não presumir que uma regra de escopo vale pra outra
+tela sem checar.
+
+Virou o fallback de aba pra sessão nova (`localStorage.getItem("activeTab") || "hoje"`, era
+`"clientes"`) — se o cargo não tiver o módulo liberado, o efeito de redirecionamento que já
+existia (`allowedModules`) manda pra primeira aba permitida sozinho, não precisou de lógica
+nova. **Não veio habilitado pra nenhum cargo na org real ainda** — isso é decisão do admin
+via `ConfigTab.jsx` (toggle de módulo por cargo), não uma mudança que decidi sozinho no
+`role_permissions` de produção.
+
 ## Regra permanente: rodar os sub-agentes sempre, não só quando lembrar
 
 Pedido explícito do usuário. Antes de dar QUALQUER mudança como pronta:

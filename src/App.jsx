@@ -19,6 +19,7 @@ import AceitarTermosGate from "./components/AceitarTermosGate.jsx";
 // extrato etc.) entravam no bundle principal de largada, mesmo sem o usuário nunca abrir
 // metade delas numa sessão. Cada `lazy` vira um chunk carregado só quando a aba é escolhida
 // — `PageLoader` (já usado na troca de aba) cobre o Suspense.
+const HojeTab = lazy(() => import("./components/tabs/HojeTab.jsx"));
 const PrazosTab = lazy(() => import("./components/tabs/PrazosTab.jsx"));
 const ProcessosTab = lazy(() => import("./components/tabs/ProcessosTab.jsx"));
 const QuadroTab = lazy(() => import("./components/tabs/QuadroTab.jsx"));
@@ -49,7 +50,10 @@ export default function App() {
   // Persiste a aba ativa: navegador às vezes descarta/recarrega uma aba parada por um
   // tempo (economia de memória, comum em celular) — sem isso, o reload sempre caía de
   // volta em "Prazos" em vez de continuar onde a pessoa estava.
-  const [activeTab, setActiveTabState] = useState(() => localStorage.getItem("activeTab") || "clientes");
+  // Fallback "hoje" pra sessão nova (sem aba salva ainda) — se o cargo não tiver esse
+  // módulo liberado, o efeito de baixo (allowedModules) já reencaminha pra primeira aba
+  // permitida sozinho, então não precisa checar permissão aqui, síncrono demais pra isso.
+  const [activeTab, setActiveTabState] = useState(() => localStorage.getItem("activeTab") || "hoje");
   const setActiveTab = (tab) => {
     setActiveTabState(tab);
     if (tab) localStorage.setItem("activeTab", tab); else localStorage.removeItem("activeTab");
@@ -146,6 +150,7 @@ export default function App() {
     if (activeTab === "empresa" && !emSuporte) return <MinhaEmpresaTab profile={profile} onAtualizado={refreshProfile} />;
     if (!activeTab) return <EmptyState />;
     switch (activeTab) {
+      case "hoje": return <HojeTab orgId={orgId} currentRole={currentRole} profile={profile} onAbrirProcesso={abrirProcesso} />;
       case "prazos": return <PrazosTab orgId={orgId} />;
       case "processos": return <ProcessosTab currentRole={currentRole} orgId={orgId} profile={profile} abrirProcessoId={abrirProcessoId} onAbriuProcesso={() => setAbrirProcessoId(null)} />;
       case "quadro": return <QuadroTab orgId={orgId} currentRole={currentRole} profile={profile} />;

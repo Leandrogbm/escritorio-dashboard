@@ -1,4 +1,4 @@
-import { Clock, Briefcase, DollarSign, Users, Building2, Trello, Calculator } from "lucide-react";
+import { Clock, Briefcase, DollarSign, Users, Building2, Trello, Calculator, Sunrise } from "lucide-react";
 
 export const ROLES = [
   { key: "socio", label: "Sócio(a)" },
@@ -15,6 +15,7 @@ export const ROLES = [
 // continuam intactos (LeadForm.jsx, LeadsCaptacaoTab.jsx, LeadsMap.jsx, LeadsList.jsx,
 // leads_captacao) — só a UI some. Reativar: colocar "leads_captacao" de volta aqui.
 export const MODULES = [
+  { key: "hoje", label: "Hoje", icon: Sunrise },
   { key: "clientes", label: "Clientes", icon: Users },
   { key: "processos", label: "Processos", icon: Briefcase },
   { key: "quadro", label: "Quadro de tarefas", icon: Trello },

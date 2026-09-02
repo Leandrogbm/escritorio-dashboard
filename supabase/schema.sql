@@ -64,7 +64,7 @@ create table role_permissions (
   -- ⚠️ mantém em sincronia com as `key` de MODULES (src/config/permissions.js) — módulo
   -- novo lá também precisa entrar aqui, senão o toggle em Configurações falha silenciosamente
   -- pra qualquer role que não seja admin (admin ignora essa tabela, só quem não é admin sente).
-  module text not null check (module in ('prazos','processos','financeiro','clientes','equipe','executivo','quadro','erp','leads','leads_captacao')),
+  module text not null check (module in ('hoje','prazos','processos','financeiro','clientes','equipe','executivo','quadro','erp','leads','leads_captacao')),
   primary key (org_id, role, module)
 );
 
