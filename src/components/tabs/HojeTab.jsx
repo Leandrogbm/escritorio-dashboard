@@ -1,5 +1,5 @@
-import React, { useMemo } from "react";
-import { Sunrise, Clock, Bell, ListChecks, AlertTriangle, CheckCircle2, BellOff } from "lucide-react";
+import React, { useMemo, useState } from "react";
+import { Sunrise, Clock, Bell, ListChecks, AlertTriangle, CheckCircle2, BellOff, ChevronDown, ChevronUp, CheckCheck } from "lucide-react";
 import Card from "../Card.jsx";
 import SectionTitle from "../SectionTitle.jsx";
 import Stamp, { urgencia, diasAte } from "../Stamp.jsx";
@@ -65,11 +65,27 @@ export default function HojeTab({ orgId, currentRole, profile, onAbrirProcesso }
     return vejaTudo ? pendentes : pendentes.filter((t) => t.responsavel_id === meuId);
   }, [tarefasRaw, vejaTudo, meuId]);
 
+  const [verNotificacoes, setVerNotificacoes] = useState(false);
+  const [marcandoTudo, setMarcandoTudo] = useState(false);
+
   const marcarLida = async (n) => {
     const { error } = await supabase.from("notificacoes").update({ lida: true }).eq("id", n.id);
     if (error) { alert(`Não deu pra marcar como lida: ${error.message}`); return; }
     refreshNotificacoes();
     if (n.processo_id) onAbrirProcesso?.(n.processo_id);
+  };
+
+  // Notificação aqui é quase sempre movimentação passada de processo (sync do DataJud), não
+  // algo "de hoje" — com centenas acumuladas isso inundava o painel inteiro (achado do
+  // próprio usuário). Fica colapsada por padrão; "marcar tudo lido" some com a fila de uma vez
+  // sem precisar abrir uma por uma.
+  const marcarTodasLidas = async () => {
+    if (notificacoes.length === 0) return;
+    setMarcandoTudo(true);
+    const { error } = await supabase.from("notificacoes").update({ lida: true }).in("id", notificacoes.map((n) => n.id));
+    setMarcandoTudo(false);
+    if (error) { alert(`Não deu pra marcar tudo como lido: ${error.message}`); return; }
+    refreshNotificacoes();
   };
 
   // Prazo "urgente" (tone === "urgent", <=3 dias) é o único jeito real de perder um caso —
@@ -140,7 +156,34 @@ export default function HojeTab({ orgId, currentRole, profile, onAbrirProcesso }
           {!erroNotificacoes && !erroMeusProcessos && notificacoes.length === 0 && (
             <EmptyCard icon={BellOff} tone="neutral" title="Tudo lido" subtitle="Nenhuma notificação nova por aqui." />
           )}
-          {notificacoes.map((n) => (
+          {!erroNotificacoes && !erroMeusProcessos && notificacoes.length > 0 && (
+            <>
+              <div className="flex items-center justify-between gap-2 px-4 py-2.5" style={{ borderTop: `1px solid ${COLORS.line}` }}>
+                <button
+                  onClick={() => setVerNotificacoes((v) => !v)}
+                  className="flex items-center gap-1.5 text-xs font-semibold"
+                  style={{ color: COLORS.slate }}
+                >
+                  {verNotificacoes ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                  {verNotificacoes ? "Ocultar lista" : "Ver lista"}
+                </button>
+                <button
+                  onClick={marcarTodasLidas}
+                  disabled={marcandoTudo}
+                  className="flex items-center gap-1.5 text-xs font-semibold"
+                  style={{ color: COLORS.ink, opacity: marcandoTudo ? 0.6 : 1 }}
+                >
+                  <CheckCheck size={14} /> {marcandoTudo ? "Marcando..." : "Marcar tudo como lido"}
+                </button>
+              </div>
+              {!verNotificacoes && (
+                <p className="px-4 pb-3 text-xs" style={{ color: COLORS.slate }}>
+                  Na maioria são movimentações passadas de processo (sync automático), não coisa de hoje.
+                </p>
+              )}
+            </>
+          )}
+          {verNotificacoes && notificacoes.map((n) => (
             <button
               key={n.id}
               onClick={() => marcarLida(n)}
