@@ -173,11 +173,24 @@ export default function ProcessosTab({ currentRole, orgId, profile, abrirProcess
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [abrirProcessoId, processos]);
 
-  const processosFiltrados = processos.filter((p) => {
-    const q = busca.trim().toLowerCase();
-    if (!q) return true;
-    return p.numero.toLowerCase().includes(q) || (p.cliente?.nome || "").toLowerCase().includes(q) || p.area.toLowerCase().includes(q);
-  });
+  // Encerrado sempre por último; entre os demais (e dentro dos encerrados também), quem teve
+  // movimentação mais recente vem primeiro — `ultima_movimentacao_em` (trigger em
+  // movimentacoes_processo, ver schema.sql) é null pra processo que nunca sincronizou nada
+  // ainda, e cai pro final do grupo (created_at como critério de desempate, não "mais recente").
+  const processosFiltrados = processos
+    .filter((p) => {
+      const q = busca.trim().toLowerCase();
+      if (!q) return true;
+      return p.numero.toLowerCase().includes(q) || (p.cliente?.nome || "").toLowerCase().includes(q) || p.area.toLowerCase().includes(q);
+    })
+    .sort((a, b) => {
+      const aEncerrado = a.status === "Encerrado" ? 1 : 0;
+      const bEncerrado = b.status === "Encerrado" ? 1 : 0;
+      if (aEncerrado !== bEncerrado) return aEncerrado - bEncerrado;
+      const aData = a.ultima_movimentacao_em ?? a.created_at;
+      const bData = b.ultima_movimentacao_em ?? b.created_at;
+      return new Date(bData) - new Date(aData);
+    });
 
   // Inadimplente = tem honorário vencido, ou "em aberto" com vencimento já passado
   // (cobre o caso de ninguém ter marcado como "Vencido" manualmente ainda).

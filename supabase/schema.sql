@@ -1090,6 +1090,23 @@ create table movimentacoes_processo (
 create index movimentacoes_processo_org_id_idx on movimentacoes_processo (org_id);
 create index movimentacoes_processo_processo_id_idx on movimentacoes_processo (processo_id);
 
+-- Denormalizado de propósito: ProcessosTab ordena "quem mexeu mais recente primeiro" e
+-- precisa disso pra TODO processo só pra ordenar a lista — trazer a tabela inteira de
+-- movimentacoes_processo (pode ter centenas de milhares de linhas) só pra achar o MAX(data_hora)
+-- por processo no cliente não escala. Atualizado por trigger a cada nova movimentação.
+alter table processos add column if not exists ultima_movimentacao_em timestamptz;
+
+create or replace function atualizar_ultima_movimentacao_processo() returns trigger
+  language plpgsql set search_path = public as $$
+begin
+  update processos set ultima_movimentacao_em = greatest(coalesce(ultima_movimentacao_em, new.data_hora), new.data_hora)
+    where id = new.processo_id;
+  return new;
+end;
+$$;
+create trigger trg_atualizar_ultima_movimentacao after insert on movimentacoes_processo
+  for each row execute function atualizar_ultima_movimentacao_processo();
+
 create table notificacoes (
   id uuid primary key default gen_random_uuid(),
   org_id uuid not null references organizations(id),
