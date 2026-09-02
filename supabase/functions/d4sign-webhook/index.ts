@@ -15,8 +15,9 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 
 Deno.serve(async (req) => {
   try {
+    // falha fechado: sem o secret configurado no ambiente, recusa tudo em vez de reabrir.
     const secretEsperado = Deno.env.get("D4SIGN_WEBHOOK_SECRET");
-    if (secretEsperado && new URL(req.url).searchParams.get("secret") !== secretEsperado) {
+    if (!secretEsperado || new URL(req.url).searchParams.get("secret") !== secretEsperado) {
       return new Response("segredo inválido", { status: 401 });
     }
 

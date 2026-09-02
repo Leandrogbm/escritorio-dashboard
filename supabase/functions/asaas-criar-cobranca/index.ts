@@ -52,12 +52,12 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ ok: true, invoiceUrl: honorario.asaas_invoice_url, jaExistia: true }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
-    const { data: org } = await admin.from("organizations").select("asaas_token, asaas_ambiente").eq("id", honorario.org_id).single();
-    if (!org?.asaas_token) {
+    const { data: integ } = await admin.from("integracoes").select("asaas_token, asaas_ambiente").eq("org_id", honorario.org_id).maybeSingle();
+    if (!integ?.asaas_token) {
       return new Response(JSON.stringify({ error: "Cobrança automática ainda não foi configurada (falta conectar a conta Asaas em Configurações)." }), { status: 400, headers: corsHeaders });
     }
-    const api = baseUrl(org.asaas_ambiente);
-    const headers = { "Content-Type": "application/json", access_token: org.asaas_token };
+    const api = baseUrl(integ.asaas_ambiente);
+    const headers = { "Content-Type": "application/json", access_token: integ.asaas_token };
 
     let asaasCustomerId = honorario.cliente?.asaas_customer_id;
     if (!asaasCustomerId) {

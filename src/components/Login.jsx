@@ -46,7 +46,7 @@ function AuthShell({ children }) {
   );
 }
 
-export default function Login() {
+export default function Login({ onLoginComSenha }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -64,6 +64,7 @@ export default function Login() {
     const { error: authError } = await supabase.auth.signInWithPassword({ email, password });
     setLoading(false);
     if (authError) setError("E-mail ou senha inválidos.");
+    else onLoginComSenha?.();
   };
 
   const handlePasskeyLogin = async () => {

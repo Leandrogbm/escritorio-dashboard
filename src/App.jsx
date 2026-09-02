@@ -4,6 +4,7 @@ import { MODULES } from "./config/permissions.js";
 import { useAuth } from "./hooks/useAuth.js";
 import { useRolePermissions } from "./hooks/useRolePermissions.js";
 import Login from "./components/Login.jsx";
+import BiometriaPrompt from "./components/BiometriaPrompt.jsx";
 import ResetPassword from "./components/ResetPassword.jsx";
 import PlatformAdminPanel from "./components/PlatformAdminPanel.jsx";
 import Sidebar from "./components/Sidebar.jsx";
@@ -45,6 +46,9 @@ export default function App() {
   // orgOverride: platform admin "entrou" como admin de uma empresa alheia (linha de
   // platform_org_metrics, tem org_id/nome/suspenso etc.) — null no uso normal.
   const [orgOverride, setOrgOverride] = useState(null);
+  // true só depois de um login com e-mail/senha bem-sucedido NESSA aba — dispara o convite
+  // pra ativar biometria uma vez; login por biometria não passa por aqui (já tem).
+  const [oferecerBiometria, setOferecerBiometria] = useState(false);
   const emSuporte = isPlatformAdmin && !!orgOverride;
   const { permissions, togglePermission } = useRolePermissions(emSuporte ? orgOverride.org_id : profile?.org_id);
   // Persiste a aba ativa: navegador às vezes descarta/recarrega uma aba parada por um
@@ -101,7 +105,7 @@ export default function App() {
 
   if (loading) return <FullScreenMessage>Carregando...</FullScreenMessage>;
   if (recovery) return <ResetPassword onDone={clearRecovery} />;
-  if (!session) return <Login />;
+  if (!session) return <Login onLoginComSenha={() => setOferecerBiometria(true)} />;
   if (clienteAcesso) return <PortalCliente clienteAcesso={clienteAcesso} signOut={signOut} />;
   if (isPlatformAdmin && !verEmpresa && !orgOverride) {
     return (
@@ -192,6 +196,9 @@ export default function App() {
             </Suspense>
           )}
         </main>
+        {oferecerBiometria && typeof window !== "undefined" && window.PublicKeyCredential && (
+          <BiometriaPrompt onFechar={() => setOferecerBiometria(false)} />
+        )}
       </div>
     </div>
   );

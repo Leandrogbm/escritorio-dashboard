@@ -42,11 +42,11 @@ Deno.serve(async (req) => {
     }
     const targetOrgId = ehPlatformAdmin && orgId ? orgId : callerProfile?.org_id;
 
-    const { data: org } = await admin.from("organizations").select("d4sign_token, d4sign_crypt_key, d4sign_safe_uuid").eq("id", targetOrgId).single();
-    if (!org?.d4sign_token || !org?.d4sign_crypt_key || !org?.d4sign_safe_uuid) {
+    const { data: integ } = await admin.from("integracoes").select("d4sign_token, d4sign_crypt_key, d4sign_safe_uuid").eq("org_id", targetOrgId).maybeSingle();
+    if (!integ?.d4sign_token || !integ?.d4sign_crypt_key || !integ?.d4sign_safe_uuid) {
       return new Response(JSON.stringify({ error: "Configure as credenciais D4Sign da empresa em Configurações antes de enviar." }), { status: 400, headers: corsHeaders });
     }
-    const auth = `tokenAPI=${org.d4sign_token}&cryptKey=${org.d4sign_crypt_key}`;
+    const auth = `tokenAPI=${integ.d4sign_token}&cryptKey=${integ.d4sign_crypt_key}`;
 
     const { data: doc } = await admin.from("documentos_processo").select("nome_arquivo, storage_path").eq("id", documentoId).single();
     if (!doc) {
@@ -60,7 +60,7 @@ Deno.serve(async (req) => {
     // 1) upload do arquivo pro cofre
     const form = new FormData();
     form.append("file", arquivo, doc.nome_arquivo);
-    const upRes = await fetch(`${D4SIGN_BASE}/documents/${org.d4sign_safe_uuid}/upload?${auth}`, { method: "POST", body: form });
+    const upRes = await fetch(`${D4SIGN_BASE}/documents/${integ.d4sign_safe_uuid}/upload?${auth}`, { method: "POST", body: form });
     const upBody = await upRes.json().catch(() => ({}));
     if (!upRes.ok) {
       return new Response(JSON.stringify({ error: `D4Sign recusou o upload: ${JSON.stringify(upBody)}` }), { status: 400, headers: corsHeaders });

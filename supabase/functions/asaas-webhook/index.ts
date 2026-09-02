@@ -19,8 +19,9 @@ const EVENTOS_PAGO = ["PAYMENT_RECEIVED", "PAYMENT_CONFIRMED"];
 
 Deno.serve(async (req) => {
   try {
+    // falha fechado: sem o secret configurado no ambiente, recusa tudo em vez de reabrir.
     const tokenEsperado = Deno.env.get("ASAAS_WEBHOOK_TOKEN");
-    if (tokenEsperado && req.headers.get("asaas-access-token") !== tokenEsperado) {
+    if (!tokenEsperado || req.headers.get("asaas-access-token") !== tokenEsperado) {
       return new Response("token inválido", { status: 401 });
     }
 

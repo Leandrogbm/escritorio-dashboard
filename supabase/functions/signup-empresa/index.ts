@@ -53,7 +53,11 @@ Deno.serve(async (req) => {
       email_confirm: true,
     });
     if (createErr) {
-      return new Response(JSON.stringify({ error: createErr.message }), { status: 400, headers: corsHeaders });
+      // mensagem genérica de propósito: devolver "esse e-mail já existe" deixa qualquer
+      // visitante sem login descobrir se um e-mail específico já tem conta no Actum, em
+      // qualquer empresa da plataforma (achado do qa-guardian numa auditoria de acesso
+      // não-autenticado) — mesmo tratamento que "esqueci minha senha" já dá em Login.jsx.
+      return new Response(JSON.stringify({ error: "Não foi possível concluir o cadastro. Verifique os dados ou fale com o suporte." }), { status: 400, headers: corsHeaders });
     }
 
     const { data: org, error: orgErr } = await admin
@@ -63,8 +67,9 @@ Deno.serve(async (req) => {
       .single();
     if (orgErr) {
       await admin.auth.admin.deleteUser(created.user.id);
-      const msg = orgErr.code === "23505" ? "Esse CNPJ já está cadastrado." : orgErr.message;
-      return new Response(JSON.stringify({ error: msg }), { status: 400, headers: corsHeaders });
+      // mesmo motivo do bloco acima: não confirmar pra um visitante sem login se um CNPJ
+      // específico já é cliente do Actum.
+      return new Response(JSON.stringify({ error: "Não foi possível concluir o cadastro. Verifique os dados ou fale com o suporte." }), { status: 400, headers: corsHeaders });
     }
 
     const { error: profileErr } = await admin.from("profiles").insert({
