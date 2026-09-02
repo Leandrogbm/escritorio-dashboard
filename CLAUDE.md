@@ -11,8 +11,7 @@ em produção: **Gimenes e Pires Sociedade de Advogados**. Nome anterior do proj
   em `src/App.jsx`, cada módulo é um componente em `src/components/tabs/`.
 - **Backend**: Supabase (Postgres + RLS + Auth + Edge Functions em Deno/TypeScript + Storage).
 - **Deploy do frontend**: automático — `git push origin main` builda e sobe sozinho no
-  Hostinger via GitHub Actions (`.github/workflows/deploy.yml`, FTPS). Não depende mais de
-  gerar zip/subir manual. Ver "Como publicar" abaixo.
+  Hostinger via GitHub Actions (`.github/workflows/deploy.yml`, FTPS). Ver "Como publicar".
 - Gráficos: Recharts. Ícones: lucide-react. Mapa (feature em back log): Leaflet/react-leaflet
   **pinado em v4** (react-leaflet v5 exige React 19, esse projeto é React 18).
 - OCR client-side (extrato em foto): tesseract.js. PDF: pdfjs-dist.
@@ -24,394 +23,127 @@ em produção: **Gimenes e Pires Sociedade de Advogados**. Nome anterior do proj
 - **Módulos** (`src/config/permissions.js`, array `MODULES`) definem o que aparece na
   Sidebar e o que cada cargo (`role_permissions`) pode ver. Mexeu num módulo aqui →
   mexer também no `check constraint` de `role_permissions.module` no schema.sql (já
-  aconteceu de ficar dessincronizado).
+  aconteceu de ficar dessincronizado — é o erro recorrente #1 desse projeto).
 - Cargos (`profiles.role`): `admin`, `socio`, `advogado`, `financeiro`, `recepcao`.
-  `admin` sempre enxerga tudo (`has_module` retorna true direto pra admin, não olha
-  `role_permissions`). Regra explícita do usuário: **admin não é "sócio automático"** —
-  em telas como o Quadro de tarefas, só `socio` vê o quadro geral da equipe; admin vê só
-  as próprias tarefas, igual qualquer outro cargo.
+  `admin` sempre enxerga tudo (`has_module` retorna true direto pra admin). Regra explícita
+  do usuário: **admin não é "sócio automático"** — isso é uma exceção específica do Quadro de
+  tarefas (só `socio` vê o quadro geral da equipe), não presumir que vale em outra tela.
 - **Platform admin** (não confundir com `admin` de uma org): entra em "modo suporte"
   (`emSuporte` em App.jsx) e opera como admin completo de QUALQUER empresa escolhida.
-- **DataJud sync**: cron `datajud-sync-horario` roda de hora em hora (`pg_cron`, era 1x/dia
-  antes) chamando a Edge Function `datajud-sync` — não depende mais de alguém clicar em
-  "Sincronizar processos" (botão em `ProcessosTab.jsx`, renomeado de "Sincronizar DataJud" —
-  não é só DataJud mais). Ver `x-cron-secret` / `DATAJUD_CRON_SECRET` no header pra distinguir
-  chamada do cron da chamada manual.
-  - **DataJud é a única fonte pública GRATUITA** pra movimentação processual no Brasil — mas
-    o índice nacional do CNJ não cobre todo processo (vara/comarca menor, processo recém-
-    distribuído, atraso do próprio tribunal em alimentar a base — confirmado testando direto
-    na API real: vários processos reais desse cliente voltam `totalHits: 0`, não é bug
-    nosso). Quando o DataJud vem vazio, `sincronizarProcesso` tenta a **Escavador** como 2ª
-    fonte (`consultaEscavador`) — é paga, mas o escritório já paga (mesmo token de
-    `integracoes.escavador_token` usado em "Buscar processos"/`ClientesTab.jsx`), então não é
-    custo novo. Sem teste contra uma chamada paga real ainda (mesma ressalva de
-    `escavador-buscar-processos`) — se o formato da resposta mudou, só cai fora da 2ª
-    tentativa, não quebra o sync.
+- Detalhe de implementação de qualquer feature específica (Trello, DataJud, confidencial de
+  processo, cobrança da plataforma etc.) fica no arquivo do agente que constrói/mantém
+  aquilo (`builder.md`) ou nos comentários do próprio código — não duplicar aqui.
 
-## Aba "Hoje" — painel inicial
+## ⚠️ Segurança — credenciais de integração (regra permanente, não renegociar)
 
-Novo módulo `hoje` (`src/components/tabs/HojeTab.jsx`), agrega numa tela só: prazos vencendo
-(≤10 dias, mesma janela de urgência de `Stamp.jsx`), notificações não lidas e tarefas
-pendentes (`tarefas`, Kanban interno por processo — não é o Quadro/Trello). Só leitura +
-ação rápida (marcar notificação como lida); editar de verdade continua nas abas de origem —
-clicar num item aqui só navega até lá, reaproveitando o mecanismo de deep-link que já existia
-(`abrirProcesso`/`onAbrirProcesso`, mesmo usado por `ClientePagina.jsx`).
+`organizations` tem `SELECT` liberado pra qualquer membro autenticado da empresa (precisa —
+nome/logo aparecem pra todo mundo). Por causa disso, **token de API (D4Sign, Asaas,
+Escavador, Trello) nunca pode morar em coluna de `organizations`** — já vazou assim uma vez.
+Credencial de integração vai em **`integracoes`** (tabela própria, RLS restrita a
+`auth_role() in ('admin','socio')`). Feature usada por cargo não-admin precisa de Edge
+Function proxy que lê a credencial com service role e nunca devolve pro client (ver
+`trello-proxy`). Pra saber só "está conectado ou não", usar boolean público tipo
+`organizations.trello_conectado`, nunca o valor real da chave.
 
-Escopo por cargo: **só `advogado` é restrito** ao que é responsável (`responsavel_id` em
-`prazos`/`tarefas`; `notificacoes` não tem essa coluna, então usa o conjunto de `processos`
-que o RLS do próprio advogado já retorna como proxy). Sócio/admin/qualquer outro cargo com o
-módulo liberado vê tudo da org — mesma regra que `processos_sel` já usa. **Não é a mesma
-exceção do Quadro** ("admin não é sócio automático") — essa é específica da tela de Quadro
-geral de tarefas, não se aplica aqui; não presumir que uma regra de escopo vale pra outra
-tela sem checar.
+Antes de mexer em qualquer integração nova, ou revisar algo que toca
+`organizations`/`integracoes`/Edge Function de terceiro, rodar `qa-guardian` — checklist de
+segurança completo está lá, não duplicado aqui.
 
-Virou o fallback de aba pra sessão nova (`localStorage.getItem("activeTab") || "hoje"`, era
-`"clientes"`) — se o cargo não tiver o módulo liberado, o efeito de redirecionamento que já
-existia (`allowedModules`) manda pra primeira aba permitida sozinho, não precisou de lógica
-nova. **Não veio habilitado pra nenhum cargo na org real ainda** — isso é decisão do admin
-via `ConfigTab.jsx` (toggle de módulo por cargo), não uma mudança que decidi sozinho no
-`role_permissions` de produção.
+## Regras éticas já aplicadas — não renegociar sem pedido explícito e refletido
+
+Recusa construir "captação ativa" de cliente jurídico: contatar parte de processo alheio,
+vasculhar rede social/fórum atrás de dúvida jurídica, ou buscar empresa por região/raio pra
+oferecer serviço — vedado pelo Código de Ética da OAB (arts. 5º-7º/39-41), **a doutrina trata
+a própria compilação de contato não solicitado como o ato vedado, não só o envio da
+mensagem** — independente da fonte (rede social, Google, agregador pago). Isso já foi pedido
+3x em formas diferentes e recusado nas 3 (histórico completo em `ROADMAP-comparativo.md`).
+Modelo aceito: só **inbound** (empresa/cliente procura o escritório sozinho — formulário
+público, WhatsApp, indicação). `leads_captacao` (formulário+mapa) existe pronta no código mas
+está em back log a pedido do usuário — não reativar sem pedido novo e explícito.
 
 ## Regra permanente: rodar os sub-agentes sempre, não só quando lembrar
 
-Pedido explícito do usuário. Antes de dar QUALQUER mudança como pronta:
+Antes de dar qualquer mudança como pronta:
+- **`qa-guardian`** — sempre, sem exceção, pra mudança que toque banco/RLS/Edge
+  Function/regra de negócio. Já pegou bug real que passaria despercebido mais de uma vez.
+- **`arquiteto`** — mudança de arquitetura/schema não trivial (nova tabela, nova policy,
+  nova relação entre tabelas).
+- **`frontend-designer`** — tela/componente/padrão visual novo (não precisa pra ajuste de
+  1 linha de texto).
 
-- **`qa-guardian`** — sempre, sem exceção, pra qualquer mudança que toque banco/RLS/Edge
-  Function/regra de negócio. É o que já pegou bug real que passaria despercebido (processo
-  órfão em `confidencial`, limite de plano não isentando `Encerrado`) — não pular achando
-  que "dessa vez é simples o suficiente".
-- **`arquiteto`** — em qualquer mudança de arquitetura/schema não trivial (nova tabela, nova
-  policy, nova relação entre tabelas) — já achou risco real de referência circular em RLS que
-  só apareceria em produção.
-- **`frontend-designer`** — em qualquer mudança visual nova (tela nova, componente novo,
-  padrão visual novo) — não precisa pra ajuste de 1 linha de texto/copy.
-
-Isso é processo, não sugestão: não entregar como "pronto" sem pelo menos `qa-guardian` ter
-rodado (background é aceitável — dá pra seguir trabalhando enquanto ele roda), e reportar o
-resultado real pro usuário, não só assumir que passou.
-
-## ⚠️ Segurança — credenciais de integração (leia antes de mexer em Configurações/Integrações)
-
-Teve um vazamento real já corrigido nesta base: `organizations` tem `SELECT` liberado pra
-**qualquer** membro autenticado da empresa (precisa — nome/logo aparecem pra todo mundo no
-Sidebar). Token de API (D4Sign, Asaas, Escavador, Trello) **nunca pode morar em colunas de
-`organizations`** por causa disso — já aconteceu de vazar assim (qualquer cargo conseguia ler
-via REST direto, e um componente chegava a mandar a chave pro browser de quem só estava
-usando uma feature, não configurando nada).
-
-Regra permanente: credencial de integração vai em **`integracoes`** (tabela própria, `org_id`
-PK, RLS restrita a `auth_role() in ('admin','socio')`). Qualquer feature usada por cargo
-não-admin precisa de uma Edge Function proxy que lê a credencial com service role e nunca
-devolve ela pro client (ver `trello-proxy` como referência: recebe só a AÇÃO, nunca a chave).
-Se precisar só saber "está conectado ou não" de um cargo qualquer, use um boolean público
-tipo `organizations.trello_conectado`, sincronizado por trigger — nunca exponha o valor real
-da chave pra checar truthiness.
-
-**Antes de mexer em qualquer integração nova, ou revisar uma mudança que toca
-`organizations`/`integracoes`/qualquer Edge Function de terceiro**, rode o sub-agente
-`qa-guardian` (`.claude/agents/qa-guardian.md`) — ele tem o checklist de segurança completo e
-o histórico de bugs de regressão pra conferir.
-
-## Bugs reais já corrigidos — não reintroduzir (detalhe completo em `qa-guardian.md`)
-
-1. CSS "containing block": `animation-fill-mode: both/forwards` com `transform` no keyframe
-   final quebra `position: fixed` de modais aninhados — usar `backwards`.
-2. Pendente vs atrasado não pode contar em dobro (Financeiro/ERP): "em aberto dentro do
-   prazo" = pendente, "fora do prazo" = atrasado, nunca os dois.
-3. Cards de resumo (Total/Pendente/Recebido) escopados ao mês/período selecionado, não
-   soma de todo mês futuro já gerado por uma mensalidade/conta recorrente.
-4. `<main>` é quem rola (não a `window`) — telas de página cheia (processo, documentos do
-   cliente) precisam resetar `scrollTo({top:0})` ao abrir/fechar, senão o botão "Voltar"
-   fica fora da tela.
-5. `StatusPicker` usa portal + `position: fixed` calculado por `getBoundingClientRect()`
-   (nunca `position: absolute` dentro de tabela com scroll — corta o dropdown).
-6. Toda Edge Function que chama a API da Anthropic precisa de `AbortController` com timeout
-   (~25s) — sem isso uma chamada lenta pendura a function até o limite do Supabase matar.
-7. `extratoParser.js`: não filtrar valor negativo — positivo é entrada (honorário), negativo
-   é saída (despesa). `ImportarExtratoModal.jsx` casa os dois na mesma leitura.
-8. **Checkbox nunca marcado não pode virar `null` antes de salvar** — `RecordFormModal.jsx`
-   convertia todo campo `undefined` (inclusive checkbox nunca clicado) em `null`. Coluna
-   boolean `not null default false` recebendo `null` explícito ignora o default; se essa
-   coluna também entra numa regra de RLS (ex.: `processos.confidencial`), a lógica de 3
-   valores do SQL (`null and X` nunca é `true`) esconde a própria linha até de quem acabou
-   de criar — aparece como `"new row violates row-level security policy"` num INSERT que
-   "deveria" funcionar. Corrigido: `f.type === "checkbox"` sempre vira `!!v` (nunca null) —
-   e, como cinto de segurança extra pra colunas assim que também alimentam RLS, o trigger
-   dessa tabela (`guard_processos_confidencial`) trata `null` recebido de QUALQUER lugar
-   (inclusive um build antigo em cache) como `false`, nunca deixa passar. Se aparecer esse
-   erro de novo em qualquer tabela nova, suspeitar primeiro de checkbox não-marcado antes de
-   mexer em RLS.
-9. **`insert().select()` (RETURNING) roda a policy de SELECT DENTRO do próprio INSERT** —
-   se a visibilidade da linha recém-criada depende de uma escrita SEGUINTE numa tabela
-   diferente (ex.: `processo_responsaveis`, que só ganha a linha do criador DEPOIS do
-   processo existir), o Postgres derruba o INSERT INTEIRO com `"new row violates row-level
-   security policy"` — mesmo já tendo passado no `with check`. `useSupabaseTable.insert()`
-   tem uma opção `{ semSelect: true }` pra pular o RETURNING quando quem chama já sabe o id
-   (gerado no client) e não precisa reler a linha de volta. Qualquer INSERT numa tabela cuja
-   RLS de SELECT depende de outra tabela normalmente escrita depois precisa disso.
-10. **Limite de plano (`plan_limits`) precisa isentar explicitamente a linha NOVA quando ela
-    já nasce fora da contagem** — `processos_ins` excluía processo `Encerrado` do `count(*)`
-    mas não isentava a própria linha sendo inserida: cadastrar um processo já arquivado
-    travava igual um "Em andamento" quando o teto de ativos já estava cheio. A condição
-    precisa checar `status = 'Encerrado'` (ou equivalente) na própria linha nova, não só
-    filtrar o que já existe.
-
-## Visibilidade de processo — confidencial, múltiplos responsáveis, "Sócios"
-
-Já teve um **incidente real em produção** aqui: uma regra de "processo com 1 único
-responsável que é sócio fica privado só pra esse sócio" foi ativada direto e escondeu TODOS
-os processos de TODO mundo, porque na prática 100% dos processos reais compartilhavam o
-mesmo sócio como responsável padrão (convenção de cadastro do cliente, não uma marcação de
-confidencial). Foi revertida na hora. **Não inferir privacidade a partir da contagem de
-responsável — só a partir de um campo explícito, ligado à mão.** É por isso que o desenho
-atual é assim:
-
-- `processo_responsaveis` (processo_id, profile_id): 1 processo pode ter **vários**
-  advogados/sócios responsáveis. `processos.responsavel_id` continua existindo só como
-  "responsável principal" (herdado por `set_prazo_data()`, usado no gráfico de carga de
-  trabalho da Visão Executiva) — sincronizado sozinho por trigger
-  (`sincroniza_responsavel_principal`, sempre o menor `profile_id` da lista atual).
-  **Nunca escrever em `responsavel_id` direto** pra mudar quem é responsável — sempre via
-  `processo_responsaveis` (inserir/apagar linha), o trigger cuida do resto.
-- `eh_responsavel_do_processo(id)`: checa se `auth.uid()` é UM dos responsáveis (não só o
-  principal). É `security definer` de propósito — sem isso, a RLS de `processos` chamando
-  essa função dispara a RLS de `processo_responsaveis`, que reconsulta `processos` pro mesmo
-  id → referência circular entre as duas policies. Como só responde sobre o PRÓPRIO
-  `auth.uid()` (não aceita id de terceiro), rodar ignorando RLS por dentro não vaza nada.
-- `processos.confidencial` (boolean): explícito. Quando `true`, só quem está em
-  `processo_responsaveis` (mais admin) enxerga o processo E o financeiro vinculado a ele
-  (`honorarios_sel` segue a mesma regra via `processo_id`). Quando `false` (padrão), continua
-  igual a sempre: só `advogado` é restrito ao próprio responsável, os outros cargos veem tudo.
-- `processos.responsavel_socios` (boolean): explícito, separado de `confidencial`. Quando
-  `true`, QUALQUER sócio (não só quem tá listado em `processo_responsaveis`) enxerga o
-  processo mesmo sendo confidencial — pensado pra "isso é do escritório todo, não de 1
-  pessoa só". Aparece como checkbox próprio no form, não é um valor dentro do dropdown de
-  Responsáveis (já foi isso — um sentinela tipo `"__socios__"` dentro do mesmo `<select>` de
-  responsável — e quebrou: a segunda cópia do formulário em `ProcessosTab.jsx` não sabia
-  traduzir esse valor antes de mandar pro banco, e um `uuid` esperando receber a string
-  `"__socios__"` estourava `invalid input syntax for type uuid`).
-- **Quem decide o sigilo, CRIAR vs EDITAR**: quem CRIA o processo decide `confidencial`/
-  `responsavel_socios` dele — é o dono do caso desde o início (e normalmente é o advogado
-  que cadastra no dia a dia, não o sócio; primeira versão disso exigia sócio/admin pra
-  cadastrar E TRAVAVA o fluxo normal de cadastro de qualquer advogado). Só MUDAR um processo
-  JÁ EXISTENTE (`guard_processos_confidencial`, roda só em `UPDATE`) é que continua exigindo
-  sócio/admin — outros já podem estar contando com o estado atual. Mesma lógica pro time
-  inicial de responsáveis: adicionar o(s) primeiro(s) responsável(is) num processo
-  confidencial recém-criado (`processo_ja_tem_responsavel(id) = false`) é liberado pra
-  qualquer role; adicionar MAIS gente depois de já ter 1+ responsável exige sócio/admin
-  (`pode_inserir_responsavel()`, `processo_responsaveis_ins`) — sem essa distinção, qualquer
-  advogado responsável por um processo confidencial já estabelecido podia unilateralmente dar
-  acesso a mais gente. `ProcessosTab.jsx` espelha isso na UI: os 2 checkboxes de sigilo
-  aparecem pra qualquer role ao **criar** (`!editing?.id`), só pra admin/sócio ao **editar**.
-  `pode_inserir_responsavel()` é `security definer` pelo mesmo motivo de
-  `eh_responsavel_do_processo()` — ler `processos` de dentro da policy de
-  `processo_responsaveis` também passa pela RLS de `processos`, que pra confidencial exige
-  já ser responsável; no exato momento de virar o 1º responsável, ainda não é (círculo
-  vicioso na direção oposta do outro).
-- **`salvarProcesso` faz DIFF, nunca apaga-tudo-e-recria os responsáveis** — apagar e
-  reinserir o mesmo conjunto conta como "adicionar" pra `processo_responsaveis_ins`, o que
-  travava até quem já era responsável legítimo só de reabrir e salvar o form sem mexer em
-  Responsáveis. Só grava quem de fato entrou/saiu da lista.
-- `processo_privado_de_socio()`/`processo_visivel()`: **funções mortas**, ficam no
-  `schema.sql` só de referência/histórico do que já foi tentado — nenhuma policy chama elas.
-  Não reativar sem um critério novo que não seja "contar responsável".
-- Editar quem é responsável no form é **multiselect** (`RecordFormModal` field
-  `type: "multiselect"`), não select único — ver `ProcessosTab.jsx` (`salvarProcesso`): salva
-  o processo primeiro, depois substitui o conjunto inteiro em `processo_responsaveis`
-  (apaga tudo + insere de novo), nunca faz diff incremental.
-
-## Cache do navegador — causa raiz de vários "já corrigi, por que ainda dá esse erro"
-
-Boa parte dos bugs "reintroduzidos" nesta sessão eram, na real, o navegador do usuário
-rodando um `index.html`/build antigo em cache — Ctrl+F5 nem sempre resolve, porque sem
-header de cache explícito o navegador (ou um cache intermediário) pode continuar achando
-que o `index.html` velho ainda é válido. Camadas de defesa, todas já aplicadas:
-
-- **`public/.htaccess`**: `index.html` e `sw.js` com `Cache-Control: no-cache,
-  must-revalidate` (sempre revalida com o servidor); `assets/*.(js|css|woff2)` (nome com
-  hash do Vite) com cache de 1 ano — isso é seguro porque o conteúdo mudar sempre muda o
-  nome do arquivo.
-- **`public/sw.js`**: service worker do PWA, network-first (só cai pro cache dele quando
-  offline). `CACHE` (`"actum-vN"`) muda quando quiser forçar limpeza — o `activate` apaga
-  qualquer cache com nome diferente do atual.
-- **`src/main.jsx`**: registra o SW com `updateViaCache: "none"` (o arquivo `sw.js` em si
-  nunca vem do cache HTTP) e recarrega a aba sozinha quando um novo SW assume o controle
-  (`controllerchange`) — quem já estava com o site aberto pega a versão nova sem precisar
-  fechar a aba. Só dispara nessa troca de controlador, não na primeira visita.
-
-**Se um bug "já corrigido" aparecer de novo**: antes de suspeitar do código, cogitar cache
-do navegador do usuário — pedir pra abrir em aba anônima/outro navegador é o teste mais
-rápido pra descartar isso.
-
-## Número do processo — formatado sozinho, no banco
-
-`processos.numero` tem um trigger (`formatar_numero_processo`) que reformata pro padrão CNJ
-(`NNNNNNN-DD.AAAA.J.TR.OOOO`) sempre que os 20 dígitos vierem sem pontuação — roda em
-qualquer INSERT/UPDATE, direto no banco, então funciona independente de qual frontend fez a
-chamada (form manual, importação do Escavador, uma versão antiga em cache, uma chamada
-direta na API). O form também tem uma máscara client-side (`src/lib/numeroProcesso.js`,
-`formatNumeroProcesso`) pra já mostrar formatado enquanto digita — mas o trigger é quem
-garante de verdade, não a máscara. `numeroCnjValido`/`extrairTribunalAlias`
-(`datajud-sync/tribunais.ts`) já ignoravam pontuação de qualquer forma, então isso nunca
-afetou a sincronização, só a exibição.
-
-## Limite de plano com oferta de upgrade
-
-`plan_limits` (`limite_usuarios`/`limite_processos`/`limite_clientes`, `null` = sem limite) é
-a fonte de verdade, aplicada de verdade via RLS (`processos_ins`/`clientes_ins` com check) e
-na Edge Function `admin-create-user`. **Processo conta só ATIVO** (`status <> 'Encerrado'`)
-contra o limite — arquivado não deveria travar a criação de um novo.
-
-`src/config/planos.js` espelha isso só pra UX (rótulo, preço, checagem client-side antes de
-abrir o form de "Novo" — `src/lib/limitesPlano.js` → `avisoLimitePlano()`) — **mudar limite
-aqui sem mudar em `plan_limits` só desalinha o texto**, a trava real continua no banco. Ao
-bater no limite, a mensagem já nomeia o próximo plano (preço/limites) em vez de deixar
-estourar um erro cru de RLS/constraint.
-
-## Exclusão de registro com peso real — confirmação digitada
-
-`RowActions` aceita `confirmLabel`/`confirmCampo`: quando presentes, pede pra digitar o
-valor exato (`src/lib/confirmarExclusao.js`) em vez do `confirm()` genérico de sempre — usado
-em processo (número), cliente (nome, lista e página cheia), colaborador (nome — apaga o
-login junto). Registro sem cascata de dado (prazo avulso, tarefa, depósito, lead) continua no
-`confirm()` simples; só vale o esforço extra pra entidade que arrasta outras tabelas junto.
-Mesmo padrão que `excluirEmpresa` (`PlatformAdminPanel.jsx`) já usava antes disso existir
-como utilitário genérico.
-
-## Cobrança da plataforma (Actum cobrando a própria empresa cliente)
-
-Duas coisas diferentes, não confundir:
-- `organizations.plano/valor_mensal/status_pagamento`: snapshot ATUAL (plano ativo agora).
-- `platform_cobrancas`: ledger mês a mês de verdade (1 linha por mês), lançado 6 meses de
-  uma vez (mínimo de contrato) toda vez que um plano é atribuído/trocado em "Configurar"
-  (trigger `lancar_cobrancas_plano`). Clicar na linha da empresa no painel da plataforma
-  (`PlatformAdminPanel.jsx`) abre `EmpresaCobrancas.jsx` com esse histórico.
-
-`profiles.minutos_uso_total`/`ultimo_uso`: tempo de uso da plataforma por colaborador, só
-admin lê (`equipe_tempo_uso()`, security definer — RLS não restringe coluna, só linha, por
-isso a leitura passa por função em vez de vir direto da tabela/view). Incrementado por
-heartbeat no client (`useAuth.js`, a cada 2min de aba visível).
+Background é aceitável (dá pra seguir trabalhando enquanto roda) — mas reportar o resultado
+real pro usuário, nunca só assumir que passou.
 
 ## Convenção de teste (sempre, antes de dar como pronto)
 
-Organização descartável via a própria Edge Function `signup-empresa`:
+Organização descartável via `signup-empresa`:
 ```
 POST {SUPABASE_URL}/functions/v1/signup-empresa
   { nomeEmpresa, cnpj (14 dígitos, qualquer não usado), nomeResponsavel, email, password, termosAceitos: true }
 ```
-(`termosAceitos: true` é obrigatório desde que o aceite de Termos/Privacidade virou parte do
-cadastro — sem isso a function recusa com 400.)
+(`termosAceitos: true` obrigatório — sem isso a function recusa com 400.)
 
-JWT: `POST {SUPABASE_URL}/auth/v1/token?grant_type=password` com email/senha. Exercita a
-feature via `curl` direto no REST (`/rest/v1/<tabela>`) ou na Edge Function
-(`/functions/v1/<nome>`) — mais rápido e conclusivo que dirigir a UI React.
+JWT via `POST {SUPABASE_URL}/auth/v1/token?grant_type=password`. Exercitar via `curl` direto
+no REST/Edge Function é mais rápido e conclusivo que dirigir a UI. Simular sessão específica
+sem precisar logar de verdade: `begin; set local role authenticated; set local
+request.jwt.claims = '{"sub":"<uuid>","role":"authenticated"}'; ...; rollback;` via `npx
+supabase db query --linked -f <arquivo>.sql`.
 
-Limpeza depois: sempre nessa ordem (FK) — tabelas dependentes → `auth.users` → `profiles` →
-`organizations`. Escrever o SQL num arquivo de scratchpad e rodar com
-`npx supabase db query --linked -f <arquivo>.sql` (string inline `-e` já deu erro "Too
-small" nesse projeto). Nunca deixar dado de teste em produção.
-
-Pra testar lógica de IA isolada (sem gastar chamada real de tribunal), dá pra subir uma Edge
-Function descartável temporária que chama só a parte de IA direto (nome de função não pode
-começar com `_` — regra do Supabase) e apagar (`supabase functions delete <nome>`) depois do
-teste — feito isso pra validar `classificarComIA`.
+Limpeza sempre nessa ordem (FK): tabelas dependentes → `auth.users` → `profiles` →
+`organizations`. Nunca deixar dado de teste em produção.
 
 ## Como publicar
 
-**Deploy automático configurado** — `.github/workflows/deploy.yml`: todo `git push origin
-main` builda e sobe pro Hostinger sozinho via FTPS (GitHub Actions). 6 secrets no repo
-(Settings → Secrets and variables → Actions): `FTP_SERVER`, `FTP_USERNAME`, `FTP_PASSWORD`,
-`FTP_SERVER_DIR` (**vazio/raiz `/`** — ver incidente abaixo, NÃO `public_html/`),
-`VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`.
+Deploy automático (`.github/workflows/deploy.yml`, FTPS) já configurado e testado. **"GitHub
+Actions verde" não é prova de que o site mudou** — só prova que o upload não deu erro (já
+aconteceu do `FTP_SERVER_DIR` apontar pra pasta errada, ~10 deploys "sucesso" seguidos sem
+o site real mudar nada, por horas). Se o usuário disser que uma mudança não apareceu no ar
+mesmo com deploy verde: `curl -s https://mysaldo.com.br/ | grep assets` pra achar o hash do
+bundle ao vivo, comparar com o hash que o `Build` step do último workflow run gerou (`gh run
+view <id> --log | grep "dist/assets/index-"`) — só depois de confirmar que os hashes NÃO
+batem é que faz sentido investigar isso; se baterem, aí sim é cache do navegador do usuário.
 
-**⚠️ Incidente real já corrigido (2026-09-01): "deploy successo" ≠ "site atualizado".**
-`FTP_SERVER_DIR` estava configurado como `public_html/`, mas a conta FTP desse Hostinger já
-loga direto na raiz do domínio (sem precisar entrar em `public_html/`) — isso criou uma
-SUBPASTA `public_html/` dentro da raiz real, e todo deploy (~10 seguidos, todos "✅ sucesso"
-no GitHub Actions) subiu certinho pro lugar ERRADO, enquanto o site ao vivo ficou congelado
-no primeiro deploy de teste por HORAS, sem nenhum erro aparecer em lugar nenhum. Só foi
-descoberto comparando visualmente localhost:4173 vs produção (Trello sem os selos de
-data/etiqueta que já tinham sido implementados) e confirmando via
-`curl https://mysaldo.com.br/` + inspecionar qual arquivo `assets/index-*.js` estava
-referenciado — o hash batia com um commit de HORAS atrás, não o mais recente. Corrigido
-trocando o secret pro caminho certo (raiz).
-
-**Lição: "GitHub Actions verde" não é prova de que o site mudou — só prova que o UPLOAD não
-deu erro.** Se um usuário disser "isso que você fez não apareceu no site" mesmo depois de um
-push com sucesso, antes de assumir cache do navegador, **confirme de verdade**: `curl -s
-https://mysaldo.com.br/ | grep assets` pra achar o hash do bundle ao vivo, compare com o
-hash que o `Build` step do último workflow run gerou (`gh run view <id> --log | grep
-"dist/assets/index-"`). Só depois de confirmar que os hashes BATEM é que faz sentido
-investigar cache do navegador/SW do lado do usuário.
-
-Fallback manual (só se o workflow realmente quebrar de novo e precisar publicar às pressas
-enquanto não conserta):
+Fallback manual de emergência (workflow quebrado e precisa publicar rápido):
 ```
 npx vite build
 powershell -Command "Compress-Archive -Path dist\* -DestinationPath actum-build.zip -Force"
 ```
-e o usuário sobe esse zip pelo File Manager do Hostinger.
+usuário sobe pelo File Manager do Hostinger.
 
 Edge Function nova/alterada: `npx supabase functions deploy <nome>` (`--no-verify-jwt` só
-pra function chamada sem JWT de usuário — cron, webhook interno com secret próprio no
-header). Schema novo: escrever em scratchpad SQL e rodar com `npx supabase db query --linked
--f <arquivo>` **e também mirrorar a mudança em `supabase/schema.sql`** (esse arquivo é o
-"rodar isso inteiro num projeto novo do zero", não um changelog de migração — editar em
-lugar, não acrescentar `ALTER`/`DROP` no fim).
+pra function chamada sem JWT de usuário). Schema novo: rodar via `npx supabase db query
+--linked -f <arquivo>` **e mirrorar em `supabase/schema.sql`** (é o "rodar isso inteiro num
+projeto novo do zero", não um changelog — editar em lugar, não acrescentar no fim).
 
-## Padrões de código que já existem — seguir, não reinventar
+## Padrões de código — nomes rápidos, detalhe fica no código/no agente que construiu
 
-- **`embutido` prop**: componente que serve como modal standalone OU conteúdo puro dentro de
-  outra tela (`MovimentacoesPanel`, `TarefasPanel`, `DepositosPanel`, `DocumentosPanel`,
-  `ExecutivoTab`). `embutido=false` (padrão) renderiza com moldura de modal/página própria;
-  `true` renderiza só o conteúdo, pra encaixar como sub-aba/painel embutido em outra tela.
-- **"ponytail" — features prontas mas seguradas em back log**: código/schema/Edge Function
-  ficam intactos, só a UI some (`{false && (<JSX/>)}` com comentário explicando por que e
-  onde reativar). Usado pra Asaas, rentabilidade por área, funil de leads (Kanban interno,
-  `LeadsTab.jsx`, módulo `leads`) e captação de leads (`leads_captacao` — ver próximo item).
-  Ver `ROADMAP-comparativo.md` pro motivo de cada um.
-- **Captação de Leads (`leads_captacao`) — ciclo completo já aconteceu, não reabrir sem
-  pedido explícito e refletido**: foi pedida 3x seguidas uma versão de busca ATIVA de empresa
-  por região (1ª: vasculhar rede social/fórum atrás de dúvida jurídica; 2ª: "clicar na região
-  e trazer empresa que não te procurou"; 3ª: "escolher área + local + raio + Buscar", depois
-  "buscar no Google as proximidades") — as três recusadas pela mesma vedação da OAB (captação
-  de causa/angariação de clientela, arts. 5º-7º/39-41; a doutrina trata a própria COMPILAÇÃO
-  sistemática de contato de quem não procurou como o ato vedado, não só o envio da mensagem).
-  Entre a 2ª e a 3ª tentativa, reativei brevemente a versão INBOUND (empresa preenche
-  formulário público sozinha, `LeadForm.jsx`/`?leadform=1&org=<id>`, mapa por
-  `LeadsMap.jsx`/`LeadsList.jsx`) — o usuário pediu pra **tirar essa aba também** depois de eu
-  recusar a versão ativa pela 3ª vez, então voltou tudo ao back log (`leads_captacao` fora de
-  `MODULES`, rota `?leadform=1` desativada em `App.jsx`, `role_permissions` da org real sem
-  esse módulo). Componentes/schema/Edge Function continuam intactos, só não tem UI. Se pedirem
-  de novo pra reativar (mesmo só a versão inbound), é decisão nova do usuário, não presumir.
-- **Clique na linha inteira** abre editar/ver, não só o ícone de lápis — padrão em
-  Clientes/Processos/Financeiro/Prazos/Depósitos/ERP.
-- **StatusPicker**: clicar direto no badge de status muda ele (em vez de precisar abrir
-  editar) — usado em Processos, Financeiro, ERP, Depósitos.
-- **Sino por entidade** (`ClienteBell`, `ProcessoBell`, `FornecedorBell`): "possível
-  pagamento"/notificação específica daquele registro, com confirmar/rejeitar — diferente do
-  sino geral (que só cobre movimentação/prazo, não pagamento).
-- **`AREAS_DIREITO_COMUNS`** (`src/config/areasDireito.js`): lista de sugestão (datalist, não
-  fechada) reaproveitada em mais de um campo — "Área do direito" (`ProcessosTab`) e "Origem"
-  (`ClientesTab`). Precisar de outra lista parecida de área jurídica → reaproveitar essa
-  constante, não criar uma nova.
-- **Trello embutido de verdade, não iframe**: `TrelloQuadro.jsx` busca listas/cards ao vivo
-  via `trello-proxy` (Edge Function — credencial nunca chega no browser) porque a Trello
-  bloqueia iframe de terceiro via CSP própria. `TrelloCardModal.jsx` abre o card clicado com
-  etiqueta/data/descrição completa/comentários (ler e escrever) — pedido explícito do
-  usuário foi "tudo que funciona lá tem que funcionar aqui". Cor de etiqueta centralizada em
-  `src/lib/trelloLabelColor.js` (paleta fixa da API do Trello).
+- **`embutido` prop**: componente serve como modal standalone OU conteúdo embutido em outra
+  tela — `MovimentacoesPanel`, `TarefasPanel`, `DepositosPanel`, `DocumentosPanel`, `ExecutivoTab`.
+- **"ponytail"**: feature pronta mas segurada em back log — código/schema/Edge Function
+  intactos, só a UI some (`{false && (<JSX/>)}` com comentário). Ver `ROADMAP-comparativo.md`
+  pro motivo de cada uma (Asaas, rentabilidade por área, funil de leads, `leads_captacao`).
+- **Clique na linha inteira** abre editar/ver — Clientes/Processos/Financeiro/Prazos/Depósitos/ERP.
+- **`StatusPicker`**: clicar no badge muda o status direto, sem abrir editar.
+- **Sino por entidade** (`ClienteBell`/`ProcessoBell`/`FornecedorBell`): notificação
+  específica daquele registro (ex.: possível pagamento) — diferente do sino geral.
+- **`AREAS_DIREITO_COMUNS`** (`src/config/areasDireito.js`): lista de sugestão reaproveitada
+  em mais de um campo (Área do direito, Origem do cliente) — não criar lista nova igual.
+- **Trello embutido de verdade** (não iframe, a Trello bloqueia via CSP própria):
+  `TrelloQuadro.jsx`/`TrelloCardModal.jsx` via `trello-proxy` (credencial nunca chega no
+  browser).
+
+Detalhe de mecânica interna (visibilidade de processo confidencial, DataJud+Escavador,
+gatilhos de banco, etc.) fica documentado em `builder.md` — esse arquivo é o índice, não o
+manual completo.
 
 ## Onde procurar antes de perguntar
 
-- `ROADMAP-comparativo.md` / `ROADMAP-projuris.md`: gaps já pesquisados vs concorrentes
-  (AdvBox, LiderHub, ZapSign, Asaas, Projuris, Astrea, Legal One, CPJ-3C, GOJUR, LegalSuite,
-  Themis) — o que já foi construído, o que foi decidido segurar, o que depende de provedor
-  pago (não é gap técnico, é decisão de compra).
-- `.claude/agents/qa-guardian.md`: sub-agente de QA/regressão/segurança — invocar antes de
-  dar uma mudança sensível como pronta (integrações, RLS, extrato, financeiro/ERP).
-- Regras éticas já aplicadas (não renegociar sem pedido explícito e refletido): recusa
-  construir "captação ativa" de cliente — contatar parte de processo alheio recém-distribuído,
-  ou vasculhar rede social/fórum atrás de gente com dúvida jurídica pra oferecer serviço —
-  por vedação do Código de Ética da OAB (arts. 5º-7º/39-41), independente da fonte ser
-  processo público ou post em rede social.
+- `ROADMAP-comparativo.md` / `ROADMAP-projuris.md`: gaps pesquisados vs concorrentes, o que
+  foi construído, o que foi decidido segurar, o que depende de provedor pago, e o histórico
+  completo de pedidos recusados por ética (captação de leads).
+- `.claude/agents/qa-guardian.md`: checklist de segurança + lista completa de bugs reais já
+  corrigidos (não reintroduzir) — invocar antes de mudança sensível.
+- `.claude/agents/builder.md`: padrões de implementação específicos de cada feature (schema,
+  RLS, mecânica interna) — a fonte de verdade pra detalhe técnico, não este arquivo.
+- `.claude/agents/arquiteto.md`: o que não propor mexer sem entender o motivo primeiro
+  (security definer, pares de flag que parecem redundantes mas não são).

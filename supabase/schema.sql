@@ -1131,7 +1131,24 @@ create policy movimentacoes_sel on movimentacoes_processo for select using
 
 alter table notificacoes enable row level security;
 create trigger trg_set_org_id before insert on notificacoes for each row execute function set_org_id();
-create policy notificacoes_sel on notificacoes for select using (org_id = auth_org_id());
+-- Achado real do qa-guardian (via HojeTab): essa policy não checava módulo nem processo
+-- confidencial -- qualquer membro autenticado da org lia toda notificação via REST direto,
+-- inclusive título/texto de processo confidencial que ele não enxerga em lugar nenhum.
+-- 'pagamento_possivel' gate por módulo financeiro; o resto (movimentação/prazo) por módulo
+-- processos + mesma regra de confidencial que honorarios_sel já usa.
+create policy notificacoes_sel on notificacoes for select using (
+  (org_id = auth_org_id() and (
+    (tipo = 'pagamento_possivel' and has_module('financeiro'))
+    or (tipo <> 'pagamento_possivel' and has_module('processos') and (
+      processo_id is null
+      or not exists (
+        select 1 from processos p where p.id = notificacoes.processo_id and p.confidencial
+        and not (eh_responsavel_do_processo(p.id) or (p.responsavel_socios and auth_role() = 'socio'))
+      )
+    ))
+  ))
+  or is_platform_admin()
+);
 create policy notificacoes_upd on notificacoes for update
   using (org_id = auth_org_id()) with check (org_id = auth_org_id()); -- só marcar como lida
 -- Insert/delete pelo usuário só existe pro fluxo de "possível pagamento" (importação de

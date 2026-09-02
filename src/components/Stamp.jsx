@@ -46,6 +46,14 @@ export default function Stamp({ children, tone = "neutral" }) {
   );
 }
 
+// Dias entre hoje e uma data (negativo = já passou) — comparação por dia civil, não por
+// timestamp exato (T00:00:00 nas duas pontas), senão "vence hoje às 23h" contava como
+// "ontem" dependendo da hora que a pessoa está olhando. Usado por PrazosTab.jsx e
+// HojeTab.jsx — uma fonte só, pra nunca discordarem sobre quantos dias faltam pro mesmo prazo.
+export function diasAte(data) {
+  return Math.ceil((new Date(`${data}T00:00:00`) - new Date(new Date().toDateString())) / 86400000);
+}
+
 export function urgencia(dias) {
   if (dias <= 3) return { label: "Urgente", tone: "urgent" };
   if (dias <= 10) return { label: "Atenção", tone: "warn" };

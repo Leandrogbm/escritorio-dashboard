@@ -2,7 +2,7 @@ import React, { useMemo, useState } from "react";
 import { Clock, Plus, ChevronLeft, ChevronRight, List, CalendarDays } from "lucide-react";
 import Card from "../Card.jsx";
 import SectionTitle from "../SectionTitle.jsx";
-import Stamp, { urgencia } from "../Stamp.jsx";
+import Stamp, { urgencia, diasAte } from "../Stamp.jsx";
 import RowActions from "../RowActions.jsx";
 import { TableHead, Tr } from "../TableList.jsx";
 import RecordFormModal from "../RecordFormModal.jsx";
@@ -10,7 +10,6 @@ import SearchInput from "../SearchInput.jsx";
 import { COLORS } from "../../lib/theme.js";
 import { useSupabaseTable } from "../../hooks/useSupabaseTable.js";
 
-const diasAte = (data) => Math.ceil((new Date(`${data}T00:00:00`) - new Date(new Date().toDateString())) / 86400000);
 const DIAS_SEMANA = ["D", "S", "T", "Q", "Q", "S", "S"];
 
 function linhaPrazo(p, onEdit, onDelete) {
