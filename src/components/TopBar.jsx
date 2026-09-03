@@ -7,7 +7,7 @@ import NotificacoesBell from "./NotificacoesBell.jsx";
 // suporte = platform admin "entrou" numa empresa alheia como se fosse o admin de lá.
 // Banner vermelho de propósito: é o modo com mais poder de todos, tem que ficar óbvio que
 // não é a própria empresa da pessoa logada.
-export default function TopBar({ profile, signOut, onAbrirMenu, suporte, onSairSuporte }) {
+export default function TopBar({ profile, signOut, onAbrirMenu, suporte, onSairSuporte, orgId, onAbrirProcesso }) {
   const roleLabel = ROLES.find((r) => r.key === profile.role)?.label;
 
   return (
@@ -31,7 +31,7 @@ export default function TopBar({ profile, signOut, onAbrirMenu, suporte, onSairS
         </div>
 
         <div className="flex items-center gap-2 sm:gap-3 shrink-0">
-          <NotificacoesBell />
+          <NotificacoesBell orgId={orgId} onAbrirProcesso={onAbrirProcesso} />
           <div className="text-right hidden sm:block">
             <p className="text-sm font-semibold" style={{ color: COLORS.ink }}>{profile.nome}</p>
             <p className="text-xs" style={{ color: COLORS.slate }}>{roleLabel}</p>

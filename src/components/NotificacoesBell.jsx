@@ -18,8 +18,17 @@ const LARGURA = 360;
 // StatusPicker.jsx) — o sino fica perto da borda direita do TopBar mas não colado nela (tem
 // "Sair" depois), então um dropdown `absolute right-0` simples vazava pra fora da tela em
 // mobile (achado real de auditoria: painel cortado/ilegível em 320-375px).
-export default function NotificacoesBell() {
-  const { data: todas, refresh } = useSupabaseTable("notificacoes", { select: "*", orderBy: "created_at", ascending: false });
+export default function NotificacoesBell({ orgId, onAbrirProcesso }) {
+  // eq por org_id é OBRIGATÓRIO aqui, mesmo a RLS já filtrando: notificacoes_sel tem uma
+  // cláusula "or is_platform_admin()" sem checagem de organização nenhuma (é o suporte
+  // enxergando geral de propósito) — sem esse filtro explícito, uma conta de platform admin
+  // logada numa empresa normal via esse sino via notificação de TODAS as organizações
+  // misturadas (achado real em produção: notificação da org de demonstração aparecendo pro
+  // cliente pagante). Mesmo padrão que toda outra tela já usa (ver ProcessosTab.jsx).
+  const orgEq = orgId ? ["org_id", orgId] : undefined;
+  const { data: todas, refresh } = useSupabaseTable("notificacoes", {
+    select: "*, processo:processos(id,numero,cliente:clientes(nome))", orderBy: "created_at", ascending: false, eq: orgEq,
+  });
   const notificacoes = todas.filter((n) => n.tipo !== "pagamento_possivel");
   const [aberto, setAberto] = useState(false);
   const [pos, setPos] = useState(null);
@@ -51,9 +60,13 @@ export default function NotificacoesBell() {
     };
   }, [aberto, notificacoes.length]);
 
-  const marcarLida = async (id) => {
-    await supabase.from("notificacoes").update({ lida: true }).eq("id", id);
+  const abrirNotificacao = async (n) => {
+    await supabase.from("notificacoes").update({ lida: true }).eq("id", n.id);
     refresh();
+    if (n.processo?.id) {
+      setAberto(false);
+      onAbrirProcesso?.(n.processo.id);
+    }
   };
 
   const marcarTodasLidas = async () => {
@@ -94,14 +107,19 @@ export default function NotificacoesBell() {
               {notificacoes.map((n) => (
                 <button
                   key={n.id}
-                  onClick={() => marcarLida(n.id)}
-                  className="w-full text-left px-4 py-3 flex items-start gap-2"
+                  onClick={() => abrirNotificacao(n)}
+                  className="w-full text-left px-4 py-3 flex items-start gap-2 hover:bg-black/[0.02]"
                   style={{ borderBottom: `1px solid ${COLORS.line}`, background: n.lida ? "transparent" : "rgba(165,121,59,0.06)" }}
                 >
                   {n.requer_atencao && <AlertTriangle size={14} color={COLORS.wine} className="mt-0.5 shrink-0" />}
-                  <div>
+                  <div className="min-w-0">
                     <p className="text-sm" style={{ color: COLORS.ink, fontWeight: n.lida ? 400 : 600 }}>{n.titulo}</p>
                     {n.texto && <p className="text-xs mt-0.5" style={{ color: COLORS.slate }}>{n.texto}</p>}
+                    {n.processo && (
+                      <p className="text-xs mt-0.5 truncate" style={{ color: COLORS.slate }}>
+                        {n.processo.numero} · {n.processo.cliente?.nome ?? "—"}
+                      </p>
+                    )}
                     <p className="text-xs mt-1" style={{ color: COLORS.slate }}>{new Date(n.created_at).toLocaleString("pt-BR")}</p>
                   </div>
                 </button>

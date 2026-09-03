@@ -184,6 +184,8 @@ export default function App() {
           onAbrirMenu={() => setMenuMobileAberto(true)}
           suporte={emSuporte ? orgOverride.nome : null}
           onSairSuporte={() => setOrgOverride(null)}
+          orgId={orgId}
+          onAbrirProcesso={abrirProcesso}
         />
         <main className="flex-1 px-4 sm:px-8 py-6 sm:py-8 overflow-y-auto overflow-x-hidden">
           {trocandoAba ? <PageLoader /> : (
