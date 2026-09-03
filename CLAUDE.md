@@ -103,12 +103,25 @@ bundle ao vivo, comparar com o hash que o `Build` step do último workflow run g
 view <id> --log | grep "dist/assets/index-"`) — só depois de confirmar que os hashes NÃO
 batem é que faz sentido investigar isso; se baterem, aí sim é cache do navegador do usuário.
 
-Fallback manual de emergência (workflow quebrado e precisa publicar rápido):
+**Confirmar rápido se o arquivo no ar é mesmo o mais novo** (mais direto que comparar hash de
+build): `curl -s --ftp-ssl -k "ftp://<user>:<senha>@ftp.mysaldo.com.br/" 2>&1 | grep index.html`
+mostra a data de modificação real do `index.html` no servidor — compara com `curl -sI
+https://mysaldo.com.br/ | grep -i last-modified`. Se as duas baterem mas ainda assim
+antigas, o problema é upload que não gravou (já aconteceu do Actions logar "sucesso" e
+"replacing index.html" byte a byte, várias vezes seguidas, sem o arquivo mudar de verdade
+no FTP — causa não confirmada, suspeita de atraso de réplica do lado do Hostinger).
+
+Fallback manual (publica sem depender do Actions, funciona de dentro da sessão mesmo):
 ```
 npx vite build
-powershell -Command "Compress-Archive -Path dist\* -DestinationPath actum-build.zip -Force"
+node -e "require('basic-ftp')" 2>/dev/null || npm i --no-save basic-ftp
 ```
-usuário sobe pelo File Manager do Hostinger.
+depois um script Node de ~15 linhas com `basic-ftp` (`client.access({host,user,password,secure:true,secureOptions:{rejectUnauthorized:false}})`
+seguido de `client.uploadFromDir('dist', '/')`) sobe tudo direto, sem zip nem File Manager —
+mais rápido de confirmar (dá pra checar o mtime no FTP na hora) que esperar o Actions.
+Zip pro usuário subir manualmente pelo File Manager (`Compress-Archive -Path dist\*
+-DestinationPath actum-build.zip -Force`) continua valendo como opção quando quem publica é
+o usuário, não uma sessão com acesso a `Bash`/Node.
 
 Edge Function nova/alterada: `npx supabase functions deploy <nome>` (`--no-verify-jwt` só
 pra function chamada sem JWT de usuário). Schema novo: rodar via `npx supabase db query
