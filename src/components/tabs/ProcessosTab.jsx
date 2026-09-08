@@ -248,8 +248,9 @@ export default function ProcessosTab({ currentRole, orgId, profile, abrirProcess
   // Pré-preenche com a sugestão da IA (tipo/dias/dias_uteis) quando tem — advogado ainda
   // confirma/ajusta antes de salvar, IA só poupa o preenchimento manual (ver
   // classificarComIA em datajud-sync/index.ts, comparado com o Legal One no ROADMAP-comparativo.md).
-  const abrirRegistrarPrazo = (processoId) => (mov) => setRegistrandoPrazo({
+  const abrirRegistrarPrazo = (processoId, clienteId) => (mov) => setRegistrandoPrazo({
     processo_id: processoId,
+    cliente_id: clienteId,
     movimentacao_origem_id: mov.id,
     data_inicio: mov.data_hora.slice(0, 10),
     dias_uteis: mov.prazo_sugerido_dias_uteis === false ? "false" : "true",
@@ -273,7 +274,7 @@ export default function ProcessosTab({ currentRole, orgId, profile, abrirProcess
           onVoltar={() => setProcessoAberto(null)}
           onEditar={() => setEditing({ ...atual, cliente_id: atual.cliente?.id, responsaveis: (responsaveisPorProcesso.get(atual.id) ?? []).map((r) => r.id) })}
           onExcluir={() => { remove(atual.id); setProcessoAberto(null); }}
-          onRegistrarPrazo={abrirRegistrarPrazo(atual.id)}
+          onRegistrarPrazo={abrirRegistrarPrazo(atual.id, atual.cliente_id)}
           onMudarStatus={(status) => update(atual.id, { status })}
         />
         <RecordFormModal
@@ -296,6 +297,7 @@ export default function ProcessosTab({ currentRole, orgId, profile, abrirProcess
             quantidade_dias: parseInt(values.quantidade_dias, 10),
             alerta_dias_antes: values.alerta_dias_antes ? parseInt(values.alerta_dias_antes, 10) : 3,
             processo_id: registrandoPrazo.processo_id,
+            cliente_id: registrandoPrazo.cliente_id,
             movimentacao_origem_id: registrandoPrazo.movimentacao_origem_id,
           })}
         />

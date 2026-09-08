@@ -108,13 +108,19 @@ create index processos_org_id_idx on processos (org_id);
 create table prazos (
   id uuid primary key default gen_random_uuid(),
   org_id uuid not null references organizations(id),
-  processo_id uuid not null references processos(id) on delete cascade,
+  -- Opcional de propósito: prazo pode existir ANTES do processo (ex.: prazo pra ajuizar
+  -- dentro de X dias, processo nem foi cadastrado ainda) — cliente_id (abaixo) é o vínculo
+  -- que sempre existe; processo_id só entra quando o caso já foi cadastrado/tem número.
+  processo_id uuid references processos(id) on delete cascade,
   tipo text not null,
   data date not null,
   responsavel_id uuid references profiles(id),
   created_at timestamptz not null default now()
 );
 create index prazos_org_id_idx on prazos (org_id);
+
+alter table prazos add column if not exists cliente_id uuid not null references clientes(id);
+create index if not exists prazos_cliente_id_idx on prazos (cliente_id);
 
 create table honorarios (
   id uuid primary key default gen_random_uuid(),
@@ -228,7 +234,9 @@ create view leads_captacao_view with (security_invoker = true) as
 create table tarefas (
   id uuid primary key default gen_random_uuid(),
   org_id uuid not null references organizations(id),
-  processo_id uuid not null references processos(id) on delete cascade,
+  -- Nullable: tarefa gerada automaticamente de um prazo sem processo (sync_prazo_tarefa)
+  -- herda esse null — prazo pode existir antes do processo ser cadastrado.
+  processo_id uuid references processos(id) on delete cascade,
   titulo text not null,
   descricao text,
   status text not null check (status in ('A fazer','Em andamento','Concluída')) default 'A fazer',
@@ -1338,18 +1346,23 @@ create trigger trg_sync_prazo_tarefa after insert or update on prazos
 create or replace function gerar_alertas_prazos() returns void
   language plpgsql set search_path = public as $$
 declare r record;
+declare titulo text;
 begin
   for r in
-    select p.*, pr.numero as processo_numero
-    from prazos p join processos pr on pr.id = p.processo_id
+    -- left join em processos (prazo pode não ter um ainda); clientes é sempre presente
+    -- (cliente_id not null) e vira o fallback do título quando não há processo.
+    select p.*, pr.numero as processo_numero, c.nome as cliente_nome
+    from prazos p
+    left join processos pr on pr.id = p.processo_id
+    join clientes c on c.id = p.cliente_id
     where p.alerta_gerado = false and p.data is not null
       and calcula_prazo_util(current_date, p.alerta_dias_antes) >= p.data
   loop
+    titulo := case when r.data < current_date then 'Prazo VENCIDO' else 'Prazo vence em breve' end
+      || case when r.processo_numero is not null then format(' — processo %s', r.processo_numero)
+              else format(' — %s', r.cliente_nome) end;
     insert into notificacoes (org_id, processo_id, prazo_id, tipo, titulo, texto, requer_atencao)
-    values (
-      r.org_id, r.processo_id, r.id, 'prazo',
-      case when r.data < current_date then format('Prazo VENCIDO — processo %s', r.processo_numero)
-        else format('Prazo vence em breve — processo %s', r.processo_numero) end,
+    values (r.org_id, r.processo_id, r.id, 'prazo', titulo,
       format('%s — vencimento %s', r.tipo, to_char(r.data, 'DD/MM/YYYY')),
       true
     );

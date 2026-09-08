@@ -19,7 +19,7 @@ function linhaPrazo(p, onEdit, onDelete) {
     <div key={p.id} onClick={() => onEdit(p)} className="flex items-center justify-between gap-3 px-4 py-3 cursor-pointer" style={{ borderTop: `1px solid ${COLORS.line}` }}>
       <div className="min-w-0">
         <p className="text-sm truncate" style={{ color: COLORS.ink, fontWeight: 600 }}>{p.tipo}</p>
-        <p className="text-xs truncate" style={{ color: COLORS.slate }}>{p.processo?.numero ?? "—"} · {p.processo?.cliente?.nome ?? "—"} · {p.responsavel?.nome ?? "sem responsável"}</p>
+        <p className="text-xs truncate" style={{ color: COLORS.slate }}>{p.processo?.numero ?? "sem processo"} · {p.cliente?.nome ?? "—"} · {p.responsavel?.nome ?? "sem responsável"}</p>
       </div>
       <div className="flex items-center gap-2 shrink-0" onClick={(e) => e.stopPropagation()}>
         <Stamp tone={u.tone}>{u.label} · {dias}d</Stamp>
@@ -118,8 +118,9 @@ function CalendarioPrazos({ prazos, onEdit, onDelete }) {
 export default function PrazosTab({ orgId } = {}) {
   const orgEq = orgId ? ["org_id", orgId] : undefined;
   const { data: prazos, loading, insert, update, remove } = useSupabaseTable("prazos", {
-    select: "*, processo:processos(id,numero,cliente:clientes(nome)), responsavel:profiles(id,nome)", eq: orgEq,
+    select: "*, processo:processos(id,numero), cliente:clientes(id,nome), responsavel:profiles(id,nome)", eq: orgEq,
   });
+  const { data: clientes } = useSupabaseTable("clientes", { select: "id,nome", orderBy: "nome", ascending: true, eq: orgEq });
   const { data: processos } = useSupabaseTable("processos", { select: "id,numero", orderBy: "numero", ascending: true, eq: orgEq });
   const { data: equipe } = useSupabaseTable("profiles", { select: "id,nome", orderBy: "nome", ascending: true, eq: orgEq });
   const [editing, setEditing] = useState(null);
@@ -131,7 +132,10 @@ export default function PrazosTab({ orgId } = {}) {
   // quantidade vierem preenchidos, o banco recalcula "data" sozinho (trigger set_prazo_data),
   // ignorando o que foi digitado direto nela.
   const fields = useMemo(() => [
-    { key: "processo_id", label: "Processo", type: "select", options: processos.map((p) => ({ value: p.id, label: p.numero })) },
+    { key: "cliente_id", label: "Cliente", type: "select", options: clientes.map((c) => ({ value: c.id, label: c.nome })) },
+    // Opcional de propósito: prazo pode existir antes do processo ser cadastrado (ex.: prazo
+    // pra ajuizar dentro de X dias) — só o cliente é obrigatório.
+    { key: "processo_id", label: "Processo (se já existir)", type: "select", optional: true, options: processos.map((p) => ({ value: p.id, label: p.numero })) },
     { key: "tipo", label: "Tipo de prazo" },
     { key: "data", label: "Data (ou preencha início+quantidade abaixo pra calcular)", type: "date", optional: true },
     { key: "data_inicio", label: "— OU: início da contagem", type: "date", optional: true },
@@ -139,16 +143,16 @@ export default function PrazosTab({ orgId } = {}) {
     { key: "quantidade_dias", label: "Quantidade de dias", type: "number", optional: true },
     { key: "alerta_dias_antes", label: "Avisar quantos dias úteis antes de vencer", type: "number", optional: true },
     { key: "responsavel_id", label: "Responsável", type: "select", options: equipe.map((e) => ({ value: e.id, label: e.nome })), optional: true },
-  ], [processos, equipe]);
+  ], [clientes, processos, equipe]);
 
-  const abrirEdicao = (p) => setEditing({ ...p, processo_id: p.processo?.id, responsavel_id: p.responsavel?.id });
+  const abrirEdicao = (p) => setEditing({ ...p, cliente_id: p.cliente?.id, processo_id: p.processo?.id, responsavel_id: p.responsavel?.id });
 
   const prazosFiltrados = prazos.filter((p) => {
     const q = busca.trim().toLowerCase();
     if (!q) return true;
     return p.tipo.toLowerCase().includes(q)
       || (p.processo?.numero || "").toLowerCase().includes(q)
-      || (p.processo?.cliente?.nome || "").toLowerCase().includes(q)
+      || (p.cliente?.nome || "").toLowerCase().includes(q)
       || (p.responsavel?.nome || "").toLowerCase().includes(q);
   });
   const sorted = [...prazosFiltrados].sort((a, b) => diasAte(a.data) - diasAte(b.data));
@@ -193,8 +197,8 @@ export default function PrazosTab({ orgId } = {}) {
                 const u = urgencia(dias);
                 return (
                   <Tr key={p.id} onClick={() => abrirEdicao(p)} tone={u.tone}>
-                    <td className="px-4 py-3.5" style={{ fontFamily: "'IBM Plex Mono', monospace", color: COLORS.inkSoft, fontSize: 12.5 }}>{p.processo?.numero ?? "—"}</td>
-                    <td className="px-4 py-3.5" style={{ fontFamily: "'Source Serif 4', serif", fontWeight: 600, fontSize: 15, color: COLORS.ink }}>{p.processo?.cliente?.nome ?? "—"}</td>
+                    <td className="px-4 py-3.5" style={{ fontFamily: "'IBM Plex Mono', monospace", color: COLORS.inkSoft, fontSize: 12.5 }}>{p.processo?.numero ?? "sem processo"}</td>
+                    <td className="px-4 py-3.5" style={{ fontFamily: "'Source Serif 4', serif", fontWeight: 600, fontSize: 15, color: COLORS.ink }}>{p.cliente?.nome ?? "—"}</td>
                     <td className="px-4 py-3.5" style={{ color: COLORS.slate }}>{p.tipo}</td>
                     <td className="px-4 py-3.5" style={{ color: COLORS.slate }}>{new Date(`${p.data}T00:00:00`).toLocaleDateString("pt-BR")}</td>
                     <td className="px-4 py-3.5" style={{ color: COLORS.slate }}>{p.responsavel?.nome ?? "—"}</td>

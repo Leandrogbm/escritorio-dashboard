@@ -31,7 +31,7 @@ export default function HojeTab({ orgId, currentRole, profile, onAbrirProcesso }
   const vejaTudo = currentRole !== "advogado";
 
   const { data: prazosRaw, error: erroPrazos } = useSupabaseTable("prazos", {
-    select: "*, processo:processos(id,numero,cliente:clientes(nome))", eq: orgEq,
+    select: "*, processo:processos(id,numero), cliente:clientes(id,nome)", eq: orgEq,
   });
   const { data: notificacoesRaw, error: erroNotificacoes, refresh: refreshNotificacoes } = useSupabaseTable("notificacoes", {
     select: "*", orderBy: "created_at", ascending: false, eq: orgEq,
@@ -108,13 +108,15 @@ export default function HojeTab({ orgId, currentRole, profile, onAbrirProcesso }
       {prazosComUrgencia.map((p) => (
         <button
           key={p.id}
-          onClick={() => onAbrirProcesso?.(p.processo?.id)}
+          // Prazo sem processo (ainda não cadastrado) não tem pra onde navegar — só os com
+          // processo abrem a página dele; o resto é informativo mesmo.
+          onClick={p.processo?.id ? () => onAbrirProcesso?.(p.processo.id) : undefined}
           className="w-full text-left flex items-center justify-between gap-3 px-4 py-3.5 hover:bg-black/[0.02]"
-          style={{ borderTop: `1px solid ${COLORS.line}` }}
+          style={{ borderTop: `1px solid ${COLORS.line}`, cursor: p.processo?.id ? "pointer" : "default" }}
         >
           <div className="min-w-0">
             <p className="text-sm truncate" style={{ color: COLORS.ink, fontWeight: 600 }}>{p.tipo}</p>
-            <p className="text-xs" style={{ color: COLORS.slate }}>{p.processo?.numero ?? "—"} · {p.processo?.cliente?.nome ?? "—"}</p>
+            <p className="text-xs" style={{ color: COLORS.slate }}>{p.processo?.numero ?? "sem processo"} · {p.cliente?.nome ?? "—"}</p>
           </div>
           <Stamp tone={p.u.tone}>{p.dias < 0 ? `Venceu · ${-p.dias}d` : p.dias === 0 ? "Vence hoje" : `${p.u.label} · ${p.dias}d`}</Stamp>
         </button>
