@@ -24,7 +24,7 @@ async function enviarSenhaPorEmail(email: string, nome: string, senha: string, o
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      from: `${orgNome} <nao-responda@mysaldo.com.br>`,
+      from: `${orgNome} <nao-responda@actumjus.com.br>`,
       to: email,
       subject: `Acompanhe seu processo — ${orgNome}`,
       text: `Olá, ${nome}!\n\n${orgNome} liberou seu acesso ao portal pra você acompanhar seu processo.\nLogin: ${email}\nSenha temporária: ${senha}\n\nTroque a senha no primeiro acesso.`,

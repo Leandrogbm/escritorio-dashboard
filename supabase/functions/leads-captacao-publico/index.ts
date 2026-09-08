@@ -23,7 +23,7 @@ const AREAS_VALIDAS = ["trabalhista", "familia", "tributario", "civel", "penal",
 async function geocodificar(cidade: string): Promise<{ lat: number; lon: number } | null> {
   try {
     const url = `https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=br&q=${encodeURIComponent(cidade)}`;
-    const res = await fetch(url, { headers: { "User-Agent": "mysaldo-leads-captacao/1.0 (contato@mysaldo.com.br)" } });
+    const res = await fetch(url, { headers: { "User-Agent": "actum-leads-captacao/1.0 (contato@actumjus.com.br)" } });
     if (!res.ok) {
       console.error("geocodificar: nominatim respondeu", res.status, await res.text().catch(() => ""));
       return null;

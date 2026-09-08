@@ -25,7 +25,7 @@ async function enviarSenhaPorEmail(email: string, nome: string, senha: string, o
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      from: `${orgNome} <nao-responda@mysaldo.com.br>`,
+      from: `${orgNome} <nao-responda@actumjus.com.br>`,
       to: email,
       subject: `Nova senha — ${orgNome}`,
       text: `Olá, ${nome}!\n\nSua senha de acesso ao Dashboard foi redefinida.\nNova senha temporária: ${senha}\n\nTroque a senha no primeiro acesso.`,

@@ -90,7 +90,7 @@ Deno.serve(async (req) => {
     const sendRes = await fetch(`${D4SIGN_BASE}/documents/${docUuid}/sendtosigner?${auth}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ skip_email: "0", workflow: "0", message: "Documento enviado pelo mysaldo para assinatura." }),
+      body: JSON.stringify({ skip_email: "0", workflow: "0", message: "Documento enviado pelo Actum para assinatura." }),
     });
     if (!sendRes.ok) {
       return new Response(JSON.stringify({ error: `D4Sign recusou o envio: ${await sendRes.text()}` }), { status: 400, headers: corsHeaders });

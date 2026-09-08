@@ -1,24 +1,24 @@
-name: Deploy pro Hostinger
+name: Deploy pro GitHub Pages
 
-# Builda e sobe dist/ direto no Hostinger via FTP toda vez que main recebe um push --
-# substitui o fluxo manual de "gerar zip e subir pelo File Manager" (ver CLAUDE.md).
+# Builda e publica dist/ no branch gh-pages toda vez que main recebe um push. Hostinger foi
+# abandonado (conta suspensa por pagamento, domínio mysaldo.com.br migrado pra
+# actumjus.com.br) — GitHub Pages é gratuito, HTTPS automático via Let's Encrypt, e não
+# depende de credencial de FTP nenhuma (só o GITHUB_TOKEN que a Action já tem sozinha).
 on:
   push:
     branches: [main]
   workflow_dispatch: {}
 
-# Dois pushes seguidos em main não podem rodar dois deploys em paralelo pra mesma pasta FTP
-# — interfere no arquivo de estado do FTP-Deploy-Action e pode intercalar upload de builds
-# diferentes. cancel-in-progress:false deixa o mais novo esperar o de antes terminar, em vez
-# de cancelar um deploy potencialmente já em andamento no meio do upload.
+# Dois pushes seguidos em main não podem publicar em paralelo (evita dois commits
+# concorrentes no branch gh-pages se misturarem).
 concurrency:
-  group: deploy-hostinger
+  group: deploy-pages
   cancel-in-progress: false
 
-# Só precisa ler o repo pra buildar — nunca escreve nada nele. Reduz o que um token
-# comprometido desse workflow conseguiria fazer.
+# contents:write é necessário aqui porque a Action publica fazendo commit/push no branch
+# gh-pages (diferente do antigo deploy por FTP, que só lia o repo).
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build-and-deploy:
@@ -38,31 +38,10 @@ jobs:
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
 
-      - name: Deploy via FTPS
-        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+      - name: Publica no branch gh-pages
+        uses: peaceiris/actions-gh-pages@v4
         with:
-          server: ${{ secrets.FTP_SERVER }}
-          username: ${{ secrets.FTP_USERNAME }}
-          password: ${{ secrets.FTP_PASSWORD }}
-          # ftps (explicit, criptografado) em vez de ftp puro -- senha nunca trafega em
-          # texto claro. Hostinger aceita FTPS na mesma conta de FTP normal; se a conexão
-          # falhar por causa disso, trocar pra "ftp" é o único ajuste necessário.
-          protocol: ftps
-          local-dir: ./dist/
-          # pasta de destino no Hostinger. CUIDADO: já aconteceu de FTP_SERVER_DIR estar
-          # setado como "public_html/" numa conta cujo login já cai direto na raiz do
-          # domínio -- criou uma SUBPASTA public_html/ errada, e ~10 deploys seguidos deram
-          # "sucesso" no Actions subindo pro lugar errado, com o site ao vivo congelado sem
-          # nenhum erro aparecer em lugar nenhum (ver CLAUDE.md, seção "Como publicar", pro
-          # incidente completo). Se o site parar de refletir os pushes mesmo com Actions
-          # verde, conferir isso ANTES de suspeitar de cache do navegador: `curl -s
-          # https://<dominio>/ | grep assets` e comparar o hash do bundle com o que o step
-          # "Build" deste mesmo run gerou.
-          server-dir: ${{ secrets.FTP_SERVER_DIR }}
-          # nunca apaga arquivo extra que já esteja no servidor e não veio desse build --
-          # dangerous-clean-slate:true um dia apagaria algo colocado manualmente sem aviso.
-          dangerous-clean-slate: false
-          exclude: |
-            **/.git*
-            **/.git*/**
-            **/.env*
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./dist
+          # CNAME (domínio próprio) fica versionado em dist/CNAME via public/CNAME — se sumir
+          # do build por engano, o GitHub Pages volta a servir só o *.github.io.

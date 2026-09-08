@@ -10,8 +10,9 @@ em produção: **Gimenes e Pires Sociedade de Advogados**. Nome anterior do proj
 - **Frontend**: React 18 + Vite, Tailwind CSS. Sem router — navegação é `activeTab` (state)
   em `src/App.jsx`, cada módulo é um componente em `src/components/tabs/`.
 - **Backend**: Supabase (Postgres + RLS + Auth + Edge Functions em Deno/TypeScript + Storage).
-- **Deploy do frontend**: automático — `git push origin main` builda e sobe sozinho no
-  Hostinger via GitHub Actions (`.github/workflows/deploy.yml`, FTPS). Ver "Como publicar".
+- **Deploy do frontend**: automático — `git push origin main` builda e publica sozinho no
+  GitHub Pages via GitHub Actions (`.github/workflows/deploy.yml`). Domínio próprio:
+  `actumjus.com.br` (Hostinger abandonado, ver "Como publicar").
 - Gráficos: Recharts. Ícones: lucide-react. Mapa (feature em back log): Leaflet/react-leaflet
   **pinado em v4** (react-leaflet v5 exige React 19, esse projeto é React 18).
 - OCR client-side (extrato em foto): tesseract.js. PDF: pdfjs-dist.
@@ -94,34 +95,43 @@ Limpeza sempre nessa ordem (FK): tabelas dependentes → `auth.users` → `profi
 
 ## Como publicar
 
-Deploy automático (`.github/workflows/deploy.yml`, FTPS) já configurado e testado. **"GitHub
-Actions verde" não é prova de que o site mudou** — só prova que o upload não deu erro (já
-aconteceu do `FTP_SERVER_DIR` apontar pra pasta errada, ~10 deploys "sucesso" seguidos sem
-o site real mudar nada, por horas). Se o usuário disser que uma mudança não apareceu no ar
-mesmo com deploy verde: `curl -s https://mysaldo.com.br/ | grep assets` pra achar o hash do
-bundle ao vivo, comparar com o hash que o `Build` step do último workflow run gerou (`gh run
-view <id> --log | grep "dist/assets/index-"`) — só depois de confirmar que os hashes NÃO
-batem é que faz sentido investigar isso; se baterem, aí sim é cache do navegador do usuário.
+**Hostinger foi abandonado** (conta suspensa por pagamento não renovado, set/2026) — domínio
+`mysaldo.com.br` (Registro.br, mas DNS ainda apontava pro Hostinger) foi trocado pelo domínio
+novo **`actumjus.com.br`** (já nativo no DNS automático do próprio Registro.br, sem depender
+de mais ninguém). Deploy agora é **GitHub Pages**, 100% gratuito:
 
-**Confirmar rápido se o arquivo no ar é mesmo o mais novo** (mais direto que comparar hash de
-build): `curl -s --ftp-ssl -k "ftp://<user>:<senha>@ftp.mysaldo.com.br/" 2>&1 | grep index.html`
-mostra a data de modificação real do `index.html` no servidor — compara com `curl -sI
-https://mysaldo.com.br/ | grep -i last-modified`. Se as duas baterem mas ainda assim
-antigas, o problema é upload que não gravou (já aconteceu do Actions logar "sucesso" e
-"replacing index.html" byte a byte, várias vezes seguidas, sem o arquivo mudar de verdade
-no FTP — causa não confirmada, suspeita de atraso de réplica do lado do Hostinger).
+- `.github/workflows/deploy.yml` builda e publica no branch `gh-pages` a cada push em `main`
+  (`peaceiris/actions-gh-pages`, usa só o `GITHUB_TOKEN` da própria Action — nenhuma
+  credencial externa, nenhum FTP).
+- Domínio próprio é o arquivo `public/CNAME` (conteúdo: `actumjus.com.br`) — vai junto em
+  todo build automaticamente. **Se sumir, o próximo deploy volta a servir só o
+  `*.github.io`** — não apagar esse arquivo sem entender que está trocando o domínio de novo.
+- Settings → Pages do repo: Source = "Deploy from a branch" / `gh-pages` / `/ (root)`, custom
+  domain `actumjus.com.br` — configurado uma vez, não precisa mexer de novo.
+- DNS em Registro.br (domínio novo, DNS "automático" deles, editável direto no painel): 4
+  registros A pro apex (`185.199.108/109/110/111.153`, IPs fixos do GitHub Pages pra
+  qualquer domínio) + `CNAME www → leandrogbm.github.io`.
+- **Verificar mtime rápido se alguma mudança não aparecer**: `curl -sI
+  https://actumjus.com.br/ | grep -i last-modified` comparado ao hash do bundle
+  (`curl -s https://actumjus.com.br/ | grep assets`) contra o que o `Build` do último
+  workflow run gerou. Diferente do Hostinger (achado real: FTP "sucesso" que não gravava de
+  verdade, causa nunca confirmada — suspeita de réplica atrasada do lado deles), GitHub
+  Pages publicando via commit no branch não teve esse problema até agora.
 
-Fallback manual (publica sem depender do Actions, funciona de dentro da sessão mesmo):
+**Pendência aberta da migração**: e-mail transacional (criar colaborador, redefinir senha,
+portal do cliente) manda de `nao-responda@actumjus.com.br` via Resend — o domínio antigo
+(`mysaldo.com.br`) tinha SPF/DKIM/DMARC verificados no Resend, o novo **ainda não**. Até
+verificar `actumjus.com.br` em resend.com/domains (copiar os registros TXT que eles dão e
+cadastrar no Registro.br), esses 3 e-mails têm risco real de não entregar. Confirmar isso
+resolvido antes de considerar a migração 100% completa.
+
+Fallback manual de emergência (sem depender do Actions, publica na hora):
 ```
 npx vite build
-node -e "require('basic-ftp')" 2>/dev/null || npm i --no-save basic-ftp
+npm i --no-save basic-ftp   # só se ainda precisar de algum FTP legado — GitHub Pages não usa
 ```
-depois um script Node de ~15 linhas com `basic-ftp` (`client.access({host,user,password,secure:true,secureOptions:{rejectUnauthorized:false}})`
-seguido de `client.uploadFromDir('dist', '/')`) sobe tudo direto, sem zip nem File Manager —
-mais rápido de confirmar (dá pra checar o mtime no FTP na hora) que esperar o Actions.
-Zip pro usuário subir manualmente pelo File Manager (`Compress-Archive -Path dist\*
--DestinationPath actum-build.zip -Force`) continua valendo como opção quando quem publica é
-o usuário, não uma sessão com acesso a `Bash`/Node.
+Pra publicar manual no `gh-pages` sem esperar o Actions: `git worktree add /tmp/gh
+gh-pages`, copiar `dist/*` pra lá, commit + `git push origin gh-pages`.
 
 Edge Function nova/alterada: `npx supabase functions deploy <nome>` (`--no-verify-jwt` só
 pra function chamada sem JWT de usuário). Schema novo: rodar via `npx supabase db query
