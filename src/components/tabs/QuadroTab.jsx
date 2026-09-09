@@ -30,7 +30,10 @@ export default function QuadroTab({ orgId, currentRole, profile }) {
   const { data: tarefas, insert, update, remove } = useSupabaseTable("tarefas", {
     select: "*, responsavel:profiles(id,nome), processo:processos(id,numero)", eq: orgEq, orderBy: "created_at", ascending: true,
   });
-  const { data: equipe } = useSupabaseTable("profiles", { select: "id,nome", orderBy: "nome", ascending: true, eq: orgEq });
+  const { data: equipeRaw } = useSupabaseTable("profiles", { select: "id,nome,role", orderBy: "nome", ascending: true, eq: orgEq });
+  // "Dev - adm" é a conta de suporte da plataforma, nunca pode aparecer como membro da
+  // equipe (mesmo filtro que ProcessosTab.jsx/PrazosTab.jsx já usam).
+  const equipe = useMemo(() => equipeRaw.filter((e) => e.role !== "admin"), [equipeRaw]);
   const { data: processos } = useSupabaseTable("processos", { select: "id,numero", orderBy: "numero", ascending: true, eq: orgEq });
 
   // Só sócio vê o quadro geral (todo mundo) — admin, mesmo enxergando tudo no resto do
