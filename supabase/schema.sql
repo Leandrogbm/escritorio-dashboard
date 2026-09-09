@@ -1284,6 +1284,7 @@ alter table prazos add column if not exists quantidade_dias int;
 alter table prazos add column if not exists alerta_dias_antes int not null default 3;
 alter table prazos add column if not exists alerta_gerado boolean not null default false; -- evita notificar 2x
 alter table prazos add column if not exists movimentacao_origem_id uuid references movimentacoes_processo(id);
+alter table prazos add column if not exists observacao text;
 
 -- Se data_inicio/quantidade_dias vierem preenchidos, "data" é sempre recalculada a partir
 -- deles — evita UI e banco divergirem sobre qual é a data real do prazo. E se o prazo nasce

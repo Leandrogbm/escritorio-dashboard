@@ -146,6 +146,7 @@ export default function PrazosTab({ orgId } = {}) {
     { key: "quantidade_dias", label: "Quantidade de dias", type: "number", optional: true },
     { key: "alerta_dias_antes", label: "Avisar quantos dias úteis antes de vencer", type: "number", optional: true },
     { key: "responsavel_id", label: "Responsável", type: "select", options: equipe.map((e) => ({ value: e.id, label: e.nome })), optional: true },
+    { key: "observacao", label: "Observações", optional: true },
   ], [clientes, processos, equipe]);
 
   const abrirEdicao = (p) => setEditing({ ...p, cliente_id: p.cliente?.id, processo_id: p.processo?.id, responsavel_id: p.responsavel?.id });
