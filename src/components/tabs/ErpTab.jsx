@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Calculator, Plus, Copy, Check, Upload, Filter, X, TrendingUp, Wallet, CheckCircle2, Clock3, AlertTriangle, Scale } from "lucide-react";
 import ExecutivoTab from "./ExecutivoTab.jsx";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
@@ -62,6 +62,7 @@ export default function ErpTab({ orgId }) {
   const fileInputRef = useRef(null);
   const [copiado, setCopiado] = useState(null); // id da despesa cujo código acabou de ser copiado
   const [verTudoItens, setVerTudoItens] = useState(false); // painel do fornecedor: mostrar todos os meses em vez de só o período + atrasadas
+  useEffect(() => { setVerTudoItens(false); }, [selecionado]); // cada fornecedor aberto começa no modo período
   useEscClose(() => setSelecionado(null), !!selecionado);
 
   const escolherArquivoExtrato = () => fileInputRef.current?.click();
@@ -138,9 +139,10 @@ export default function ErpTab({ orgId }) {
 
   // Painel do fornecedor: por padrão só o que vence no período selecionado + o que está
   // atrasado (visão "contas a pagar" de ERP), não o histórico de todos os meses.
+  const dataBR = (iso) => iso ? new Date(`${iso}T00:00:00`).toLocaleDateString("pt-BR") : "";
   const periodoLabel = (filtro.dataInicio || filtro.dataFim)
-    ? `${filtro.dataInicio || "início"} a ${filtro.dataFim || "hoje"}`
-    : `${MES_LABEL[Number(filtro.mes.slice(5, 7)) - 1]}/${filtro.mes.slice(0, 4)}`;
+    ? `${dataBR(filtro.dataInicio) || "início"} a ${dataBR(filtro.dataFim) || "hoje"}`
+    : filtro.mes ? `${MES_LABEL[Number(filtro.mes.slice(5, 7)) - 1]}/${filtro.mes.slice(0, 4)}` : "todo o período";
   const itensDoFornecedor = (fornecedorAberto?.itens ?? [])
     .filter((d) => verTudoItens || dentroDoPeriodo(d) || estaAtrasado(d))
     .sort((a, b) => a.vencimento.localeCompare(b.vencimento));
@@ -324,7 +326,7 @@ export default function ErpTab({ orgId }) {
                 <tr><td colSpan={5} className="px-4 py-6 text-center text-sm" style={{ color: COLORS.slate }}>{busca ? "Nenhum fornecedor encontrado." : "Nenhuma despesa cadastrada ainda."}</td></tr>
               )}
               {porFornecedorFiltrado.map((f) => (
-                <Tr key={f.nome} onClick={() => { setSelecionado(f.nome); setVerTudoItens(false); }} tone={toneDoFornecedor(f)}>
+                <Tr key={f.nome} onClick={() => setSelecionado(f.nome)} tone={toneDoFornecedor(f)}>
                   <td className="px-4 py-3.5">
                     <div className="flex items-center gap-1.5">
                       <p style={{ fontFamily: "'Source Serif 4', serif", fontWeight: 600, fontSize: 15, color: COLORS.ink }}>{f.nome}</p>
@@ -357,7 +359,7 @@ export default function ErpTab({ orgId }) {
 
             <div className="flex items-center justify-between mb-3 text-sm gap-3">
               <span style={{ color: COLORS.slate }}>
-                {verTudoItens ? "Todas as contas" : `Vence em ${periodoLabel} + atrasadas`} · <strong style={{ color: COLORS.brass }}>{BRL(aPagarVisivel)}</strong> a pagar
+                {verTudoItens ? "Todas as contas" : `Vence em ${periodoLabel} + atrasadas`} · <strong style={{ color: COLORS.brass }}>{BRL(aPagarVisivel)}</strong> em aberto
               </span>
               {(itensOcultos > 0 || verTudoItens) && (
                 <button onClick={() => setVerTudoItens((v) => !v)} className="text-xs underline whitespace-nowrap" style={{ color: COLORS.slate }}>
