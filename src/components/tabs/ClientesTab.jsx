@@ -98,11 +98,12 @@ export default function ClientesTab({ currentRole, orgId, profile, onAbrirProces
   const filtrados = clientes.filter((c) => {
     const q = busca.trim().toLowerCase();
     if (!q) return true;
+    const qDigits = q.replace(/\D/g, "");
     return c.nome.toLowerCase().includes(q)
       || (c.origem || "").toLowerCase().includes(q)
       || (c.celular || "").toLowerCase().includes(q)
       || (c.email || "").toLowerCase().includes(q)
-      || (c.documento || "").replace(/\D/g, "").includes(q.replace(/\D/g, ""));
+      || (!!qDigits && (c.documento || "").replace(/\D/g, "").includes(qDigits));
   });
 
   if (vendoDocumentos) {
