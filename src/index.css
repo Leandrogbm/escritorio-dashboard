@@ -11,10 +11,26 @@ html, body {
      celular. Isso é rede de segurança; cada componente ainda deve caber sozinho. */
   overflow-x: hidden;
   max-width: 100vw;
+  position: relative;
 }
 
 #root {
   overflow-x: hidden;
+}
+
+/* Grão de papel — textura via SVG feTurbulence, uma imagem estática só (sem JS, sem
+   animação), então não pesa performance nem repintura. Fica atrás de tudo (z-index -1,
+   fixed no body) e reforça "documento físico" mesmo em telas grandes de puro fundo `paper`
+   que ficariam achatadas/digitais demais sem isso. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  opacity: 0.05;
+  mix-blend-mode: multiply;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
 }
 
 /* Polimento global de interação — aplica em TODO botão/campo do sistema de uma vez, sem
@@ -77,14 +93,51 @@ html, body {
   }
 }
 
+/* Sombra "pilha de folhas" — dois offsets sólidos e curtos (sem blur generoso) em vez do
+   soft-shadow difuso padrão de card-clonado-da-Vercel. Lê como papel empilhado, não como
+   elevação de Material Design. Usada em todo Card (ver Card.jsx), hoverable ganha uma
+   terceira camada e sobe um pouco mais no hover — como se destacasse a folha de cima da pilha. */
+.card-stacked {
+  box-shadow: 2px 2px 0 rgba(27, 51, 40, 0.06), 5px 5px 0 rgba(27, 51, 40, 0.045);
+}
 .card-hoverable {
-  box-shadow: 0 1px 2px rgba(22, 35, 59, 0.05);
+  box-shadow: 2px 2px 0 rgba(27, 51, 40, 0.07), 5px 5px 0 rgba(27, 51, 40, 0.05), 8px 8px 0 rgba(27, 51, 40, 0.03);
   transition: transform 200ms cubic-bezier(0.22, 1, 0.36, 1), box-shadow 200ms ease, border-color 200ms ease;
 }
 .card-hoverable:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 10px 24px rgba(22, 35, 59, 0.10);
+  transform: translate(-2px, -2px);
+  box-shadow: 4px 4px 0 rgba(27, 51, 40, 0.09), 8px 8px 0 rgba(27, 51, 40, 0.06), 12px 12px 0 rgba(27, 51, 40, 0.03);
   border-color: #C4BCA8;
+}
+
+/* "Dog-ear" — canto de página dobrado, o mesmo gesto de virar a lauda de um processo físico.
+   Fica só no canto superior direito do Card (ver Card.jsx, prop `folded`); desliga sozinho em
+   card com overflow-hidden (ex.: moldura de tabela) pra não cortar a dobra pela metade. As
+   cores da dobra usam o hex de COLORS.paper/ink direto (arquivo CSS não lê JS) — se o token
+   mudar em theme.js, ajustar aqui também. */
+.card-dogear {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 18px;
+  height: 18px;
+  pointer-events: none;
+}
+.card-dogear::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: rgba(27, 51, 40, 0.22);
+  clip-path: polygon(100% 0, 100% 100%, 0 0);
+  filter: blur(1.5px);
+}
+.card-dogear::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: #F2F0E9;
+  clip-path: polygon(100% 0, 0 0, 100% 100%);
+  box-shadow: -1px 1px 2px rgba(27, 51, 40, 0.2);
 }
 
 /* Balança da justiça balançando — transição entre abas (ver PageLoader.jsx). Gira em torno
