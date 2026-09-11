@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Building2, LogOut, LayoutGrid, Eye, Ban, PlayCircle, Trash2, Settings2, XCircle, ShieldAlert, Wallet, AlertTriangle } from "lucide-react";
+import { Building2, LogOut, LayoutGrid, Eye, Ban, PlayCircle, Trash2, Settings2, XCircle, ShieldAlert, Wallet, AlertTriangle, Activity } from "lucide-react";
 import Card from "./Card.jsx";
 import KpiCard from "./KpiCard.jsx";
 import RecordFormModal from "./RecordFormModal.jsx";
@@ -36,6 +36,39 @@ export default function PlatformAdminPanel({ temPerfilProprio, onEntrarNaEmpresa
 
   const carregar = () => supabase.rpc("platform_org_metrics").then(({ data }) => setEmpresas(data ?? []));
   useEffect(() => { carregar(); }, []);
+
+  // Log de acesso (quantos acessos, quais páginas, quanto tempo, qual IP, qual usuário) — a
+  // FK de access_log aponta pra auth.users, não pra profiles, então o PostgREST não embeda
+  // sozinho; busca as 3 tabelas separadas e junta aqui (mais simples que forçar um join).
+  const [acessos, setAcessos] = useState(null);
+  useEffect(() => {
+    (async () => {
+      const [{ data: logs }, { data: perfis }, { data: orgs }] = await Promise.all([
+        supabase.from("access_log").select("user_id, org_id, pagina, ip, created_at").order("created_at", { ascending: false }).limit(500),
+        supabase.from("profiles").select("id, nome"),
+        supabase.from("organizations").select("id, nome"),
+      ]);
+      if (!logs) return setAcessos([]);
+      const nomePerfil = new Map((perfis ?? []).map((p) => [p.id, p.nome]));
+      const nomeOrg = new Map((orgs ?? []).map((o) => [o.id, o.nome]));
+      // agrupa por usuário + dia: dá "quantos acessos hoje" e "quanto tempo logado" (span
+      // entre 1º e último evento do dia) sem precisar de evento explícito de logout.
+      const grupos = new Map();
+      for (const log of logs) {
+        const dia = log.created_at.slice(0, 10);
+        const chave = `${log.user_id}|${dia}`;
+        if (!grupos.has(chave)) {
+          grupos.set(chave, { usuario: nomePerfil.get(log.user_id) ?? "—", empresa: nomeOrg.get(log.org_id) ?? "—", dia, qtd: 0, paginas: new Set(), primeiro: log.created_at, ultimo: log.created_at, ip: log.ip });
+        }
+        const g = grupos.get(chave);
+        g.qtd += 1;
+        g.paginas.add(log.pagina);
+        if (log.created_at < g.primeiro) g.primeiro = log.created_at;
+        if (log.created_at > g.ultimo) { g.ultimo = log.created_at; g.ip = log.ip; } // ip mais recente do dia
+      }
+      setAcessos([...grupos.values()].sort((a, b) => b.ultimo.localeCompare(a.ultimo)));
+    })();
+  }, []);
 
   const salvarConfig = async (values) => {
     const { error } = await supabase.from("organizations").update(values).eq("id", editingConfig.org_id);
@@ -167,6 +200,47 @@ export default function PlatformAdminPanel({ temPerfilProprio, onEntrarNaEmpresa
               ))}
             </tbody>
           </table>
+          </div>
+        </Card>
+
+        <div className="flex items-center gap-2 mb-1 mt-10">
+          <Activity size={20} color={COLORS.brass} />
+          <p style={{ fontFamily: "'Source Serif 4', serif", fontWeight: 700, fontSize: 22, color: COLORS.ink }}>Acessos recentes</p>
+        </div>
+        <p className="text-sm mb-6" style={{ color: COLORS.slate }}>
+          Agrupado por usuário e dia — últimos 500 eventos de navegação (troca de aba/login).
+        </p>
+        <Card className="overflow-hidden !p-0">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr style={{ background: COLORS.ink }}>
+                  {["Usuário", "Empresa", "Dia", "Acessos", "Páginas", "Tempo logado", "IP"].map((h) => (
+                    <th key={h} className="text-left px-4 py-3 font-semibold" style={{ color: COLORS.paper, fontSize: 11 }}>{h.toUpperCase()}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {acessos?.length === 0 && (
+                  <tr><td colSpan={7} className="px-4 py-6 text-center text-sm" style={{ color: COLORS.slate }}>Nenhum acesso registrado ainda.</td></tr>
+                )}
+                {(acessos ?? []).map((a, i) => {
+                  const minutos = Math.round((new Date(a.ultimo) - new Date(a.primeiro)) / 60000);
+                  const tempo = minutos < 1 ? "< 1 min" : minutos < 60 ? `${minutos} min` : `${Math.floor(minutos / 60)}h${String(minutos % 60).padStart(2, "0")}`;
+                  return (
+                    <tr key={`${a.usuario}-${a.dia}`} style={{ borderTop: `1px solid ${COLORS.line}`, background: i % 2 ? "#FAF9F5" : COLORS.paperRaised }}>
+                      <td className="px-4 py-3" style={{ color: COLORS.ink, fontWeight: 600 }}>{a.usuario}</td>
+                      <td className="px-4 py-3" style={{ color: COLORS.slate }}>{a.empresa}</td>
+                      <td className="px-4 py-3" style={{ color: COLORS.slate }}>{new Date(`${a.dia}T00:00:00`).toLocaleDateString("pt-BR")}</td>
+                      <td className="px-4 py-3" style={{ color: COLORS.ink }}>{a.qtd}</td>
+                      <td className="px-4 py-3" style={{ color: COLORS.slate }} title={[...a.paginas].join(", ")}>{[...a.paginas].slice(0, 3).join(", ")}{a.paginas.size > 3 ? ` +${a.paginas.size - 3}` : ""}</td>
+                      <td className="px-4 py-3" style={{ color: COLORS.ink }}>{tempo}</td>
+                      <td className="px-4 py-3" style={{ color: COLORS.slate }}>{a.ip ?? "—"}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
         </Card>
       </main>

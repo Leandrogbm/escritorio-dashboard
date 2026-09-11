@@ -1418,6 +1418,22 @@ $$;
 create trigger trg_notificar_trello_nova_tarefa after insert on tarefas
   for each row execute function notificar_trello_nova_tarefa();
 
+-- Log de acesso pro painel da plataforma (quem acessou, qual página, de qual IP, quanto
+-- tempo). Só a Edge Function log-acesso grava aqui (service role, bypassa RLS) — o IP real
+-- só dá pra pegar no header da requisição, não no navegador, por isso não tem policy de
+-- insert pra usuário comum. Sem policy de insert = ninguém além de service role escreve.
+create table access_log (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  org_id uuid references organizations(id) on delete cascade,
+  pagina text not null,
+  ip text,
+  created_at timestamptz not null default now()
+);
+create index access_log_user_id_created_at_idx on access_log (user_id, created_at desc);
+alter table access_log enable row level security;
+create policy access_log_select on access_log for select using (is_platform_admin());
+
 -- ── Seed: Gimenes & Pires ────────────────────────────────────────────────
 
 insert into organizations (nome, slug) values ('Gimenes & Pires', 'gimenes-pires');
