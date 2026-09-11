@@ -2,8 +2,10 @@ import React, { useEffect, useMemo, useState, Suspense, lazy } from "react";
 import { COLORS } from "./lib/theme.js";
 import { MODULES } from "./config/permissions.js";
 import { useAuth } from "./hooks/useAuth.js";
+import { supabase } from "./lib/supabaseClient.js";
 import { useRolePermissions } from "./hooks/useRolePermissions.js";
 import Login from "./components/Login.jsx";
+import LandingPage from "./components/LandingPage.jsx";
 import ResetPassword from "./components/ResetPassword.jsx";
 import PlatformAdminPanel from "./components/PlatformAdminPanel.jsx";
 import Sidebar from "./components/Sidebar.jsx";
@@ -68,7 +70,21 @@ export default function App() {
     const t = setTimeout(() => setTrocandoAba(false), 420);
     return () => clearTimeout(t);
   }, [activeTab]);
+  // Log de acesso pro painel da plataforma (quantos acessos, quais páginas, quanto tempo,
+  // qual IP) — dispara em toda troca de aba enquanto logado; falha em silêncio, telemetria
+  // não pode travar o app nem virar erro visível pro usuário.
+  useEffect(() => {
+    if (!session) return;
+    // Em modo suporte, atribui o acesso à empresa que o platform admin está visitando, não à
+    // própria conta dele (a function só aceita isso de quem é platform admin de verdade).
+    const orgIdSuporte = emSuporte ? orgOverride.org_id : undefined;
+    supabase.functions.invoke("log-acesso", { body: { pagina: activeTab, orgIdSuporte } }).catch(() => {});
+  }, [session, activeTab, emSuporte, orgOverride]);
   const [menuMobileAberto, setMenuMobileAberto] = useState(false); // sidebar vira gaveta em telas pequenas
+  // Página pública antes do login: "landing" (default, ninguém logado ainda) → "login"/
+  // "signup" quando escolhe um CTA. Só existe enquanto !session; ao deslogar volta pra
+  // landing de novo (não persiste, é sempre a entrada de visitante).
+  const [telaPublica, setTelaPublica] = useState("landing");
 
   // Navegação entre abas a partir da página do Cliente (clicar num processo/cobrança dele
   // deve trocar de aba E já abrir aquele registro específico, não só cair na lista) — a aba
@@ -101,7 +117,12 @@ export default function App() {
 
   if (loading) return <FullScreenMessage>Carregando...</FullScreenMessage>;
   if (recovery) return <ResetPassword onDone={clearRecovery} />;
-  if (!session) return <Login />;
+  if (!session) {
+    if (telaPublica === "landing") {
+      return <LandingPage onEntrar={() => setTelaPublica("login")} onCadastrar={() => setTelaPublica("signup")} />;
+    }
+    return <Login initialSignup={telaPublica === "signup"} onVoltar={() => setTelaPublica("landing")} />;
+  }
   if (clienteAcesso) return <PortalCliente clienteAcesso={clienteAcesso} signOut={signOut} />;
   if (isPlatformAdmin && !verEmpresa && !orgOverride) {
     return (

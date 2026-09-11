@@ -9,18 +9,21 @@ import { supabase } from "../lib/supabaseClient.js";
 // Moldura da tela de login/recuperação — painel de marca (ink navy) à esquerda em telas
 // largas, formulário à direita. Só layout/visual em volta do `children`; nenhum dos dois
 // formulários muda de comportamento por causa disso, só ganham uma vitrine em telas grandes.
-function AuthShell({ children }) {
+function AuthShell({ children, onVoltar }) {
   return (
     <div className="min-h-screen w-full flex" style={{ background: COLORS.paper, fontFamily: "'Inter', sans-serif" }}>
       <div
         className="hidden lg:flex flex-col justify-between w-[42%] shrink-0 px-12 py-14 relative overflow-hidden"
         style={{ background: COLORS.ink }}
       >
+        {/* Grão de papel sobre o painel escuro, não o grid de pontos padrão de hero de SaaS —
+            mesma textura do fundo `body::before` (index.css), só que clareada (mix-blend
+            "screen" em vez de "multiply") pra aparecer em cima do verde-cartório escuro. */}
         <div
-          className="absolute inset-0 opacity-[0.06]"
+          className="absolute inset-0 opacity-[0.09]"
           style={{
-            backgroundImage: "radial-gradient(circle, #fff 1px, transparent 1px)",
-            backgroundSize: "22px 22px",
+            mixBlendMode: "screen",
+            backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E\")",
           }}
         />
         <div className="relative flex items-center gap-3">
@@ -39,14 +42,27 @@ function AuthShell({ children }) {
         <p className="relative text-xs" style={{ color: "rgba(255,255,255,0.35)" }}>© {new Date().getFullYear()} Actum</p>
       </div>
 
-      <div className="flex-1 flex items-center justify-center px-4 py-12">
+      <div className="flex-1 flex flex-col items-center justify-center px-4 py-12 relative">
+        {onVoltar && (
+          <button
+            onClick={onVoltar}
+            className="absolute top-4 left-4 sm:top-6 sm:left-6 text-xs underline"
+            style={{ color: COLORS.slate }}
+          >
+            ‹ Voltar
+          </button>
+        )}
         {children}
       </div>
     </div>
   );
 }
 
-export default function Login() {
+// `initialSignup`: chega true quando a Landing manda direto pro CTA "Cadastrar meu
+// escritório" — só inicializa o state interno `signingUp`, resto do fluxo (voltar pro
+// login, recovery) continua igual. `onVoltar`: volta pra Landing; opcional, Login segue
+// funcionando sozinho (ex. deep link) se não vier.
+export default function Login({ initialSignup = false, onVoltar }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -54,7 +70,7 @@ export default function Login() {
   const [forgot, setForgot] = useState(false); // true = mostra o form de "esqueci minha senha"
   const [verSenha, setVerSenha] = useState(false);
   const [sent, setSent] = useState(false);
-  const [signingUp, setSigningUp] = useState(false); // true = mostra o cadastro de empresa nova
+  const [signingUp, setSigningUp] = useState(initialSignup); // true = mostra o cadastro de empresa nova
   const [mostrarPrivacidade, setMostrarPrivacidade] = useState(false);
 
   const handleSubmit = async (e) => {
@@ -84,7 +100,7 @@ export default function Login() {
 
   if (forgot) {
     return (
-      <AuthShell>
+      <AuthShell onVoltar={onVoltar}>
         <Card className="w-full max-w-sm">
           <div className="flex flex-col items-center gap-2 mb-6">
             <img src="/brand/logo-icon.png" alt="Actum" className="w-9 h-9 lg:hidden" />
@@ -136,7 +152,7 @@ export default function Login() {
   }
 
   return (
-    <AuthShell>
+    <AuthShell onVoltar={onVoltar}>
       <Card className="w-full max-w-sm">
         <div className="flex flex-col items-center gap-2 mb-6">
           <img src="/brand/logo-icon.png" alt="Actum" className="w-9 h-9 lg:hidden" />
