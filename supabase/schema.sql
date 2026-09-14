@@ -17,6 +17,7 @@ create table organizations (
   -- que é o financeiro interno dela. Só o platform admin edita (organizations_billing_upd).
   plano text,
   valor_mensal numeric(10,2),
+  mercado_pago_checkout_url text,
   status_pagamento text check (status_pagamento in ('pago','pendente','atrasado')) not null default 'pendente',
   suspenso boolean not null default false, -- bloqueia login de toda a empresa (App.jsx), sem apagar nada
   created_at timestamptz not null default now(),
@@ -39,6 +40,9 @@ create table organizations (
   inscricao_municipal text,
   aliquota_iss numeric(5,2)
 );
+
+-- Migração segura para bancos que já tinham a tabela antes do checkout individual.
+alter table organizations add column if not exists mercado_pago_checkout_url text;
 
 create table profiles (
   id uuid primary key references auth.users(id) on delete cascade,
@@ -520,9 +524,10 @@ create policy organizations_self_upd on organizations for update
 create or replace function guard_organizations_protected_cols() returns trigger
   language plpgsql security definer set search_path = public as $$
 begin
-  if not is_platform_admin() then
+  if not is_platform_admin() and auth.role() <> 'service_role' then
     new.plano := old.plano;
     new.valor_mensal := old.valor_mensal;
+    new.mercado_pago_checkout_url := old.mercado_pago_checkout_url;
     new.status_pagamento := old.status_pagamento;
     new.suspenso := old.suspenso;
     -- cnpj saiu da lista de protegidos: admin/sócio edita pela aba Minha Empresa.
@@ -885,9 +890,11 @@ create table platform_cobrancas (
   mes_referencia date not null, -- sempre dia 1 do mês
   valor numeric(10,2) not null,
   status text not null check (status in ('pago','pendente','atrasado')) default 'pendente',
+  mercado_pago_payment_id text unique,
   created_at timestamptz not null default now(),
   unique (org_id, mes_referencia)
 );
+alter table platform_cobrancas add column if not exists mercado_pago_payment_id text unique;
 create index platform_cobrancas_org_id_idx on platform_cobrancas (org_id);
 alter table platform_cobrancas enable row level security;
 create policy platform_cobrancas_all on platform_cobrancas for all using (is_platform_admin()) with check (is_platform_admin());

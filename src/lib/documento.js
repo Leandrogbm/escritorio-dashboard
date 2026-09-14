@@ -16,3 +16,10 @@ export function formatDocumento(tipo, raw) {
   if (c.length <= 9) return `${c.slice(0, 3)}.${c.slice(3, 6)}.${c.slice(6)}`;
   return `${c.slice(0, 3)}.${c.slice(3, 6)}.${c.slice(6, 9)}-${c.slice(9)}`;
 }
+
+// Campo único que aceita os dois documentos: até 11 dígitos usa CPF; ao receber o
+// 12º dígito, reorganiza automaticamente no padrão de CNPJ.
+export function formatCpfOuCnpj(raw) {
+  const digits = (raw || "").replace(/\D/g, "");
+  return formatDocumento(digits.length > 11 ? "PJ" : "PF", digits);
+}

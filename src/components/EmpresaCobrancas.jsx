@@ -1,11 +1,12 @@
 import React from "react";
-import { X, Wallet } from "lucide-react";
+import { X, Wallet, ExternalLink } from "lucide-react";
 import Card from "./Card.jsx";
 import StatusPicker from "./StatusPicker.jsx";
 import { COLORS } from "../lib/theme.js";
 import { BRL } from "../data/mockData.js";
 import { useSupabaseTable } from "../hooks/useSupabaseTable.js";
 import { useEscClose } from "../hooks/useEscClose.js";
+import { planoPorValor } from "../config/planos.js";
 
 const STATUS_TONE = { pago: "ok", pendente: "warn", atrasado: "urgent" };
 const STATUS_OPTIONS = ["pago", "pendente", "atrasado"];
@@ -40,23 +41,34 @@ export default function EmpresaCobrancas({ orgId, orgNome, onClose }) {
               <tr><th className="text-left px-4 py-2 font-medium" style={{ color: COLORS.slate, fontSize: 11 }}>MÊS</th>
                 <th className="text-left px-4 py-2 font-medium" style={{ color: COLORS.slate, fontSize: 11 }}>VALOR</th>
                 <th className="text-left px-4 py-2 font-medium" style={{ color: COLORS.slate, fontSize: 11 }}>SITUAÇÃO</th>
+                <th className="text-left px-4 py-2 font-medium" style={{ color: COLORS.slate, fontSize: 11 }}></th>
               </tr>
             </thead>
             <tbody>
               {cobrancas.length === 0 && (
-                <tr><td colSpan={3} className="px-4 py-6 text-center" style={{ color: COLORS.slate }}>Nenhuma cobrança lançada ainda — atribua um plano em "Configurar".</td></tr>
+                <tr><td colSpan={4} className="px-4 py-6 text-center" style={{ color: COLORS.slate }}>Nenhuma cobrança lançada ainda — atribua um plano em "Configurar".</td></tr>
               )}
-              {cobrancas.map((c) => (
-                <tr key={c.id} style={{ borderTop: `1px solid ${COLORS.line}` }}>
-                  <td className="px-4 py-2.5" style={{ color: COLORS.ink, fontWeight: 600 }}>
-                    {new Date(`${c.mes_referencia}T00:00:00`).toLocaleDateString("pt-BR", { month: "long", year: "numeric" })}
-                  </td>
-                  <td className="px-4 py-2.5" style={{ color: COLORS.ink }}>{BRL(c.valor)}</td>
-                  <td className="px-4 py-2.5">
-                    <StatusPicker value={c.status} options={STATUS_OPTIONS} tone={STATUS_TONE} onChange={(status) => update(c.id, { status })} />
-                  </td>
-                </tr>
-              ))}
+              {cobrancas.map((c) => {
+                const link = planoPorValor(c.valor)?.linkPagamento;
+                return (
+                  <tr key={c.id} style={{ borderTop: `1px solid ${COLORS.line}` }}>
+                    <td className="px-4 py-2.5" style={{ color: COLORS.ink, fontWeight: 600 }}>
+                      {new Date(`${c.mes_referencia}T00:00:00`).toLocaleDateString("pt-BR", { month: "long", year: "numeric" })}
+                    </td>
+                    <td className="px-4 py-2.5" style={{ color: COLORS.ink }}>{BRL(c.valor)}</td>
+                    <td className="px-4 py-2.5">
+                      <StatusPicker value={c.status} options={STATUS_OPTIONS} tone={STATUS_TONE} onChange={(status) => update(c.id, { status })} />
+                    </td>
+                    <td className="px-4 py-2.5">
+                      {c.status !== "pago" && link && (
+                        <a href={link} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-xs font-semibold" style={{ color: COLORS.brass }}>
+                          Pagar <ExternalLink size={12} />
+                        </a>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
           </div>

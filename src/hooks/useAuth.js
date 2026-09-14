@@ -62,7 +62,7 @@ export function useAuth() {
   const carregarProfile = (uid) =>
     supabase
       .from("profiles")
-      .select("*, organizations(nome, suspenso, cnpj, inscricao_municipal, aliquota_iss, cep, logradouro, numero, complemento, bairro, cidade, uf, termos_aceite, plano, valor_mensal)")
+      .select("*, organizations(nome, suspenso, status_pagamento, mercado_pago_checkout_url, cnpj, inscricao_municipal, aliquota_iss, cep, logradouro, numero, complemento, bairro, cidade, uf, termos_aceite, plano, valor_mensal)")
       .eq("id", uid)
       .maybeSingle()
       .then(({ data }) => {

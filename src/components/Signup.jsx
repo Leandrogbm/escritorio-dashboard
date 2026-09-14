@@ -1,8 +1,11 @@
 import React, { useState } from "react";
+import { ExternalLink } from "lucide-react";
 import Card from "./Card.jsx";
 import PoliticaPrivacidadeModal from "./PoliticaPrivacidadeModal.jsx";
 import { COLORS } from "../lib/theme.js";
 import { supabase } from "../lib/supabaseClient.js";
+import { PLANOS } from "../config/planos.js";
+import { formatCpfOuCnpj } from "../lib/documento.js";
 
 const FIELD_STYLE = { border: `1px solid ${COLORS.line}`, color: COLORS.ink, background: COLORS.paperRaised };
 
@@ -19,6 +22,9 @@ export default function Signup({ onDone, onCancel }) {
   const [loading, setLoading] = useState(false);
   const [termosAceitos, setTermosAceitos] = useState(false);
   const [mostrarPrivacidade, setMostrarPrivacidade] = useState(false);
+  const [plano, setPlano] = useState(PLANOS[0].value);
+  const [criada, setCriada] = useState(false); // true = mostra a tela "pagar agora" antes de entrar
+  const [checkoutUrl, setCheckoutUrl] = useState("");
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -26,8 +32,8 @@ export default function Signup({ onDone, onCancel }) {
     if (!termosAceitos) return setError("Você precisa aceitar os Termos de Uso e a Política de Privacidade pra continuar.");
     setError("");
     setLoading(true);
-    const { error: signupError } = await supabase.functions.invoke("signup-empresa", {
-      body: { nomeEmpresa, cnpj, nomeResponsavel, email, password, termosAceitos: true },
+    const { data: signupData, error: signupError } = await supabase.functions.invoke("signup-empresa", {
+      body: { nomeEmpresa, cnpj, nomeResponsavel, email, password, termosAceitos: true, plano },
     });
     if (signupError) {
       const body = await signupError.context?.json?.().catch(() => null);
@@ -38,8 +44,41 @@ export default function Signup({ onDone, onCancel }) {
     const { error: loginError } = await supabase.auth.signInWithPassword({ email, password });
     setLoading(false);
     if (loginError) { setError("Empresa criada — faça login normalmente."); onCancel(); return; }
-    onDone();
+    setCheckoutUrl(signupData?.checkoutUrl ?? "");
+    setCriada(true);
   };
+
+  const planoEscolhido = PLANOS.find((p) => p.value === plano);
+
+  if (criada) {
+    return (
+      <div className="min-h-screen w-full flex items-center justify-center" style={{ background: COLORS.paper, fontFamily: "'Inter', sans-serif" }}>
+        <Card className="w-full max-w-sm text-center">
+          <p style={{ fontFamily: "'Source Serif 4', serif", color: COLORS.ink, fontWeight: 600, fontSize: 18 }} className="mb-2">
+            Empresa criada!
+          </p>
+          <p className="text-sm mb-5" style={{ color: COLORS.slate }}>
+            Falta só o pagamento do plano <strong style={{ color: COLORS.ink }}>{planoEscolhido?.label}</strong> ({" "}
+            {planoEscolhido ? `R$${planoEscolhido.valor}/mês` : ""}) pra liberar de vez.
+          </p>
+          {checkoutUrl && (
+            <a
+              href={checkoutUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-md text-sm font-semibold mb-3"
+              style={{ background: COLORS.brass, color: "#fff" }}
+            >
+              Pagar agora <ExternalLink size={14} />
+            </a>
+          )}
+          <button onClick={onDone} className="text-xs underline" style={{ color: COLORS.slate }}>
+            Acessar após a confirmação do pagamento
+          </button>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen w-full flex items-center justify-center" style={{ background: COLORS.paper, fontFamily: "'Inter', sans-serif" }}>
@@ -55,8 +94,8 @@ export default function Signup({ onDone, onCancel }) {
           <label htmlFor="signup-empresa" className="sr-only">Nome da empresa</label>
           <input id="signup-empresa" required placeholder="Nome da empresa" value={nomeEmpresa} onChange={(e) => setNomeEmpresa(e.target.value)}
             className="px-3.5 py-2.5 rounded-md text-sm outline-none" style={FIELD_STYLE} />
-          <label htmlFor="signup-cnpj" className="sr-only">CNPJ</label>
-          <input id="signup-cnpj" required placeholder="CNPJ" value={cnpj} onChange={(e) => setCnpj(e.target.value)}
+          <label htmlFor="signup-cnpj" className="sr-only">CPF ou CNPJ</label>
+          <input id="signup-cnpj" required inputMode="numeric" maxLength={18} placeholder="CPF ou CNPJ" value={cnpj} onChange={(e) => setCnpj(formatCpfOuCnpj(e.target.value))}
             className="px-3.5 py-2.5 rounded-md text-sm outline-none" style={FIELD_STYLE} />
           <label htmlFor="signup-responsavel" className="sr-only">Seu nome (responsável/admin)</label>
           <input id="signup-responsavel" required placeholder="Seu nome (responsável/admin)" value={nomeResponsavel} onChange={(e) => setNomeResponsavel(e.target.value)}
@@ -70,6 +109,24 @@ export default function Signup({ onDone, onCancel }) {
           <label htmlFor="signup-confirmar" className="sr-only">Confirmar senha</label>
           <input id="signup-confirmar" required type="password" autoComplete="new-password" placeholder="Confirmar senha" value={confirm} onChange={(e) => setConfirm(e.target.value)}
             className="px-3.5 py-2.5 rounded-md text-sm outline-none" style={FIELD_STYLE} />
+
+          <div className="flex flex-col gap-1.5">
+            <label htmlFor="signup-plano" className="text-xs font-semibold" style={{ color: COLORS.slate }}>Plano</label>
+            <select
+              id="signup-plano"
+              name="plano"
+              value={plano}
+              onChange={(e) => setPlano(e.target.value)}
+              className="w-full px-3.5 py-2.5 rounded-md text-sm outline-none"
+              style={FIELD_STYLE}
+            >
+              {PLANOS.map((p) => (
+                <option key={p.value} value={p.value}>
+                  {p.label} — R${p.valor}/mês
+                </option>
+              ))}
+            </select>
+          </div>
 
           <label className="flex items-start gap-2 text-xs" style={{ color: COLORS.slate }}>
             <input type="checkbox" checked={termosAceitos} onChange={(e) => setTermosAceitos(e.target.checked)} className="mt-0.5 shrink-0" />

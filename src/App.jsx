@@ -86,6 +86,16 @@ export default function App() {
   // landing de novo (não persiste, é sempre a entrada de visitante).
   const [telaPublica, setTelaPublica] = useState("landing");
 
+  // Enquanto o checkout está aberto em outra aba, consulta o status periodicamente para
+  // liberar a sessão sem exigir novo login assim que o webhook confirmar o pagamento.
+  useEffect(() => {
+    if (!session || isPlatformAdmin || !profile?.organizations?.plano || profile.organizations.status_pagamento === "pago") return;
+    const id = setInterval(refreshProfile, 15000);
+    return () => clearInterval(id);
+    // refreshProfile é recriada pelo hook; o status e o usuário determinam este ciclo.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session?.user?.id, isPlatformAdmin, profile?.organizations?.plano, profile?.organizations?.status_pagamento]);
+
   // Navegação entre abas a partir da página do Cliente (clicar num processo/cobrança dele
   // deve trocar de aba E já abrir aquele registro específico, não só cair na lista) — a aba
   // de destino lê isso na montagem e limpa depois de abrir, pra não reabrir de novo à toa
@@ -146,6 +156,27 @@ export default function App() {
     return (
       <FullScreenMessage>
         O acesso da sua empresa está suspenso no momento. Fale com o suporte pra regularizar.
+        <button onClick={signOut} className="block mx-auto mt-4 text-sm underline" style={{ color: COLORS.brassText }}>Sair</button>
+      </FullScreenMessage>
+    );
+  }
+  if (!emSuporte && profile.organizations?.plano && profile.organizations?.status_pagamento !== "pago") {
+    const checkoutUrl = profile.organizations.mercado_pago_checkout_url;
+    return (
+      <FullScreenMessage>
+        <span className="block" style={{ color: COLORS.ink, fontWeight: 600 }}>Aguardando confirmação do pagamento</span>
+        <span className="block mt-2">O acesso à plataforma será liberado assim que o pagamento do plano for confirmado.</span>
+        {checkoutUrl && (
+          <a
+            href={checkoutUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-block mt-4 px-3.5 py-2.5 rounded-md text-sm font-semibold"
+            style={{ background: COLORS.brass, color: "#fff" }}
+          >
+            Pagar agora
+          </a>
+        )}
         <button onClick={signOut} className="block mx-auto mt-4 text-sm underline" style={{ color: COLORS.brassText }}>Sair</button>
       </FullScreenMessage>
     );

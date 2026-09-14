@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { DollarSign, Plus, X, Upload, Wallet, CheckCircle2, Clock3, AlertTriangle } from "lucide-react";
+import { DollarSign, Plus, X, Upload, Wallet, CheckCircle2, Clock3, AlertTriangle, Trash2 } from "lucide-react";
 import Card from "../Card.jsx";
 import KpiCard from "../KpiCard.jsx";
 import SectionTitle from "../SectionTitle.jsx";
@@ -15,6 +15,7 @@ import { BRL } from "../../data/mockData.js";
 import { useSupabaseTable } from "../../hooks/useSupabaseTable.js";
 import { useEscClose } from "../../hooks/useEscClose.js";
 import { supabase } from "../../lib/supabaseClient.js";
+import { confirmarExclusao } from "../../lib/confirmarExclusao.js";
 
 const STATUS_OPTIONS = [
   { value: "Em aberto", label: "Em aberto" },
@@ -184,6 +185,12 @@ export default function FinanceiroTab({ orgId, abrirClienteId, onAbriuCliente } 
     return insert(linhas).then(() => setSelecionado((s) => s ?? values.cliente_id));
   };
 
+  const excluirTodasParcelas = () => {
+    confirmarExclusao("o nome do cliente", clienteAberto.nome, () => {
+      Promise.all(clienteAberto.itens.map((h) => remove(h.id))).then(() => setSelecionado(null));
+    });
+  };
+
   return (
     <div>
       <SectionTitle
@@ -256,6 +263,11 @@ export default function FinanceiroTab({ orgId, abrirClienteId, onAbriuCliente } 
                 <button onClick={() => setEditing({ cliente_id: clienteAberto.id, ...(clienteAberto.tipo === "PJ" ? { parcelas: 12 } : {}) })} className="flex items-center gap-1.5 px-3 py-2 rounded-md text-sm font-semibold" style={{ background: COLORS.ink, color: "#fff" }}>
                   <Plus size={14} /> {clienteAberto.tipo === "PJ" ? "Mensalidade" : "Parcela"}
                 </button>
+                {clienteAberto.itens.length > 0 && (
+                  <button onClick={excluirTodasParcelas} aria-label="Excluir todas" className="p-2 rounded hover:opacity-70" style={{ color: COLORS.wine }}>
+                    <Trash2 size={16} />
+                  </button>
+                )}
                 <button onClick={() => setSelecionado(null)} className="p-2 rounded hover:opacity-70" style={{ color: COLORS.slate }}><X size={18} /></button>
               </div>
             </div>
