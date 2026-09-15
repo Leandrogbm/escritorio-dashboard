@@ -43,7 +43,7 @@ export default function App() {
     return <LeadForm orgId={paramsPublicos.get("org")} />;
   }
 
-  const { session, profile, clienteAcesso, isPlatformAdmin, loading, recovery, clearRecovery, signOut, refreshProfile } = useAuth();
+  const { session, profile, profileLoadFalhou, clienteAcesso, isPlatformAdmin, loading, recovery, clearRecovery, signOut, refreshProfile } = useAuth();
   // orgOverride: platform admin "entrou" como admin de uma empresa alheia (linha de
   // platform_org_metrics, tem org_id/nome/suspenso etc.) — null no uso normal.
   const [orgOverride, setOrgOverride] = useState(null);
@@ -163,6 +163,18 @@ export default function App() {
         onEntrarComoAdmin={setOrgOverride}
         signOut={signOut}
       />
+    );
+  }
+  if (!emSuporte && profile === null && profileLoadFalhou) {
+    // Achado real: uma falha técnica (rede, cache do PostgREST recarregando) tratada como
+    // "sem perfil" mostrava "fale com o administrador" pra gente que tinha perfil normal —
+    // ver comentário em useAuth.js. Erro técnico pede "tentar de novo", não "peça acesso".
+    return (
+      <FullScreenMessage>
+        Não consegui carregar sua conta agora. Pode ser uma instabilidade passageira.
+        <button onClick={refreshProfile} className="block mx-auto mt-4 text-sm underline" style={{ color: COLORS.brassText }}>Tentar de novo</button>
+        <button onClick={signOut} className="block mx-auto mt-2 text-sm underline" style={{ color: COLORS.slate }}>Sair</button>
+      </FullScreenMessage>
     );
   }
   if (!emSuporte && profile === null) {

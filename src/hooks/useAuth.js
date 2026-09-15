@@ -15,6 +15,9 @@ export function useAuth() {
   // true depois de abrir o link do email de "redefinir senha" — supabase-js já cria uma
   // sessão nesse momento, então precisamos distinguir isso de um login normal.
   const [recovery, setRecovery] = useState(false);
+  // true só depois que a consulta de profile falhou de novo mesmo após a 1 retentativa
+  // automática — distingue "erro técnico, recarregue" de "não tem perfil de verdade".
+  const [tentativaFalhou, setTentativaFalhou] = useState(false);
 
   useEffect(() => {
     // Link do email de recovery aponta pro próprio app (?token_hash=...&type=recovery) em vez
@@ -59,17 +62,29 @@ export function useAuth() {
   // o que empurrava a aba ativa de volta pra a primeira da lista.
   const userId = session?.user?.id;
 
-  const carregarProfile = (uid) =>
+  // "profile null" (achou a conta, não achou perfil) é bem diferente de "a consulta falhou"
+  // (rede instável, PostgREST recarregando cache de schema logo depois de uma migração) —
+  // achado real: um erro transitório fazia `data` vir undefined/null igual a "sem perfil",
+  // e a tela dizia "fale com o administrador" pra alguém que na verdade TEM perfil, só não
+  // conseguiu carregar dessa vez. Uma tentativa automática cobre a maioria dos casos; se
+  // insistir, tentativaFalhou avisa a UI pra pedir "recarregar" em vez de mentir sobre acesso.
+  const carregarProfile = (uid, jaTentouDeNovo = false) =>
     supabase
       .from("profiles")
       .select("*, organizations(nome, suspenso, status_pagamento, mercado_pago_checkout_url, cnpj, inscricao_municipal, aliquota_iss, cep, logradouro, numero, complemento, bairro, cidade, uf, termos_aceite, plano, valor_mensal)")
       .eq("id", uid)
       .maybeSingle()
-      .then(({ data }) => {
-        setProfile(data);
+      .then(({ data, error }) => {
+        if (error && !jaTentouDeNovo) {
+          setTimeout(() => carregarProfile(uid, true), 1500);
+          return;
+        }
+        setTentativaFalhou(!!error);
+        setProfile(error ? null : data);
         // só vale a pena checar cliente_logins quando NÃO é colaborador — a maioria das
         // contas é de equipe, então isso evita um select à toa em todo login normal.
         if (data) { setClienteAcesso(null); return; }
+        if (error) { setClienteAcesso(null); return; }
         supabase
           .from("cliente_logins")
           .select("cliente_id, cliente:clientes(nome), organizations(nome)")
@@ -84,6 +99,7 @@ export function useAuth() {
     setProfile(undefined);
     setClienteAcesso(undefined);
     setPlatformAdminChecked(false);
+    setTentativaFalhou(false);
     carregarProfile(session.user.id);
     // platform_org_metrics é security definer e checa isso por dentro — não vaza nada,
     // mas ainda perguntamos explicitamente pra decidir qual painel mostrar no client.
@@ -94,6 +110,7 @@ export function useAuth() {
   return {
     session,
     profile,
+    profileLoadFalhou: tentativaFalhou,
     clienteAcesso,
     isPlatformAdmin,
     loading: session === undefined || (session && (profile === undefined || clienteAcesso === undefined || !platformAdminChecked)),
