@@ -1,9 +1,10 @@
 import React from "react";
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Scale, ArrowRight, FileSearch, ShieldCheck, Users2, LayoutGrid, Check, X, Lock, ChevronDown } from "lucide-react";
 import Card from "./Card.jsx";
 import { COLORS } from "../lib/theme.js";
 import { MODULES } from "../config/permissions.js";
+import { PLANOS } from "../config/planos.js";
 
 // Textura de grão de papel já vem de body::before (index.css) — essa página não precisa
 // reaplicar nada, só herda o mesmo fundo `paper` do resto do app.
@@ -131,6 +132,44 @@ function WhatsAppFlutuante() {
   );
 }
 
+// Scroll-reveal (fade + leve translate-y) via Intersection Observer nativo — só landing,
+// única tela de marketing/venda; o resto do app é ferramenta de trabalho e não usa isso.
+// Classe `.reveal`/`.reveal-visible` em index.css já respeita prefers-reduced-motion.
+function Reveal({ children, delay = 0, className = "" }) {
+  const ref = useRef(null);
+  const [visivel, setVisivel] = useState(false);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const io = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setVisivel(true);
+          io.disconnect();
+        }
+      },
+      { threshold: 0.15 }
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, []);
+  return (
+    <div ref={ref} className={`reveal ${visivel ? "reveal-visible" : ""} ${className}`} style={{ transitionDelay: `${delay}ms` }}>
+      {children}
+    </div>
+  );
+}
+
+// Mesmos três números que aparecem no resto do app (planoLabelCompleto, config/planos.js) —
+// só reformatados como lista de item com check em vez de frase única, pro formato de card.
+function planoFeatures(p) {
+  return [
+    p.limite_usuarios == null ? "Usuários ilimitados" : `Até ${p.limite_usuarios} usuários`,
+    p.limite_processos == null ? "Processos ativos ilimitados" : `Até ${p.limite_processos} processos ativos`,
+    p.limite_clientes == null ? "Clientes ilimitados" : `Até ${p.limite_clientes} clientes`,
+  ];
+}
+
 function Botao({ children, variant = "primary", ...props }) {
   const styles =
     variant === "primary"
@@ -189,7 +228,7 @@ export default function LandingPage({ onEntrar, onCadastrar }) {
           }}
         />
         <div className="relative max-w-6xl mx-auto px-5 sm:px-8 pt-12 pb-16 sm:pt-20 sm:pb-24 grid grid-cols-1 lg:grid-cols-[1fr,auto] gap-12 items-center">
-          <div>
+          <div className="tab-fade-in">
             <Scale size={36} color={COLORS.brass} className="mb-6" />
             <h1
               className="max-w-2xl text-[32px] sm:text-[46px] leading-[1.15]"
@@ -210,7 +249,7 @@ export default function LandingPage({ onEntrar, onCadastrar }) {
               </Botao>
             </div>
           </div>
-          <div className="hidden lg:block">
+          <div className="hidden lg:block tab-fade-in" style={{ animationDelay: "120ms" }}>
             <NotebookComProduto />
           </div>
         </div>
@@ -236,8 +275,8 @@ export default function LandingPage({ onEntrar, onCadastrar }) {
             { n: "1", title: "Cadastre o escritório", text: "Nome, CNPJ e responsável — a conta já sai pronta pra usar, sem etapa de implantação." },
             { n: "2", title: "Cadastre cliente e processo", text: "No seu ritmo. Não precisa migrar o histórico inteiro de uma vez pra começar a usar." },
             { n: "3", title: "Acompanhe num painel só", text: "Prazo, financeiro e andamento processual juntos — sem alternar entre planilha, WhatsApp e site do tribunal." },
-          ].map(({ n, title, text }) => (
-            <div key={n}>
+          ].map(({ n, title, text }, i) => (
+            <Reveal key={n} delay={i * 90}>
               <div
                 className="w-9 h-9 rounded-full flex items-center justify-center mb-3 text-sm font-semibold"
                 style={{ background: COLORS.ink, color: COLORS.brass }}
@@ -248,7 +287,7 @@ export default function LandingPage({ onEntrar, onCadastrar }) {
                 {title}
               </p>
               <p className="text-sm leading-relaxed" style={{ color: COLORS.slate }}>{text}</p>
-            </div>
+            </Reveal>
           ))}
         </div>
       </section>
@@ -262,12 +301,14 @@ export default function LandingPage({ onEntrar, onCadastrar }) {
           Cada frente do escritório, numa aba só
         </h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-          {MODULES.map(({ key, label, icon: Icon }) => (
-            <Card key={key} className="flex flex-col gap-3">
-              <Icon size={22} color={COLORS.brassText} />
-              <p style={{ fontFamily: "'Source Serif 4', serif", color: COLORS.ink, fontWeight: 600, fontSize: 16 }}>{label}</p>
-              <p className="text-sm leading-relaxed" style={{ color: COLORS.slate }}>{MODULE_COPY[key]}</p>
-            </Card>
+          {MODULES.map(({ key, label, icon: Icon }, i) => (
+            <Reveal key={key} delay={(i % 3) * 90}>
+              <Card hoverable className="flex flex-col gap-3 h-full">
+                <Icon size={22} color={COLORS.brassText} />
+                <p style={{ fontFamily: "'Source Serif 4', serif", color: COLORS.ink, fontWeight: 600, fontSize: 16 }}>{label}</p>
+                <p className="text-sm leading-relaxed" style={{ color: COLORS.slate }}>{MODULE_COPY[key]}</p>
+              </Card>
+            </Reveal>
           ))}
         </div>
       </section>
@@ -291,14 +332,14 @@ export default function LandingPage({ onEntrar, onCadastrar }) {
               title: "Portal do cliente",
               text: "Seu cliente acompanha processo e pagamento sem precisar te ligar pra saber \"como está o meu caso\".",
             },
-          ].map(({ icon: Icon, title, text }) => (
-            <div key={title}>
+          ].map(({ icon: Icon, title, text }, i) => (
+            <Reveal key={title} delay={i * 90}>
               <Icon size={20} color={COLORS.ink} className="mb-3" />
               <p style={{ fontFamily: "'Source Serif 4', serif", color: COLORS.ink, fontWeight: 600, fontSize: 16 }} className="mb-1.5">
                 {title}
               </p>
               <p className="text-sm leading-relaxed" style={{ color: COLORS.slate }}>{text}</p>
-            </div>
+            </Reveal>
           ))}
         </div>
       </section>
@@ -311,6 +352,7 @@ export default function LandingPage({ onEntrar, onCadastrar }) {
         <h2 className="text-2xl sm:text-[28px] mb-8" style={{ fontFamily: "'Source Serif 4', serif", color: COLORS.ink, fontWeight: 600 }}>
           Como o escritório trabalha hoje x com o Actum
         </h2>
+        <Reveal>
         <Card className="!p-0 overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -343,13 +385,76 @@ export default function LandingPage({ onEntrar, onCadastrar }) {
             </table>
           </div>
         </Card>
+        </Reveal>
+      </section>
+
+      {/* Planos — mesmos três valores/limites de config/planos.js (fonte única, também usada
+          no ERP e na cobrança) reformatados em lista de check por card; nada de preço/feature
+          inventado aqui. Intermediário é o do meio, ganha borda brass + badge pra puxar o
+          olho pro plano-âncora (efeito de decoy padrão de pricing de 3 colunas), sem esconder
+          nem trocar o preço real dos outros dois. */}
+      <section id="planos" className="max-w-6xl mx-auto px-5 sm:px-8 pb-14 sm:pb-20">
+        <p className="text-xs font-semibold tracking-widest uppercase mb-2" style={{ color: COLORS.brassText }}>
+          Planos
+        </p>
+        <h2 className="text-2xl sm:text-[28px] mb-10" style={{ fontFamily: "'Source Serif 4', serif", color: COLORS.ink, fontWeight: 600 }}>
+          Um valor fixo por mês, sem etapa de "fale com vendas"
+        </h2>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 sm:items-start">
+          {PLANOS.map((p, i) => {
+            const destaque = p.value === "intermediario";
+            return (
+              <Reveal key={p.value} delay={i * 90}>
+                <Card
+                  hoverable
+                  className="flex flex-col h-full relative"
+                  style={destaque ? { border: `2px solid ${COLORS.brass}`, background: COLORS.paperRaised } : {}}
+                >
+                  {destaque && (
+                    <span
+                      className="absolute -top-3 left-5 px-2.5 py-1 rounded-full text-[10px] font-semibold tracking-widest uppercase"
+                      style={{ background: COLORS.brass, color: "#fff" }}
+                    >
+                      Mais escolhido
+                    </span>
+                  )}
+                  <p style={{ fontFamily: "'Source Serif 4', serif", color: COLORS.ink, fontWeight: 600, fontSize: 17 }}>
+                    {p.label}
+                  </p>
+                  <div className="flex items-baseline gap-1 mt-3 mb-5">
+                    <span style={{ fontFamily: "'Source Serif 4', serif", color: COLORS.ink, fontWeight: 600, fontSize: 34 }}>
+                      R${p.valor}
+                    </span>
+                    <span className="text-sm" style={{ color: COLORS.slate }}>/mês</span>
+                  </div>
+                  <ul className="flex flex-col gap-2.5 mb-6 flex-1">
+                    {planoFeatures(p).map((f) => (
+                      <li key={f} className="flex items-start gap-2 text-sm" style={{ color: COLORS.ink }}>
+                        <Check size={15} color={COLORS.success} className="shrink-0 mt-0.5" />
+                        {f}
+                      </li>
+                    ))}
+                  </ul>
+                  <Botao
+                    variant={destaque ? "primary" : "secondary"}
+                    onClick={() => onCadastrar(p.value)}
+                    className="w-full"
+                  >
+                    Cadastrar no {p.label}
+                  </Botao>
+                </Card>
+              </Reveal>
+            );
+          })}
+        </div>
       </section>
 
       {/* Segurança / LGPD — só o confidencial de processo é diferencial de venda; isolamento
           por RLS e credencial protegida são obrigação básica, não vantagem, então ficam como
           rodapé discreto em vez de disputar espaço com o destaque. */}
       <section className="px-5 sm:px-8 pb-14 sm:pb-20">
-        <div className="max-w-6xl mx-auto rounded-md px-6 sm:px-10 py-10" style={{ background: COLORS.inkSoft }}>
+        <Reveal className="max-w-6xl mx-auto">
+        <div className="rounded-md px-6 sm:px-10 py-10" style={{ background: COLORS.inkSoft }}>
           <div className="flex items-center gap-2 mb-3" style={{ color: COLORS.brass }}>
             <Lock size={18} />
             <span className="text-xs font-semibold tracking-widest uppercase">Sigilo de processo</span>
@@ -363,6 +468,7 @@ export default function LandingPage({ onEntrar, onCadastrar }) {
             já são padrão esperado de qualquer sistema — isso o Actum garante, não é diferencial.
           </p>
         </div>
+        </Reveal>
       </section>
 
       {/* FAQ */}
@@ -379,26 +485,29 @@ export default function LandingPage({ onEntrar, onCadastrar }) {
             { p: "Funciona pra advogado autônomo, sem equipe?", r: "Sim. Os cargos (sócio, advogado, financeiro, recepção) existem pra escritório com equipe; sozinho, você usa a conta de admin com acesso a tudo." },
             { p: "Já uso outro sistema — dá pra trocar sem perder histórico?", r: "Cadastro manual ou por planilha é suportado hoje. Migração automatizada de outro sistema é avaliada caso a caso." },
             { p: "Como funciona o suporte se eu tiver um problema?", r: "Contato direto com quem mantém o produto — não é central de atendimento terceirizada." },
-            { p: "Tem contrato de fidelidade ou custo de cancelamento?", r: "Isso é definido na conversa de cadastro do seu escritório — hoje o Actum não trabalha no formato de autoatendimento com plano fechado." },
-          ].map(({ p, r }) => (
-            <details key={p} className="group" style={{ borderBottom: `1px solid ${COLORS.line}` }}>
-              <summary
-                className="flex items-center justify-between gap-4 py-3.5 cursor-pointer list-none text-sm font-semibold"
-                style={{ color: COLORS.ink }}
-              >
-                {p}
-                <ChevronDown size={16} className="shrink-0 transition-transform group-open:rotate-180" style={{ color: COLORS.slate }} />
-              </summary>
-              <p className="text-sm leading-relaxed pb-4 pr-8" style={{ color: COLORS.slate }}>{r}</p>
-            </details>
+            { p: "Tem contrato de fidelidade ou custo de cancelamento?", r: "Não. É autoatendimento: você cadastra o escritório, escolhe o plano e paga direto pelo Mercado Pago — sem contrato assinado nem intervenção de ninguém pra liberar o acesso. Cancela quando quiser, sem fidelidade nem multa." },
+          ].map(({ p, r }, i) => (
+            <Reveal key={p} delay={i * 60}>
+              <details className="group" style={{ borderBottom: `1px solid ${COLORS.line}` }}>
+                <summary
+                  className="flex items-center justify-between gap-4 py-3.5 cursor-pointer list-none text-sm font-semibold"
+                  style={{ color: COLORS.ink }}
+                >
+                  {p}
+                  <ChevronDown size={16} className="shrink-0 transition-transform group-open:rotate-180" style={{ color: COLORS.slate }} />
+                </summary>
+                <p className="text-sm leading-relaxed pb-4 pr-8" style={{ color: COLORS.slate }}>{r}</p>
+              </details>
+            </Reveal>
           ))}
         </div>
       </section>
 
       {/* CTA final */}
       <section className="px-5 sm:px-8 pb-16">
+        <Reveal className="max-w-6xl mx-auto">
         <div
-          className="max-w-6xl mx-auto rounded-md px-6 sm:px-10 py-10 sm:py-12 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6"
+          className="rounded-md px-6 sm:px-10 py-10 sm:py-12 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6"
           style={{ background: COLORS.ink }}
         >
           <div>
@@ -414,6 +523,7 @@ export default function LandingPage({ onEntrar, onCadastrar }) {
             Cadastrar meu escritório <ArrowRight size={16} />
           </Botao>
         </div>
+        </Reveal>
       </section>
 
       <footer className="max-w-6xl mx-auto px-5 sm:px-8 pb-10 flex items-center justify-between text-xs" style={{ color: COLORS.slate }}>

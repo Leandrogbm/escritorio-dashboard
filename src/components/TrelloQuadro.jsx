@@ -4,6 +4,7 @@ import { COLORS } from "../lib/theme.js";
 import { supabase } from "../lib/supabaseClient.js";
 import TrelloCardModal from "./TrelloCardModal.jsx";
 import { corLabel } from "../lib/trelloLabelColor.js";
+import { iniciarArrastoComInclinacao, estiloArrastando } from "../lib/dragCard.js";
 
 // Mostra o quadro do Trello DE VERDADE (não é cópia/mirror local) — busca listas e cards
 // pelo trello-proxy (Edge Function) a cada abertura da aba, e toda ação (arrastar, criar,
@@ -47,6 +48,7 @@ export default function TrelloQuadro() {
   const [novaTarefaEm, setNovaTarefaEm] = useState(null); // id da lista com o form aberto
   const [novoTitulo, setNovoTitulo] = useState("");
   const [cardAberto, setCardAberto] = useState(null); // card clicado (abre TrelloCardModal)
+  const [arrastandoId, setArrastandoId] = useState(null);
 
   const carregar = async () => {
     setErro("");
@@ -106,10 +108,11 @@ export default function TrelloQuadro() {
                 <div
                   key={c.id}
                   draggable
-                  onDragStart={(e) => e.dataTransfer.setData("text/plain", c.id)}
+                  onDragStart={(e) => { iniciarArrastoComInclinacao(e); e.dataTransfer.setData("text/plain", c.id); setArrastandoId(c.id); }}
+                  onDragEnd={() => setArrastandoId(null)}
                   onClick={() => setCardAberto(c)}
                   className="p-2.5 rounded-md text-sm cursor-grab active:cursor-grabbing group"
-                  style={{ background: "#fff", boxShadow: "0 1px 2px rgba(9,30,66,0.25)", minWidth: 0, overflowWrap: "anywhere" }}
+                  style={{ background: "#fff", boxShadow: "0 1px 2px rgba(9,30,66,0.25)", minWidth: 0, overflowWrap: "anywhere", ...estiloArrastando(arrastandoId === c.id) }}
                 >
                   {c.labels?.length > 0 && (
                     <div className="flex flex-wrap gap-1 mb-1.5">

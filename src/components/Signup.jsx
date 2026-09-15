@@ -2,16 +2,15 @@ import React, { useState } from "react";
 import { ExternalLink } from "lucide-react";
 import Card from "./Card.jsx";
 import PoliticaPrivacidadeModal from "./PoliticaPrivacidadeModal.jsx";
+import { AuthField, AuthTabs, FIELD_STYLE } from "./AuthKit.jsx";
 import { COLORS } from "../lib/theme.js";
 import { supabase } from "../lib/supabaseClient.js";
 import { PLANOS } from "../config/planos.js";
 import { formatCpfOuCnpj } from "../lib/documento.js";
 
-const FIELD_STYLE = { border: `1px solid ${COLORS.line}`, color: COLORS.ink, background: COLORS.paperRaised };
-
 // Cadastro self-service de uma empresa nova (organization + admin) via Edge Function
 // signup-empresa. Depois de criar, loga automaticamente com o email/senha informados.
-export default function Signup({ onDone, onCancel }) {
+export default function Signup({ onDone, onCancel, initialPlano }) {
   const [nomeEmpresa, setNomeEmpresa] = useState("");
   const [cnpj, setCnpj] = useState("");
   const [nomeResponsavel, setNomeResponsavel] = useState("");
@@ -22,7 +21,7 @@ export default function Signup({ onDone, onCancel }) {
   const [loading, setLoading] = useState(false);
   const [termosAceitos, setTermosAceitos] = useState(false);
   const [mostrarPrivacidade, setMostrarPrivacidade] = useState(false);
-  const [plano, setPlano] = useState(PLANOS[0].value);
+  const [plano, setPlano] = useState(initialPlano ?? PLANOS[0].value);
   const [criada, setCriada] = useState(false); // true = mostra a tela "pagar agora" antes de entrar
   const [checkoutUrl, setCheckoutUrl] = useState("");
 
@@ -67,7 +66,7 @@ export default function Signup({ onDone, onCancel }) {
               target="_blank"
               rel="noopener noreferrer"
               className="flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-md text-sm font-semibold mb-3"
-              style={{ background: COLORS.brass, color: "#fff" }}
+              style={{ background: COLORS.brass, color: COLORS.ink }}
             >
               Pagar agora <ExternalLink size={14} />
             </a>
@@ -83,35 +82,27 @@ export default function Signup({ onDone, onCancel }) {
   return (
     <div className="min-h-screen w-full flex items-center justify-center" style={{ background: COLORS.paper, fontFamily: "'Inter', sans-serif" }}>
       <Card className="w-full max-w-sm">
-        <div className="flex flex-col items-center gap-2 mb-6">
-          <img src="/brand/logo-icon.png" alt="Actum" className="w-9 h-9" />
-          <p style={{ fontFamily: "'Source Serif 4', serif", color: COLORS.ink, fontWeight: 600, fontSize: 18 }}>
+        <div className="flex flex-col items-center gap-1 mb-5">
+          <img src="/brand/logo-icon.png" alt="Actum" className="w-9 h-9 mb-2" />
+          <p style={{ fontFamily: "'Source Serif 4', serif", color: COLORS.ink, fontWeight: 600, fontSize: 22 }}>
             Cadastrar empresa
           </p>
+          <p className="text-xs mb-3" style={{ color: COLORS.slate }}>Crie o acesso do seu escritório no Actum</p>
+          <AuthTabs active="signup" onLogin={onCancel} onSignup={() => {}} />
         </div>
 
-        <form onSubmit={handleSubmit} className="flex flex-col gap-3">
-          <label htmlFor="signup-empresa" className="sr-only">Nome da empresa</label>
-          <input id="signup-empresa" required placeholder="Nome da empresa" value={nomeEmpresa} onChange={(e) => setNomeEmpresa(e.target.value)}
-            className="px-3.5 py-2.5 rounded-md text-sm outline-none" style={FIELD_STYLE} />
-          <label htmlFor="signup-cnpj" className="sr-only">CPF ou CNPJ</label>
-          <input id="signup-cnpj" required inputMode="numeric" maxLength={18} placeholder="CPF ou CNPJ" value={cnpj} onChange={(e) => setCnpj(formatCpfOuCnpj(e.target.value))}
-            className="px-3.5 py-2.5 rounded-md text-sm outline-none" style={FIELD_STYLE} />
-          <label htmlFor="signup-responsavel" className="sr-only">Seu nome (responsável/admin)</label>
-          <input id="signup-responsavel" required placeholder="Seu nome (responsável/admin)" value={nomeResponsavel} onChange={(e) => setNomeResponsavel(e.target.value)}
-            className="px-3.5 py-2.5 rounded-md text-sm outline-none" style={FIELD_STYLE} />
-          <label htmlFor="signup-email" className="sr-only">Email corporativo</label>
-          <input id="signup-email" required type="email" autoComplete="email" placeholder="Email corporativo" value={email} onChange={(e) => setEmail(e.target.value)}
-            className="px-3.5 py-2.5 rounded-md text-sm outline-none" style={FIELD_STYLE} />
-          <label htmlFor="signup-senha" className="sr-only">Senha</label>
-          <input id="signup-senha" required type="password" autoComplete="new-password" placeholder="Senha" value={password} onChange={(e) => setPassword(e.target.value)}
-            className="px-3.5 py-2.5 rounded-md text-sm outline-none" style={FIELD_STYLE} />
-          <label htmlFor="signup-confirmar" className="sr-only">Confirmar senha</label>
-          <input id="signup-confirmar" required type="password" autoComplete="new-password" placeholder="Confirmar senha" value={confirm} onChange={(e) => setConfirm(e.target.value)}
-            className="px-3.5 py-2.5 rounded-md text-sm outline-none" style={FIELD_STYLE} />
+        <form onSubmit={handleSubmit} className="flex flex-col gap-3.5">
+          <AuthField id="signup-empresa" label="Nome da empresa" required value={nomeEmpresa} onChange={(e) => setNomeEmpresa(e.target.value)} />
+          <AuthField id="signup-cnpj" label="CPF ou CNPJ" required inputMode="numeric" maxLength={18} value={cnpj} onChange={(e) => setCnpj(formatCpfOuCnpj(e.target.value))} />
+          <AuthField id="signup-responsavel" label="Responsável (admin)" required value={nomeResponsavel} onChange={(e) => setNomeResponsavel(e.target.value)} />
+          <AuthField id="signup-email" label="Email corporativo" required type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+          <div className="grid grid-cols-2 gap-3">
+            <AuthField id="signup-senha" label="Senha" required type="password" autoComplete="new-password" value={password} onChange={(e) => setPassword(e.target.value)} />
+            <AuthField id="signup-confirmar" label="Confirmar senha" required type="password" autoComplete="new-password" value={confirm} onChange={(e) => setConfirm(e.target.value)} />
+          </div>
 
           <div className="flex flex-col gap-1.5">
-            <label htmlFor="signup-plano" className="text-xs font-semibold" style={{ color: COLORS.slate }}>Plano</label>
+            <label htmlFor="signup-plano" className="text-[11px] font-semibold uppercase tracking-widest" style={{ color: COLORS.slate }}>Plano</label>
             <select
               id="signup-plano"
               name="plano"
@@ -143,12 +134,8 @@ export default function Signup({ onDone, onCancel }) {
 
           <button type="submit" disabled={loading}
             className="mt-1 px-3.5 py-2.5 rounded-md text-sm font-semibold"
-            style={{ background: COLORS.ink, color: "#fff", opacity: loading ? 0.6 : 1 }}>
+            style={{ background: COLORS.brass, color: COLORS.ink, opacity: loading ? 0.6 : 1 }}>
             {loading ? "Criando..." : "Criar empresa"}
-          </button>
-
-          <button type="button" onClick={onCancel} className="text-xs underline" style={{ color: COLORS.slate }}>
-            Já tenho conta — voltar ao login
           </button>
         </form>
       </Card>

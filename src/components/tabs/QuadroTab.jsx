@@ -5,6 +5,7 @@ import SectionTitle from "../SectionTitle.jsx";
 import TrelloQuadro from "../TrelloQuadro.jsx";
 import { COLORS } from "../../lib/theme.js";
 import { useSupabaseTable } from "../../hooks/useSupabaseTable.js";
+import { iniciarArrastoComInclinacao, estiloArrastando } from "../../lib/dragCard.js";
 
 // Quadro geral de tarefas (mesma tabela `tarefas` do Kanban por processo, ver TarefasPanel.jsx)
 // — aqui agrupado por advogado responsável em vez de por processo, pra dar visão "o que cada
@@ -42,6 +43,7 @@ export default function QuadroTab({ orgId, currentRole, profile }) {
   const vejaTudo = currentRole === "socio";
 
   const [formAberto, setFormAberto] = useState(false);
+  const [arrastandoId, setArrastandoId] = useState(null);
   const [novoTitulo, setNovoTitulo] = useState("");
   const [novaDescricao, setNovaDescricao] = useState("");
   const [novoResponsavel, setNovoResponsavel] = useState(vejaTudo ? "" : (profile?.id ?? ""));
@@ -170,9 +172,10 @@ export default function QuadroTab({ orgId, currentRole, profile }) {
                       <div
                         key={t.id}
                         draggable
-                        onDragStart={(e) => e.dataTransfer.setData("text/plain", t.id)}
+                        onDragStart={(e) => { iniciarArrastoComInclinacao(e); e.dataTransfer.setData("text/plain", t.id); setArrastandoId(t.id); }}
+                        onDragEnd={() => setArrastandoId(null)}
                         className="p-2.5 rounded-md text-sm cursor-grab active:cursor-grabbing"
-                        style={{ border: `1px solid ${COLORS.line}`, background: COLORS.paperRaised }}
+                        style={{ border: `1px solid ${COLORS.line}`, background: COLORS.paperRaised, ...estiloArrastando(arrastandoId === t.id) }}
                       >
                         <p style={{ color: COLORS.ink }}>{t.titulo}</p>
                         {t.descricao && <p className="text-xs mt-1 whitespace-pre-wrap" style={{ color: COLORS.slate }}>{t.descricao}</p>}

@@ -3,6 +3,7 @@ import { Eye, EyeOff, Scale } from "lucide-react";
 import Card from "./Card.jsx";
 import Signup from "./Signup.jsx";
 import PoliticaPrivacidadeModal from "./PoliticaPrivacidadeModal.jsx";
+import { AuthField, AuthTabs } from "./AuthKit.jsx";
 import { COLORS } from "../lib/theme.js";
 import { supabase } from "../lib/supabaseClient.js";
 
@@ -13,33 +14,43 @@ function AuthShell({ children, onVoltar }) {
   return (
     <div className="min-h-screen w-full flex" style={{ background: COLORS.paper, fontFamily: "'Inter', sans-serif" }}>
       <div
-        className="hidden lg:flex flex-col justify-between w-[42%] shrink-0 px-12 py-14 relative overflow-hidden"
-        style={{ background: COLORS.ink }}
+        className="hidden lg:flex w-[42%] shrink-0 p-3"
+        style={{ background: COLORS.paper }}
       >
-        {/* Grão de papel sobre o painel escuro, não o grid de pontos padrão de hero de SaaS —
-            mesma textura do fundo `body::before` (index.css), só que clareada (mix-blend
-            "screen" em vez de "multiply") pra aparecer em cima do verde-cartório escuro. */}
+        {/* Lauda dupla arredondada (linguagem do print de referência: card bem arredondado,
+            "estufa" no hover) em vez do painel reto de ponta a ponta — cada metade é um
+            `.login-box` (ver index.css) que cresce com overshoot ao passar o mouse. */}
         <div
-          className="absolute inset-0 opacity-[0.09]"
-          style={{
-            mixBlendMode: "screen",
-            backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E\")",
-          }}
-        />
-        <div className="relative flex items-center gap-3">
-          <img src="/brand/logo-icon.png" alt="Actum" className="w-9 h-9" />
-          <span style={{ fontFamily: "'Source Serif 4', serif", color: "#fff", fontWeight: 600, fontSize: 20 }}>Actum</span>
+          className="login-boxes flex flex-col w-full relative overflow-hidden"
+          style={{ background: COLORS.ink, borderRadius: 28 }}
+        >
+          {/* Grão de papel sobre o painel escuro, não o grid de pontos padrão de hero de SaaS —
+              mesma textura do fundo `body::before` (index.css), só que clareada (mix-blend
+              "screen" em vez de "multiply") pra aparecer em cima do verde-cartório escuro. */}
+          <div
+            className="absolute inset-0 opacity-[0.09] pointer-events-none"
+            style={{
+              mixBlendMode: "screen",
+              backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E\")",
+            }}
+          />
+
+          <div className="login-box relative flex flex-col items-center justify-center text-center px-10 border-b" style={{ borderColor: "rgba(255,255,255,0.08)" }}>
+            <img src="/brand/logo-icon.png" alt="Actum" className="w-10 h-10 mb-3" />
+            <span style={{ fontFamily: "'Source Serif 4', serif", color: "#fff", fontWeight: 600, fontSize: 22 }}>Actum</span>
+          </div>
+
+          <div className="login-box relative flex flex-col items-center justify-center text-center px-10">
+            <Scale size={32} color={COLORS.brass} className="mb-5" />
+            <p style={{ fontFamily: "'Source Serif 4', serif", color: "#fff", fontWeight: 600, fontSize: 26, lineHeight: 1.25 }}>
+              Gestão jurídica e ERP,<br />num só lugar.
+            </p>
+            <p className="text-sm mt-3 max-w-xs" style={{ color: "rgba(255,255,255,0.6)" }}>
+              Processos, prazos, financeiro e equipe do escritório — organizados com o rigor que a advocacia exige.
+            </p>
+            <p className="text-xs mt-8" style={{ color: "rgba(255,255,255,0.35)" }}>© {new Date().getFullYear()} Actum</p>
+          </div>
         </div>
-        <div className="relative">
-          <Scale size={34} color={COLORS.brass} className="mb-5" />
-          <p style={{ fontFamily: "'Source Serif 4', serif", color: "#fff", fontWeight: 600, fontSize: 30, lineHeight: 1.25 }}>
-            Gestão jurídica e ERP,<br />num só lugar.
-          </p>
-          <p className="text-sm mt-3 max-w-sm" style={{ color: "rgba(255,255,255,0.6)" }}>
-            Processos, prazos, financeiro e equipe do escritório — organizados com o rigor que a advocacia exige.
-          </p>
-        </div>
-        <p className="relative text-xs" style={{ color: "rgba(255,255,255,0.35)" }}>© {new Date().getFullYear()} Actum</p>
       </div>
 
       <div className="flex-1 flex flex-col items-center justify-center px-4 py-12 relative">
@@ -62,7 +73,7 @@ function AuthShell({ children, onVoltar }) {
 // escritório" — só inicializa o state interno `signingUp`, resto do fluxo (voltar pro
 // login, recovery) continua igual. `onVoltar`: volta pra Landing; opcional, Login segue
 // funcionando sozinho (ex. deep link) se não vier.
-export default function Login({ initialSignup = false, onVoltar }) {
+export default function Login({ initialSignup = false, onVoltar, initialPlano }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -95,18 +106,19 @@ export default function Login({ initialSignup = false, onVoltar }) {
   };
 
   if (signingUp) {
-    return <Signup onDone={() => setSigningUp(false)} onCancel={() => setSigningUp(false)} />;
+    return <Signup onDone={() => setSigningUp(false)} onCancel={() => setSigningUp(false)} initialPlano={initialPlano} />;
   }
 
   if (forgot) {
     return (
       <AuthShell onVoltar={onVoltar}>
         <Card className="w-full max-w-sm">
-          <div className="flex flex-col items-center gap-2 mb-6">
-            <img src="/brand/logo-icon.png" alt="Actum" className="w-9 h-9 lg:hidden" />
-            <p style={{ fontFamily: "'Source Serif 4', serif", color: COLORS.ink, fontWeight: 600, fontSize: 18 }}>
+          <div className="flex flex-col items-center gap-1 mb-6">
+            <img src="/brand/logo-icon.png" alt="Actum" className="w-9 h-9 lg:hidden mb-2" />
+            <p style={{ fontFamily: "'Source Serif 4', serif", color: COLORS.ink, fontWeight: 600, fontSize: 22 }}>
               Redefinir senha
             </p>
+            <p className="text-xs" style={{ color: COLORS.slate }}>Mandamos um link pro seu e-mail cadastrado</p>
           </div>
 
           {sent ? (
@@ -114,25 +126,22 @@ export default function Login({ initialSignup = false, onVoltar }) {
               Se esse e-mail estiver cadastrado, mandamos um link pra redefinir a senha.
             </p>
           ) : (
-            <form onSubmit={handleForgot} className="flex flex-col gap-3">
-              <label htmlFor="forgot-email" className="sr-only">Seu e-mail</label>
-              <input
+            <form onSubmit={handleForgot} className="flex flex-col gap-3.5">
+              <AuthField
                 id="forgot-email"
+                label="Seu e-mail"
                 type="email"
                 required
                 autoComplete="email"
-                placeholder="Seu e-mail"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="px-3.5 py-2.5 rounded-md text-sm outline-none"
-                style={{ border: `1px solid ${COLORS.line}`, color: COLORS.ink, background: COLORS.paperRaised }}
               />
               {error && <p className="text-xs" style={{ color: COLORS.wine }}>{error}</p>}
               <button
                 type="submit"
                 disabled={loading}
                 className="mt-1 px-3.5 py-2.5 rounded-md text-sm font-semibold"
-                style={{ background: COLORS.ink, color: "#fff", opacity: loading ? 0.6 : 1 }}
+                style={{ background: COLORS.brass, color: COLORS.ink, opacity: loading ? 0.6 : 1 }}
               >
                 {loading ? "Enviando..." : "Enviar link"}
               </button>
@@ -154,49 +163,50 @@ export default function Login({ initialSignup = false, onVoltar }) {
   return (
     <AuthShell onVoltar={onVoltar}>
       <Card className="w-full max-w-sm">
-        <div className="flex flex-col items-center gap-2 mb-6">
-          <img src="/brand/logo-icon.png" alt="Actum" className="w-9 h-9 lg:hidden" />
-          <p style={{ fontFamily: "'Source Serif 4', serif", color: COLORS.ink, fontWeight: 600, fontSize: 18 }}>
-            Actum
+        <div className="flex flex-col items-center gap-1 mb-5">
+          <img src="/brand/logo-icon.png" alt="Actum" className="w-9 h-9 lg:hidden mb-2" />
+          <p style={{ fontFamily: "'Source Serif 4', serif", color: COLORS.ink, fontWeight: 600, fontSize: 22 }}>
+            Acessar conta
           </p>
-          <p className="text-xs" style={{ color: COLORS.slate }}>Acesse com seu e-mail e senha</p>
+          <p className="text-xs mb-3" style={{ color: COLORS.slate }}>Entre com seu e-mail e senha</p>
+          <AuthTabs active="login" onLogin={() => {}} onSignup={() => { setSigningUp(true); setError(""); }} />
         </div>
 
-        <form onSubmit={handleSubmit} className="flex flex-col gap-3">
-          <label htmlFor="login-email" className="sr-only">E-mail</label>
-          <input
+        <form onSubmit={handleSubmit} className="flex flex-col gap-3.5">
+          <AuthField
             id="login-email"
+            label="E-mail"
             type="email"
             required
             autoComplete="email"
-            placeholder="E-mail"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className="px-3.5 py-2.5 rounded-md text-sm outline-none"
-            style={{ border: `1px solid ${COLORS.line}`, color: COLORS.ink, background: COLORS.paperRaised }}
           />
-          <div className="relative">
-            <label htmlFor="login-password" className="sr-only">Senha</label>
-            <input
-              id="login-password"
-              type={verSenha ? "text" : "password"}
-              required
-              autoComplete="current-password"
-              placeholder="Senha"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full px-3.5 py-2.5 pr-10 rounded-md text-sm outline-none"
-              style={{ border: `1px solid ${COLORS.line}`, color: COLORS.ink, background: COLORS.paperRaised }}
-            />
-            <button
-              type="button"
-              onClick={() => setVerSenha((v) => !v)}
-              aria-label={verSenha ? "Esconder senha" : "Mostrar senha"}
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 rounded hover:opacity-70"
-              style={{ color: COLORS.slate }}
-            >
-              {verSenha ? <EyeOff size={16} /> : <Eye size={16} />}
-            </button>
+          <div className="flex flex-col gap-1.5">
+            <label htmlFor="login-password" className="text-[11px] font-semibold uppercase tracking-widest" style={{ color: COLORS.slate }}>
+              Senha
+            </label>
+            <div className="relative">
+              <input
+                id="login-password"
+                type={verSenha ? "text" : "password"}
+                required
+                autoComplete="current-password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="w-full px-3.5 py-2.5 pr-10 rounded-md text-sm outline-none"
+                style={{ border: `1px solid ${COLORS.line}`, color: COLORS.ink, background: COLORS.paperRaised }}
+              />
+              <button
+                type="button"
+                onClick={() => setVerSenha((v) => !v)}
+                aria-label={verSenha ? "Esconder senha" : "Mostrar senha"}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 rounded hover:opacity-70"
+                style={{ color: COLORS.slate }}
+              >
+                {verSenha ? <EyeOff size={16} /> : <Eye size={16} />}
+              </button>
+            </div>
           </div>
 
           {error && <p className="text-xs" style={{ color: COLORS.wine }}>{error}</p>}
@@ -205,29 +215,19 @@ export default function Login({ initialSignup = false, onVoltar }) {
             type="submit"
             disabled={loading}
             className="mt-1 px-3.5 py-2.5 rounded-md text-sm font-semibold"
-            style={{ background: COLORS.ink, color: "#fff", opacity: loading ? 0.6 : 1 }}
+            style={{ background: COLORS.brass, color: COLORS.ink, opacity: loading ? 0.6 : 1 }}
           >
             {loading ? "Entrando..." : "Entrar"}
           </button>
 
-          <div className="flex items-center justify-between">
-            <button
-              type="button"
-              onClick={() => { setForgot(true); setError(""); }}
-              className="text-xs underline"
-              style={{ color: COLORS.slate }}
-            >
-              Esqueci minha senha
-            </button>
-            <button
-              type="button"
-              onClick={() => { setSigningUp(true); setError(""); }}
-              className="text-xs underline"
-              style={{ color: COLORS.slate }}
-            >
-              Cadastrar minha empresa
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={() => { setForgot(true); setError(""); }}
+            className="text-xs underline mx-auto"
+            style={{ color: COLORS.slate }}
+          >
+            Esqueci minha senha
+          </button>
         </form>
 
         <p className="text-xs mt-5 text-center" style={{ color: COLORS.slate }}>

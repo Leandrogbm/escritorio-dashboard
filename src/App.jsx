@@ -85,6 +85,22 @@ export default function App() {
   // "signup" quando escolhe um CTA. Só existe enquanto !session; ao deslogar volta pra
   // landing de novo (não persiste, é sempre a entrada de visitante).
   const [telaPublica, setTelaPublica] = useState("landing");
+  // Sem router (ver topo do arquivo) — landing/login/signup são só state, então o botão
+  // "voltar" do navegador não tinha nenhum histórico pra voltar e saía do site direto.
+  // history.pushState/popstate nativos resolvem sem precisar de lib de rotas: cada troca de
+  // tela pública empilha uma entrada, e "voltar" restaura o state anterior em vez de sair.
+  const irParaTelaPublica = (tela) => {
+    window.history.pushState({ telaPublica: tela }, "");
+    setTelaPublica(tela);
+  };
+  // Setado quando a Landing manda direto de um card de preço específico ("Cadastrar no
+  // Intermediário") — Signup abre já com aquele plano marcado em vez do primeiro da lista.
+  const [planoPreSelecionado, setPlanoPreSelecionado] = useState(undefined);
+  useEffect(() => {
+    const onPopState = (e) => setTelaPublica(e.state?.telaPublica ?? "landing");
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, []);
 
   // Enquanto o checkout está aberto em outra aba, consulta o status periodicamente para
   // liberar a sessão sem exigir novo login assim que o webhook confirmar o pagamento.
@@ -129,9 +145,14 @@ export default function App() {
   if (recovery) return <ResetPassword onDone={clearRecovery} />;
   if (!session) {
     if (telaPublica === "landing") {
-      return <LandingPage onEntrar={() => setTelaPublica("login")} onCadastrar={() => setTelaPublica("signup")} />;
+      return (
+        <LandingPage
+          onEntrar={() => irParaTelaPublica("login")}
+          onCadastrar={(plano) => { setPlanoPreSelecionado(plano); irParaTelaPublica("signup"); }}
+        />
+      );
     }
-    return <Login initialSignup={telaPublica === "signup"} onVoltar={() => setTelaPublica("landing")} />;
+    return <Login initialSignup={telaPublica === "signup"} onVoltar={() => irParaTelaPublica("landing")} initialPlano={planoPreSelecionado} />;
   }
   if (clienteAcesso) return <PortalCliente clienteAcesso={clienteAcesso} signOut={signOut} />;
   if (isPlatformAdmin && !verEmpresa && !orgOverride) {
