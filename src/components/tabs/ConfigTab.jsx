@@ -1,11 +1,33 @@
-import React from "react";
-import { Settings, ShieldCheck } from "lucide-react";
+import React, { useState } from "react";
+import { Settings, ShieldCheck, Plug, ChevronDown } from "lucide-react";
 import Card from "../Card.jsx";
 import SectionTitle from "../SectionTitle.jsx";
 import { COLORS } from "../../lib/theme.js";
 import { ROLES, MODULES } from "../../config/permissions.js";
 import ApiKeysSection from "../ApiKeysSection.jsx";
 import IntegracoesSection from "../IntegracoesSection.jsx";
+
+// API pública e Integrações são uso raro (maioria dos escritórios nunca mexe nisso) — vinham
+// sempre abertas ocupando a tela toda. Recolhidas por padrão, mesmo gesto de clicar-pra-abrir
+// que os itens de dentro de IntegracoesSection (D4Sign/Escavador/Trello) já usam.
+function SecaoRecolhivel({ icon: Icon, titulo, subtitulo, children }) {
+  const [aberto, setAberto] = useState(false);
+  return (
+    <Card className="mt-4 !p-0 overflow-hidden">
+      <button onClick={() => setAberto((v) => !v)} className="w-full flex items-center justify-between gap-3 px-5 py-4 text-left">
+        <span className="flex items-center gap-2.5">
+          <Icon size={17} color={COLORS.brass} />
+          <span>
+            <span className="block text-sm font-semibold" style={{ color: COLORS.ink }}>{titulo}</span>
+            <span className="block text-xs" style={{ color: COLORS.slate }}>{subtitulo}</span>
+          </span>
+        </span>
+        <ChevronDown size={18} color={COLORS.slate} style={{ transform: aberto ? "rotate(180deg)" : "none", transition: "transform 150ms ease" }} />
+      </button>
+      {aberto && <div className="px-5 pb-5" style={{ borderTop: `1px solid ${COLORS.line}` }}>{children}</div>}
+    </Card>
+  );
+}
 
 export default function ConfigTab({ permissions, togglePermission, orgId }) {
   return (
@@ -54,8 +76,13 @@ export default function ConfigTab({ permissions, togglePermission, orgId }) {
         O perfil Administrador(a) sempre enxerga todos os módulos e não pode ser restringido por aqui.
       </p>
 
-      <ApiKeysSection orgId={orgId} />
-      <IntegracoesSection orgId={orgId} />
+      {/* ponytail: API pública segurada a pedido do usuário — tabela api_keys e a Edge
+          Function api-gateway continuam intactas, só a UI some. Reativar: tirar o "false &&". */}
+      {false && <ApiKeysSection orgId={orgId} />}
+
+      <SecaoRecolhivel icon={Plug} titulo="Integrações" subtitulo="D4Sign, Escavador, Trello — clique no nome pra ver os campos">
+        <IntegracoesSection orgId={orgId} />
+      </SecaoRecolhivel>
     </div>
   );
 }

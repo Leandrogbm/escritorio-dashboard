@@ -18,6 +18,21 @@ create table organizations (
   plano text,
   valor_mensal numeric(10,2),
   mercado_pago_checkout_url text,
+  -- assinatura recorrente (Payment Brick embutido) — diferente do checkout avulso acima
+  -- (legado, sem uso desde o modelo de trial por uso). Setadas juntas por
+  -- mercado-pago-criar-assinatura; ver guard_organizations_protected_cols e
+  -- lancar_cobrancas_plano (usa mercado_pago_subscription_id pra distinguir assinatura
+  -- automática de atribuição manual de plano pelo platform admin).
+  mercado_pago_subscription_id text,
+  assinatura_iniciada_em timestamptz, -- início da fidelidade mínima de 3 meses
+  -- ciclo pago corrente ainda não terminou: assinatura já foi cancelada no Mercado Pago (não
+  -- cobra de novo), mas o downgrade pro grátis só é EFETIVADO nessa data (ver
+  -- efetivar_cancelamentos_agendados) — nunca perde o mês já pago, nunca reembolsa.
+  cancelamento_agendado_para timestamptz,
+  -- 'anual' paga o ano inteiro de uma vez (valor_mensal * 12 * 0.95, desconto aplicado só na
+  -- Edge Function, nunca confiado do client) — mesmo mecanismo de fidelidade/cancelamento,
+  -- só muda como cancelamento_agendado_para é calculado (ver mercado-pago-cancelar-assinatura).
+  assinatura_ciclo text not null default 'mensal' check (assinatura_ciclo in ('mensal', 'anual')),
   status_pagamento text check (status_pagamento in ('pago','pendente','atrasado')) not null default 'pendente',
   suspenso boolean not null default false, -- bloqueia login de toda a empresa (App.jsx), sem apagar nada
   created_at timestamptz not null default now(),
@@ -400,6 +415,7 @@ create table plan_limits (
   limite_clientes int
 );
 insert into plan_limits (plano, valor_mensal, limite_usuarios, limite_processos, limite_clientes) values
+  ('gratis', 0.00, 2, 2, 2), -- trial por uso, sem prazo — signup-empresa sempre cria a org aqui
   ('basic', 100.00, 5, 50, 50),
   ('intermediario', 300.00, 15, 200, 200),
   ('plus', 500.00, null, null, null);
@@ -547,6 +563,10 @@ begin
     new.mercado_pago_checkout_url := old.mercado_pago_checkout_url;
     new.status_pagamento := old.status_pagamento;
     new.suspenso := old.suspenso;
+    new.mercado_pago_subscription_id := old.mercado_pago_subscription_id;
+    new.assinatura_iniciada_em := old.assinatura_iniciada_em;
+    new.cancelamento_agendado_para := old.cancelamento_agendado_para;
+    new.assinatura_ciclo := old.assinatura_ciclo;
     -- cnpj saiu da lista de protegidos: admin/sócio edita pela aba Minha Empresa.
   end if;
   return new;
@@ -946,13 +966,17 @@ create index platform_cobrancas_org_id_idx on platform_cobrancas (org_id);
 alter table platform_cobrancas enable row level security;
 create policy platform_cobrancas_all on platform_cobrancas for all using (is_platform_admin()) with check (is_platform_admin());
 
--- Sempre que um plano é (re)atribuído (Configurar → salva plano diferente do anterior),
--- lança os 6 meses seguintes de cobrança de uma vez — on conflict do nothing pra não duplicar
--- mês já lançado se o plano for reconfigurado de novo.
+-- Sempre que um plano é (re)atribuído MANUALMENTE (Configurar → salva plano diferente do
+-- anterior, contrato combinado fora do Mercado Pago), lança os 6 meses seguintes de cobrança
+-- de uma vez — on conflict do nothing pra não duplicar mês já lançado se o plano for
+-- reconfigurado de novo. Assinatura via Payment Brick (mercado-pago-criar-assinatura) NÃO
+-- passa por aqui: ela sempre seta mercado_pago_subscription_id junto com o plano, e cada
+-- cobrança dela vira 1 linha por vez, só quando o webhook confirma o pagamento de verdade.
 create or replace function lancar_cobrancas_plano() returns trigger
   language plpgsql security definer set search_path = public as $$
 begin
-  if new.plano is not null and new.valor_mensal is not null and (old.plano is distinct from new.plano) then
+  if new.plano is not null and new.valor_mensal is not null and new.mercado_pago_subscription_id is null
+     and (old.plano is distinct from new.plano) then
     insert into platform_cobrancas (org_id, mes_referencia, valor, status)
     select new.id, (date_trunc('month', now()) + (n || ' months')::interval)::date, new.valor_mensal,
       case when n = 0 and new.status_pagamento = 'pago' then 'pago' else 'pendente' end
@@ -1451,6 +1475,21 @@ select cron.schedule('datajud-sync-horario', '0 * * * *', $$
   );
 $$);
 select cron.schedule('prazos-alertas-diario', '0 8 * * *', $$ select gerar_alertas_prazos(); $$);
+
+-- Cancelamento de assinatura (fidelidade de 3 meses cumprida) nunca desfaz o ciclo já pago:
+-- mercado-pago-cancelar-assinatura já para de cobrar no Mercado Pago na hora, mas só marca
+-- cancelamento_agendado_para (fim do ciclo corrente) — o downgrade de verdade pro grátis
+-- acontece aqui, 1x/dia, sem reembolso e sem cortar acesso no meio do período já pago.
+create or replace function efetivar_cancelamentos_agendados() returns void
+  language plpgsql security definer set search_path = public as $$
+begin
+  update organizations
+  set plano = 'gratis', valor_mensal = 0, status_pagamento = 'pago',
+      mercado_pago_subscription_id = null, assinatura_iniciada_em = null, cancelamento_agendado_para = null
+  where cancelamento_agendado_para is not null and cancelamento_agendado_para <= now();
+end;
+$$;
+select cron.schedule('efetivar-cancelamentos-assinatura-diario', '0 3 * * *', $$ select efetivar_cancelamentos_agendados(); $$);
 
 -- ── Trello: manda cópia de tarefa nova (1 via, não sincroniza edição/conclusão) ──────────
 -- Trigger em vez de chamar a Edge Function direto do client: cobre TODO caminho que cria

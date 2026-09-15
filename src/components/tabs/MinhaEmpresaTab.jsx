@@ -1,18 +1,46 @@
 import React, { useState } from "react";
-import { Building2 } from "lucide-react";
+import { Building2, CreditCard } from "lucide-react";
 import Card from "../Card.jsx";
 import SectionTitle from "../SectionTitle.jsx";
+import AssinaturaModal from "../AssinaturaModal.jsx";
 import { COLORS } from "../../lib/theme.js";
 import { buscarEnderecoPorCep } from "../../lib/viaCep.js";
 import { formatDocumento } from "../../lib/documento.js";
 import { supabase } from "../../lib/supabaseClient.js";
+import { planoPorValue, valorCobranca } from "../../config/planos.js";
+
+const STATUS_LABEL = { pago: "Em dia", pendente: "Aguardando confirmação", atrasado: "Atrasado" };
+const STATUS_COR = { pago: "success", pendente: "brass", atrasado: "wine" };
 
 // Perfil da própria empresa: nome, CNPJ e endereço — editável por admin/sócio DAQUELA
-// empresa (RLS organizations_self_upd). Plano/billing ficam de fora de propósito (só o
-// platform admin mexe nisso — trigger no banco trava essas colunas mesmo por fora da UI;
-// CNPJ não é mais protegido, dá pra empresa preencher o próprio). Upload de logo tirado por pedido.
+// empresa (RLS organizations_self_upd). Plano/billing (colunas em si) ficam de fora do form
+// de propósito — só o platform admin ou a Edge Function de assinatura mexem nelas (trigger no
+// banco trava isso mesmo por fora da UI); a seção "Assinatura" abaixo só LÊ o plano atual e
+// aciona as Edge Functions de assinar/trocar/cancelar, nunca dá update direto na tabela.
+// CNPJ não é mais protegido, dá pra empresa preencher o próprio. Upload de logo tirado por pedido.
 export default function MinhaEmpresaTab({ profile, onAtualizado }) {
   const org = profile.organizations ?? {};
+  const podeAssinar = profile.role === "admin" || profile.role === "socio";
+  const plano = planoPorValue(org.plano);
+  const [modalAssinatura, setModalAssinatura] = useState(null); // 'assinar' | 'trocar' | 'cartao' | null
+  const [cancelando, setCancelando] = useState(false);
+  const [msgAssinatura, setMsgAssinatura] = useState("");
+
+  const cancelarAssinatura = async () => {
+    if (!confirm("Cancelar a assinatura? Ela continua ativa até o fim do ciclo já pago — depois disso a empresa volta pro plano grátis. Os dados já cadastrados continuam intactos.")) return;
+    setCancelando(true);
+    setMsgAssinatura("");
+    const { data, error } = await supabase.functions.invoke("mercado-pago-cancelar-assinatura", { body: {} });
+    setCancelando(false);
+    if (error) {
+      const corpo = await error.context?.json?.().catch(() => null);
+      setMsgAssinatura(corpo?.error ?? error.message);
+      return;
+    }
+    setMsgAssinatura(data?.message ?? "Assinatura cancelada.");
+    onAtualizado?.();
+  };
+
   const [form, setForm] = useState({
     nome: org.nome ?? "",
     cnpj: org.cnpj ?? "",
@@ -48,10 +76,67 @@ export default function MinhaEmpresaTab({ profile, onAtualizado }) {
   };
 
   const inputStyle = { border: `1px solid ${COLORS.line}`, color: COLORS.ink };
+  const botaoSecundario = { border: `1px solid ${COLORS.line}`, color: COLORS.ink };
 
   return (
     <div>
-      <SectionTitle icon={Building2} title="Minha Empresa" subtitle="Nome e endereço do escritório" />
+      <SectionTitle icon={Building2} title="Minha Empresa" subtitle="Nome, endereço e assinatura do escritório" />
+
+      {podeAssinar && (
+        <Card className="max-w-xl mb-6">
+          <div className="flex items-center gap-2 mb-3">
+            <CreditCard size={16} color={COLORS.brass} />
+            <p style={{ fontFamily: "'Source Serif 4', serif", fontWeight: 700, fontSize: 15, color: COLORS.ink }}>Assinatura</p>
+          </div>
+
+          <p className="text-sm mb-1" style={{ color: COLORS.ink }}>
+            Plano atual: <strong>{plano?.label ?? org.plano ?? "—"}</strong>
+            {plano?.valor
+              ? org.assinatura_ciclo === "anual"
+                ? ` — R$${valorCobranca(plano.valor, "anual")}/ano (cobrança anual)`
+                : ` — R$${plano.valor}/mês`
+              : ""}
+          </p>
+          {org.plano && org.plano !== "gratis" && (
+            <p className="text-xs mb-3" style={{ color: COLORS[STATUS_COR[org.status_pagamento]] ?? COLORS.slate }}>
+              Situação de pagamento: {STATUS_LABEL[org.status_pagamento] ?? org.status_pagamento}
+            </p>
+          )}
+          {org.cancelamento_agendado_para && (
+            <p className="text-xs mb-3" style={{ color: COLORS.brassText }}>
+              Cancelamento agendado — acesso ao plano pago continua até {new Date(org.cancelamento_agendado_para).toLocaleDateString("pt-BR")}, depois volta pro grátis.
+            </p>
+          )}
+
+          <div className="flex flex-wrap gap-2 mt-1">
+            {(!org.plano || org.plano === "gratis") && (
+              <button onClick={() => setModalAssinatura("assinar")} className="px-3 py-2 rounded-md text-sm font-semibold" style={{ background: COLORS.brass, color: "#fff" }}>
+                Assinar um plano
+              </button>
+            )}
+            {org.plano && org.plano !== "gratis" && !org.cancelamento_agendado_para && (
+              <>
+                <button onClick={() => setModalAssinatura("trocar")} disabled={org.status_pagamento !== "pago"} className="px-3 py-2 rounded-md text-sm font-semibold" style={{ ...botaoSecundario, opacity: org.status_pagamento !== "pago" ? 0.5 : 1 }}>
+                  Trocar de plano
+                </button>
+                <button onClick={() => setModalAssinatura("cartao")} className="px-3 py-2 rounded-md text-sm font-semibold" style={botaoSecundario}>
+                  Atualizar forma de pagamento
+                </button>
+                <button onClick={cancelarAssinatura} disabled={cancelando} className="px-3 py-2 rounded-md text-sm font-semibold" style={{ ...botaoSecundario, color: COLORS.wine, opacity: cancelando ? 0.6 : 1 }}>
+                  {cancelando ? "Cancelando..." : "Cancelar assinatura"}
+                </button>
+              </>
+            )}
+          </div>
+
+          {org.plano && org.plano !== "gratis" && org.status_pagamento === "pendente" && (
+            <p className="text-xs mt-3" style={{ color: COLORS.slate }}>
+              Aguardando o Mercado Pago confirmar o pagamento — atualiza sozinho em instantes.
+            </p>
+          )}
+          {msgAssinatura && <p className="text-xs mt-3" style={{ color: COLORS.slate }}>{msgAssinatura}</p>}
+        </Card>
+      )}
 
       <Card className="max-w-xl">
         <form onSubmit={salvar} className="flex flex-col gap-3">
@@ -115,6 +200,16 @@ export default function MinhaEmpresaTab({ profile, onAtualizado }) {
           </button>
         </form>
       </Card>
+
+      {modalAssinatura && (
+        <AssinaturaModal
+          modo={modalAssinatura}
+          planoAtual={org.plano}
+          cicloAtual={org.assinatura_ciclo}
+          onClose={() => setModalAssinatura(null)}
+          onAtualizado={() => { setModalAssinatura(null); onAtualizado?.(); }}
+        />
+      )}
     </div>
   );
 }

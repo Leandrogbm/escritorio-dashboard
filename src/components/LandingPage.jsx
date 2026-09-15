@@ -490,19 +490,24 @@ export default function LandingPage({ onEntrar, onCadastrar }) {
         </Reveal>
       </section>
 
-      {/* Planos — mesmos três valores/limites de config/planos.js (fonte única, também usada
+      {/* Planos — mesmos valores/limites de config/planos.js (fonte única, também usada
           no ERP e na cobrança) reformatados em lista de check por card; nada de preço/feature
-          inventado aqui. Intermediário é o do meio, ganha borda brass + badge pra puxar o
-          olho pro plano-âncora (efeito de decoy padrão de pricing de 3 colunas), sem esconder
-          nem trocar o preço real dos outros dois. */}
+          inventado aqui. Grátis é o trial por uso (sem prazo, só limite de 2) — todo cadastro
+          entra por ele, assinar um plano pago é depois, dentro do Actum (Payment Brick embutido
+          em Minha Empresa, sem redirecionar pro Mercado Pago). Intermediário é o do meio entre
+          os pagos, ganha borda brass + badge pra puxar o olho pro plano-âncora (efeito de decoy
+          padrão de pricing), sem esconder nem trocar o preço real dos outros. */}
       <section id="planos" className="max-w-6xl mx-auto px-5 sm:px-8 pb-14 sm:pb-20">
         <p className="text-xs font-semibold tracking-widest uppercase mb-2" style={{ color: COLORS.brassText }}>
           Planos
         </p>
-        <h2 className="text-2xl sm:text-[28px] mb-10" style={{ fontFamily: "'Source Serif 4', serif", color: COLORS.ink, fontWeight: 600 }}>
-          Um valor fixo por mês, sem etapa de "fale com vendas"
+        <h2 className="text-2xl sm:text-[28px] mb-2" style={{ fontFamily: "'Source Serif 4', serif", color: COLORS.ink, fontWeight: 600 }}>
+          Comece grátis, assine quando precisar de mais
         </h2>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 sm:items-start">
+        <p className="text-sm mb-10 max-w-xl" style={{ color: COLORS.slate }}>
+          Sem cartão no cadastro: use até 2 clientes, 2 processos e 2 usuários à vontade, sem prazo pra expirar. Quando precisar de mais, assine um plano direto pelo Actum.
+        </p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 sm:items-start">
           {PLANOS.map((p, i) => {
             const destaque = p.value === "intermediario";
             return (
@@ -539,10 +544,10 @@ export default function LandingPage({ onEntrar, onCadastrar }) {
                   </ul>
                   <Botao
                     variant={destaque ? "primary" : "secondary"}
-                    onClick={() => onCadastrar(p.value)}
+                    onClick={onCadastrar}
                     className="w-full"
                   >
-                    Cadastrar no {p.label}
+                    {p.value === "gratis" ? "Cadastrar grátis" : `Assinar ${p.label}`}
                   </Botao>
                 </Card>
               </Reveal>
@@ -587,7 +592,8 @@ export default function LandingPage({ onEntrar, onCadastrar }) {
             { p: "Funciona pra advogado autônomo, sem equipe?", r: "Sim. Os cargos (sócio, advogado, financeiro, recepção) existem pra escritório com equipe; sozinho, você usa a conta de admin com acesso a tudo." },
             { p: "Já uso outro sistema — dá pra trocar sem perder histórico?", r: "Cadastro manual ou por planilha é suportado hoje. Migração automatizada de outro sistema é avaliada caso a caso." },
             { p: "Como funciona o suporte se eu tiver um problema?", r: "Contato direto com quem mantém o produto — não é central de atendimento terceirizada." },
-            { p: "Tem contrato de fidelidade ou custo de cancelamento?", r: "Não. É autoatendimento: você cadastra o escritório, escolhe o plano e paga direto pelo Mercado Pago — sem contrato assinado nem intervenção de ninguém pra liberar o acesso. Cancela quando quiser, sem fidelidade nem multa." },
+            { p: "Preciso pagar pra testar?", r: "Não. O cadastro já sai pronto pra usar no plano grátis — até 2 clientes, 2 processos e 2 usuários, sem prazo pra expirar e sem pedir cartão. Assina um plano pago só quando precisar de mais." },
+            { p: "Tem contrato de fidelidade?", r: "O trial grátis não tem fidelidade nenhuma. Ao assinar um plano pago, direto pelo Actum (sem redirecionar pro site do Mercado Pago), a fidelidade mínima é de 3 meses — depois disso, cancela quando quiser, sem multa." },
           ].map(({ p, r }, i) => (
             <Reveal key={p} delay={i * 60}>
               <details className="group" style={{ borderBottom: `1px solid ${COLORS.line}` }}>

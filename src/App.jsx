@@ -93,9 +93,6 @@ export default function App() {
     window.history.pushState({ telaPublica: tela }, "");
     setTelaPublica(tela);
   };
-  // Setado quando a Landing manda direto de um card de preço específico ("Cadastrar no
-  // Intermediário") — Signup abre já com aquele plano marcado em vez do primeiro da lista.
-  const [planoPreSelecionado, setPlanoPreSelecionado] = useState(undefined);
   useEffect(() => {
     const onPopState = (e) => setTelaPublica(e.state?.telaPublica ?? "landing");
     window.addEventListener("popstate", onPopState);
@@ -148,11 +145,11 @@ export default function App() {
       return (
         <LandingPage
           onEntrar={() => irParaTelaPublica("login")}
-          onCadastrar={(plano) => { setPlanoPreSelecionado(plano); irParaTelaPublica("signup"); }}
+          onCadastrar={() => irParaTelaPublica("signup")}
         />
       );
     }
-    return <Login initialSignup={telaPublica === "signup"} onVoltar={() => irParaTelaPublica("landing")} initialPlano={planoPreSelecionado} />;
+    return <Login initialSignup={telaPublica === "signup"} onVoltar={() => irParaTelaPublica("landing")} />;
   }
   if (clienteAcesso) return <PortalCliente clienteAcesso={clienteAcesso} signOut={signOut} />;
   if (isPlatformAdmin && !verEmpresa && !orgOverride) {

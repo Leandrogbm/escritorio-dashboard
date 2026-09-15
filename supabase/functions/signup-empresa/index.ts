@@ -5,6 +5,12 @@
 // Diferente de admin-create-user: aqui NÃO tem checagem de "quem chama" — é o próprio
 // cadastro público, é o único ponto de entrada de uma empresa nova no sistema.
 //
+// Trial por uso, não por tempo: NÃO cobra nada nem cria checkout — toda org nova entra no
+// plano 'gratis' (2 clientes/2 processos/2 usuários, limite de verdade via plan_limits,
+// mesmo mecanismo de RLS que os planos pagos já usam) com status_pagamento='pago' (nada
+// devendo, não "pagou de verdade"). Assinar um plano pago depois é outra Edge Function
+// (mercado-pago-criar-assinatura, Payment Brick embutido em MinhaEmpresaTab).
+//
 // Deploy: supabase functions deploy signup-empresa --no-verify-jwt
 // (--no-verify-jwt porque não existe usuário logado ainda nesse momento)
 
@@ -34,7 +40,7 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const { nomeEmpresa, cnpj, nomeResponsavel, email, password, termosAceitos, plano } = await req.json();
+    const { nomeEmpresa, cnpj, nomeResponsavel, email, password, termosAceitos } = await req.json();
     const cnpjDigits = limparCnpj(cnpj);
 
     if (cnpjDigits && ![11, 14].includes(cnpjDigits.length)) {
@@ -45,9 +51,6 @@ Deno.serve(async (req) => {
         JSON.stringify({ error: "Preencha nome da empresa, CNPJ válido (14 dígitos), responsável, email e senha." }),
         { status: 400, headers: corsHeaders }
       );
-    }
-    if (!plano) {
-      return new Response(JSON.stringify({ error: "Escolha um plano para concluir o cadastro." }), { status: 400, headers: corsHeaders });
     }
     // Aceite dos Termos de Uso/Política de Privacidade do Actum é do ESCRITÓRIO que está se
     // cadastrando (cliente do Actum), não dos clientes que ele atende — ver comentário no
@@ -63,20 +66,6 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
-    const mercadoPagoToken = Deno.env.get("MERCADO_PAGO_ACCESS_TOKEN");
-    if (!mercadoPagoToken) {
-      return new Response(JSON.stringify({ error: "O checkout de pagamento ainda não foi configurado. Fale com o suporte." }), { status: 503, headers: corsHeaders });
-    }
-
-    // Preço vem do banco (plan_limits), nunca do que o client mandou.
-    let planoValidado: { plano: string; valor_mensal: number } | null = null;
-    if (plano) {
-      const { data: limite } = await admin.from("plan_limits").select("plano, valor_mensal").eq("plano", plano).maybeSingle();
-      if (!limite) {
-        return new Response(JSON.stringify({ error: "Plano inválido." }), { status: 400, headers: corsHeaders });
-      }
-      planoValidado = limite;
-    }
 
     const { data: created, error: createErr } = await admin.auth.admin.createUser({
       email,
@@ -95,10 +84,9 @@ Deno.serve(async (req) => {
       .from("organizations")
       .insert({
         nome: nomeEmpresa, slug: cnpjDigits, cnpj: cnpjDigits, termos_aceite: true, termos_aceite_em: new Date().toISOString(),
-        // plano/valor_mensal só dá pra setar aqui, no INSERT — um UPDATE depois seria
-        // zerado pelo trigger trg_guard_organizations_protected_cols (só deixa platform
-        // admin mexer nisso, e a Edge Function roda como service role, sem auth.uid()).
-        ...(planoValidado ? { plano: planoValidado.plano, valor_mensal: planoValidado.valor_mensal, status_pagamento: "pendente" } : {}),
+        // Todo cadastro novo começa no trial (plano='gratis'): sem checkout, sem cobrança —
+        // status_pagamento='pago' aqui significa "nada devendo", não que pagou de verdade.
+        plano: "gratis", valor_mensal: 0, status_pagamento: "pago",
       })
       .select("id")
       .single();
@@ -107,54 +95,6 @@ Deno.serve(async (req) => {
       // mesmo motivo do bloco acima: não confirmar pra um visitante sem login se um CNPJ
       // específico já é cliente do Actum.
       return new Response(JSON.stringify({ error: "Não foi possível concluir o cadastro. Verifique os dados ou fale com o suporte." }), { status: 400, headers: corsHeaders });
-    }
-
-    // Cria o histórico antes de publicar o checkout: assim, se o pagamento for aprovado
-    // muito rápido, o webhook já encontra a cobrança inicial para marcar como paga.
-    const primeiroDia = new Date();
-    primeiroDia.setDate(1);
-    const cobrancas = Array.from({ length: 6 }, (_, n) => {
-      const mes = new Date(primeiroDia);
-      mes.setMonth(mes.getMonth() + n);
-      return { org_id: org.id, mes_referencia: mes.toISOString().slice(0, 10), valor: planoValidado!.valor_mensal, status: "pendente" };
-    });
-    const { error: cobrancasError } = await admin.from("platform_cobrancas").insert(cobrancas);
-    if (cobrancasError) {
-      await admin.from("organizations").delete().eq("id", org.id);
-      await desfazerUsuario(admin, created.user.id, "cobrancasError");
-      throw cobrancasError;
-    }
-
-    // Cada cadastro recebe um checkout próprio, com a organização como referência. Isso
-    // permite que o webhook libere somente quem tiver o pagamento aprovado.
-    const preferenceRes = await fetch("https://api.mercadopago.com/checkout/preferences", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${mercadoPagoToken}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        items: [{
-          title: `Actum — Plano ${planoValidado!.plano}`,
-          quantity: 1,
-          currency_id: "BRL",
-          unit_price: Number(planoValidado!.valor_mensal),
-        }],
-        payer: { email },
-        external_reference: org.id,
-        metadata: { tipo: "actum_assinatura", org_id: org.id },
-        notification_url: `${Deno.env.get("SUPABASE_URL")}/functions/v1/mercado-pago-webhook`,
-      }),
-    });
-    const preference = await preferenceRes.json().catch(() => null);
-    const checkoutUrl = preference?.init_point;
-    if (!preferenceRes.ok || !checkoutUrl) {
-      await admin.from("organizations").delete().eq("id", org.id);
-      await desfazerUsuario(admin, created.user.id, "checkout mercado pago");
-      return new Response(JSON.stringify({ error: "Não foi possível gerar o checkout de pagamento. Tente novamente mais tarde." }), { status: 502, headers: corsHeaders });
-    }
-    const { error: checkoutError } = await admin.from("organizations").update({ mercado_pago_checkout_url: checkoutUrl }).eq("id", org.id);
-    if (checkoutError) {
-      await admin.from("organizations").delete().eq("id", org.id);
-      await desfazerUsuario(admin, created.user.id, "checkoutError");
-      return new Response(JSON.stringify({ error: "Não foi possível preparar o pagamento. Tente novamente mais tarde." }), { status: 500, headers: corsHeaders });
     }
 
     const { error: profileErr } = await admin.from("profiles").insert({
@@ -169,7 +109,7 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ error: profileErr.message }), { status: 400, headers: corsHeaders });
     }
 
-    return new Response(JSON.stringify({ ok: true, checkoutUrl }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    return new Response(JSON.stringify({ ok: true }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
   } catch (err) {
     return new Response(JSON.stringify({ error: err.message ?? "Erro inesperado." }), { status: 500, headers: corsHeaders });
   }

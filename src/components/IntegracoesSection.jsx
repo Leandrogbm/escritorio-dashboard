@@ -219,10 +219,7 @@ export default function IntegracoesSection({ orgId }) {
   const toggle = (nome) => setExpandido((v) => (v === nome ? null : nome));
 
   return (
-    <div className="mt-8 pt-6" style={{ borderTop: `1px solid ${COLORS.line}` }}>
-      <p className="text-sm font-semibold mb-1" style={{ color: COLORS.ink }}>Integrações</p>
-      <p className="text-xs mb-3" style={{ color: COLORS.slate }}>Clique no nome pra ver os campos e o passo a passo de cada uma.</p>
-
+    <div>
       <ItemIntegracao Icon={PenTool} titulo="D4Sign" resumo="Assinatura eletrônica de documentos" aberto={expandido === "d4sign"} onToggle={() => toggle("d4sign")}>
         <p className="text-xs mb-3" style={{ color: COLORS.slate }}>
           Pra mandar documento pra assinar sem sair da Actum, conecte a conta D4Sign do escritório aqui embaixo — são 3 códigos, você pega tudo dentro da conta D4Sign de vocês.

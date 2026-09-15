@@ -12,8 +12,9 @@ const STATUS_TONE = { pago: "ok", pendente: "warn", atrasado: "urgent" };
 const STATUS_OPTIONS = ["pago", "pendente", "atrasado"];
 
 // Histórico mês a mês do que a empresa paga PRA plataforma (Actum) — diferente do financeiro
-// interno dela. Cobranças são lançadas automaticamente (6 meses de uma vez) toda vez que um
-// plano é atribuído/trocado em "Configurar" — ver trigger lancar_cobrancas_plano no schema.
+// interno dela. Duas origens possíveis: (1) plano atribuído manualmente em "Configurar" lança
+// 6 meses de uma vez (trigger lancar_cobrancas_plano); (2) assinatura via Payment Brick lança
+// 1 linha por vez, só quando mercado-pago-webhook confirma um pagamento de verdade.
 export default function EmpresaCobrancas({ orgId, orgNome, onClose }) {
   useEscClose(onClose);
   const { data: cobrancas, update } = useSupabaseTable("platform_cobrancas", {

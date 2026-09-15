@@ -73,7 +73,7 @@ function AuthShell({ children, onVoltar }) {
 // escritório" — só inicializa o state interno `signingUp`, resto do fluxo (voltar pro
 // login, recovery) continua igual. `onVoltar`: volta pra Landing; opcional, Login segue
 // funcionando sozinho (ex. deep link) se não vier.
-export default function Login({ initialSignup = false, onVoltar, initialPlano }) {
+export default function Login({ initialSignup = false, onVoltar }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -106,7 +106,7 @@ export default function Login({ initialSignup = false, onVoltar, initialPlano })
   };
 
   if (signingUp) {
-    return <Signup onDone={() => setSigningUp(false)} onCancel={() => setSigningUp(false)} initialPlano={initialPlano} />;
+    return <Signup onCancel={() => setSigningUp(false)} />;
   }
 
   if (forgot) {

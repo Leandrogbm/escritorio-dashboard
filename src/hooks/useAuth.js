@@ -71,7 +71,7 @@ export function useAuth() {
   const carregarProfile = (uid, jaTentouDeNovo = false) =>
     supabase
       .from("profiles")
-      .select("*, organizations(nome, suspenso, status_pagamento, mercado_pago_checkout_url, cnpj, inscricao_municipal, aliquota_iss, cep, logradouro, numero, complemento, bairro, cidade, uf, termos_aceite, plano, valor_mensal)")
+      .select("*, organizations(nome, suspenso, status_pagamento, mercado_pago_checkout_url, mercado_pago_subscription_id, assinatura_iniciada_em, cancelamento_agendado_para, assinatura_ciclo, cnpj, inscricao_municipal, aliquota_iss, cep, logradouro, numero, complemento, bairro, cidade, uf, termos_aceite, plano, valor_mensal)")
       .eq("id", uid)
       .maybeSingle()
       .then(({ data, error }) => {

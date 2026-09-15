@@ -9,6 +9,6 @@ export function avisoLimitePlano(organizations, campoLimite, contagemAtual, recu
   if (limite == null || contagemAtual < limite) return null;
   const prox = proximoPlano(plano.value);
   return prox
-    ? `Limite de ${limite} ${recurso} do plano ${plano.label} atingido. Faça upgrade para o plano ${planoLabelCompleto(prox)} pra continuar cadastrando (fale com o suporte da plataforma).`
+    ? `Limite de ${limite} ${recurso} do plano ${plano.label} atingido. Assine o plano ${planoLabelCompleto(prox)} em "Minha Empresa" pra continuar cadastrando.`
     : `Limite de ${limite} ${recurso} do plano ${plano.label} atingido. Fale com o suporte da plataforma.`;
 }

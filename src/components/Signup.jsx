@@ -1,16 +1,16 @@
 import React, { useState } from "react";
-import { ExternalLink } from "lucide-react";
 import Card from "./Card.jsx";
 import PoliticaPrivacidadeModal from "./PoliticaPrivacidadeModal.jsx";
-import { AuthField, AuthTabs, FIELD_STYLE } from "./AuthKit.jsx";
+import { AuthField, AuthTabs } from "./AuthKit.jsx";
 import { COLORS } from "../lib/theme.js";
 import { supabase } from "../lib/supabaseClient.js";
-import { PLANOS } from "../config/planos.js";
 import { formatCpfOuCnpj } from "../lib/documento.js";
 
 // Cadastro self-service de uma empresa nova (organization + admin) via Edge Function
-// signup-empresa. Depois de criar, loga automaticamente com o email/senha informados.
-export default function Signup({ onDone, onCancel, initialPlano }) {
+// signup-empresa. Sem cobrança nesse momento — toda org nova entra no plano 'gratis' (trial
+// por uso, ver signup-empresa); assinar um plano pago é feito depois em Minha Empresa. Depois
+// de criar, loga automaticamente com o email/senha informados — App.jsx assume a partir daí.
+export default function Signup({ onCancel }) {
   const [nomeEmpresa, setNomeEmpresa] = useState("");
   const [cnpj, setCnpj] = useState("");
   const [nomeResponsavel, setNomeResponsavel] = useState("");
@@ -21,9 +21,6 @@ export default function Signup({ onDone, onCancel, initialPlano }) {
   const [loading, setLoading] = useState(false);
   const [termosAceitos, setTermosAceitos] = useState(false);
   const [mostrarPrivacidade, setMostrarPrivacidade] = useState(false);
-  const [plano, setPlano] = useState(initialPlano ?? PLANOS[0].value);
-  const [criada, setCriada] = useState(false); // true = mostra a tela "pagar agora" antes de entrar
-  const [checkoutUrl, setCheckoutUrl] = useState("");
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -31,8 +28,8 @@ export default function Signup({ onDone, onCancel, initialPlano }) {
     if (!termosAceitos) return setError("Você precisa aceitar os Termos de Uso e a Política de Privacidade pra continuar.");
     setError("");
     setLoading(true);
-    const { data: signupData, error: signupError } = await supabase.functions.invoke("signup-empresa", {
-      body: { nomeEmpresa, cnpj, nomeResponsavel, email, password, termosAceitos: true, plano },
+    const { error: signupError } = await supabase.functions.invoke("signup-empresa", {
+      body: { nomeEmpresa, cnpj, nomeResponsavel, email, password, termosAceitos: true },
     });
     if (signupError) {
       const body = await signupError.context?.json?.().catch(() => null);
@@ -43,41 +40,8 @@ export default function Signup({ onDone, onCancel, initialPlano }) {
     const { error: loginError } = await supabase.auth.signInWithPassword({ email, password });
     setLoading(false);
     if (loginError) { setError("Empresa criada — faça login normalmente."); onCancel(); return; }
-    setCheckoutUrl(signupData?.checkoutUrl ?? "");
-    setCriada(true);
+    // Sessão criada: App.jsx já sai da tela de login/cadastro sozinho assim que `session` muda.
   };
-
-  const planoEscolhido = PLANOS.find((p) => p.value === plano);
-
-  if (criada) {
-    return (
-      <div className="min-h-screen w-full flex items-center justify-center" style={{ background: COLORS.paper, fontFamily: "'Inter', sans-serif" }}>
-        <Card className="w-full max-w-sm text-center">
-          <p style={{ fontFamily: "'Source Serif 4', serif", color: COLORS.ink, fontWeight: 600, fontSize: 18 }} className="mb-2">
-            Empresa criada!
-          </p>
-          <p className="text-sm mb-5" style={{ color: COLORS.slate }}>
-            Falta só o pagamento do plano <strong style={{ color: COLORS.ink }}>{planoEscolhido?.label}</strong> ({" "}
-            {planoEscolhido ? `R$${planoEscolhido.valor}/mês` : ""}) pra liberar de vez.
-          </p>
-          {checkoutUrl && (
-            <a
-              href={checkoutUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-md text-sm font-semibold mb-3"
-              style={{ background: COLORS.brass, color: COLORS.ink }}
-            >
-              Pagar agora <ExternalLink size={14} />
-            </a>
-          )}
-          <button onClick={onDone} className="text-xs underline" style={{ color: COLORS.slate }}>
-            Acessar após a confirmação do pagamento
-          </button>
-        </Card>
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-screen w-full flex items-center justify-center" style={{ background: COLORS.paper, fontFamily: "'Inter', sans-serif" }}>
@@ -87,7 +51,9 @@ export default function Signup({ onDone, onCancel, initialPlano }) {
           <p style={{ fontFamily: "'Source Serif 4', serif", color: COLORS.ink, fontWeight: 600, fontSize: 22 }}>
             Cadastrar empresa
           </p>
-          <p className="text-xs mb-3" style={{ color: COLORS.slate }}>Crie o acesso do seu escritório no Actum</p>
+          <p className="text-xs mb-3 text-center" style={{ color: COLORS.slate }}>
+            Crie o acesso do seu escritório no Actum — grátis pra até 2 clientes, 2 processos e 2 usuários, sem cartão.
+          </p>
           <AuthTabs active="signup" onLogin={onCancel} onSignup={() => {}} />
         </div>
 
@@ -99,24 +65,6 @@ export default function Signup({ onDone, onCancel, initialPlano }) {
           <div className="grid grid-cols-2 gap-3">
             <AuthField id="signup-senha" label="Senha" required type="password" autoComplete="new-password" value={password} onChange={(e) => setPassword(e.target.value)} />
             <AuthField id="signup-confirmar" label="Confirmar senha" required type="password" autoComplete="new-password" value={confirm} onChange={(e) => setConfirm(e.target.value)} />
-          </div>
-
-          <div className="flex flex-col gap-1.5">
-            <label htmlFor="signup-plano" className="text-[11px] font-semibold uppercase tracking-widest" style={{ color: COLORS.slate }}>Plano</label>
-            <select
-              id="signup-plano"
-              name="plano"
-              value={plano}
-              onChange={(e) => setPlano(e.target.value)}
-              className="w-full px-3.5 py-2.5 rounded-md text-sm outline-none"
-              style={FIELD_STYLE}
-            >
-              {PLANOS.map((p) => (
-                <option key={p.value} value={p.value}>
-                  {p.label} — R${p.valor}/mês
-                </option>
-              ))}
-            </select>
           </div>
 
           <label className="flex items-start gap-2 text-xs" style={{ color: COLORS.slate }}>
