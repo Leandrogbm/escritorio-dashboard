@@ -87,7 +87,8 @@ Deno.serve(async (req) => {
       cliente_id: clienteId,
     });
     if (insertErr) {
-      await admin.auth.admin.deleteUser(created.user.id);
+      const { error: delErr } = await admin.auth.admin.deleteUser(created.user.id);
+      if (delErr) console.error(`Rollback de auth user falhou. userId=${created.user.id} — limpar manualmente.`, delErr.message);
       const msg = insertErr.code === "23505" ? "Esse cliente já tem acesso ao portal." : insertErr.message;
       return new Response(JSON.stringify({ error: msg }), { status: 400, headers: corsHeaders });
     }

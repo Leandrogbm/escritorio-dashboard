@@ -19,6 +19,17 @@ function limparCnpj(cnpj: string) {
   return (cnpj || "").replace(/\D/g, "");
 }
 
+// Rollback do Auth user quando um passo seguinte do cadastro falha. Achado real: se esse
+// delete falhar também (raro, mas já aconteceu — deixou "teste@teste.com.br" travado por
+// dias, sem profile nenhum, bloqueando qualquer novo cadastro com esse email), a falha
+// desaparecia em silêncio. Agora fica nos logs da function, com o id pra alguém limpar.
+async function desfazerUsuario(admin: ReturnType<typeof createClient>, userId: string, motivo: string) {
+  const { error } = await admin.auth.admin.deleteUser(userId);
+  if (error) {
+    console.error(`Rollback de auth user falhou (${motivo}). userId=${userId} — limpar manualmente.`, error.message);
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
@@ -92,7 +103,7 @@ Deno.serve(async (req) => {
       .select("id")
       .single();
     if (orgErr) {
-      await admin.auth.admin.deleteUser(created.user.id);
+      await desfazerUsuario(admin, created.user.id, "orgErr");
       // mesmo motivo do bloco acima: não confirmar pra um visitante sem login se um CNPJ
       // específico já é cliente do Actum.
       return new Response(JSON.stringify({ error: "Não foi possível concluir o cadastro. Verifique os dados ou fale com o suporte." }), { status: 400, headers: corsHeaders });
@@ -110,7 +121,7 @@ Deno.serve(async (req) => {
     const { error: cobrancasError } = await admin.from("platform_cobrancas").insert(cobrancas);
     if (cobrancasError) {
       await admin.from("organizations").delete().eq("id", org.id);
-      await admin.auth.admin.deleteUser(created.user.id);
+      await desfazerUsuario(admin, created.user.id, "cobrancasError");
       throw cobrancasError;
     }
 
@@ -136,13 +147,13 @@ Deno.serve(async (req) => {
     const checkoutUrl = preference?.init_point;
     if (!preferenceRes.ok || !checkoutUrl) {
       await admin.from("organizations").delete().eq("id", org.id);
-      await admin.auth.admin.deleteUser(created.user.id);
+      await desfazerUsuario(admin, created.user.id, "checkout mercado pago");
       return new Response(JSON.stringify({ error: "Não foi possível gerar o checkout de pagamento. Tente novamente mais tarde." }), { status: 502, headers: corsHeaders });
     }
     const { error: checkoutError } = await admin.from("organizations").update({ mercado_pago_checkout_url: checkoutUrl }).eq("id", org.id);
     if (checkoutError) {
       await admin.from("organizations").delete().eq("id", org.id);
-      await admin.auth.admin.deleteUser(created.user.id);
+      await desfazerUsuario(admin, created.user.id, "checkoutError");
       return new Response(JSON.stringify({ error: "Não foi possível preparar o pagamento. Tente novamente mais tarde." }), { status: 500, headers: corsHeaders });
     }
 
@@ -153,7 +164,7 @@ Deno.serve(async (req) => {
       role: "admin",
     });
     if (profileErr) {
-      await admin.auth.admin.deleteUser(created.user.id);
+      await desfazerUsuario(admin, created.user.id, "profileErr");
       await admin.from("organizations").delete().eq("id", org.id);
       return new Response(JSON.stringify({ error: profileErr.message }), { status: 400, headers: corsHeaders });
     }

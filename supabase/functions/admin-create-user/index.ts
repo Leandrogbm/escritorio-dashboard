@@ -120,8 +120,11 @@ Deno.serve(async (req) => {
       role,
     });
     if (insertErr) {
-      // profile falhou — desfaz o Auth user pra não deixar conta órfã sem perfil.
-      await admin.auth.admin.deleteUser(created.user.id);
+      // profile falhou — desfaz o Auth user pra não deixar conta órfã sem perfil. Se esse
+      // delete falhar também, não pode desaparecer em silêncio (achado real: exatamente
+      // isso deixou uma conta travada por dias em signup-empresa) — fica nos logs.
+      const { error: delErr } = await admin.auth.admin.deleteUser(created.user.id);
+      if (delErr) console.error(`Rollback de auth user falhou. userId=${created.user.id} — limpar manualmente.`, delErr.message);
       return new Response(JSON.stringify({ error: insertErr.message }), { status: 400, headers: corsHeaders });
     }
 
