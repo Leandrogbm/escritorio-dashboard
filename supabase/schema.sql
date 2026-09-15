@@ -562,6 +562,29 @@ create policy profiles_select on profiles for select using (org_id = auth_org_id
 create policy profiles_update on profiles for update
   using (org_id = auth_org_id() and (id = auth.uid() or auth_role() = 'admin' or (auth_role() = 'socio' and role <> 'admin')) or is_platform_admin())
   with check (true);
+-- A policy acima libera UPDATE na própria linha (id = auth.uid()) pra edição normal de
+-- nome/avatar, mas "with check (true)" não valida a linha nova — sem o trigger abaixo,
+-- qualquer usuário logado conseguia trocar o próprio "role" pra 'admin' direto via PATCH
+-- na API (achado real do qa-guardian, CVE interno, corrigido em 2026-09-15). guard_profiles_role
+-- é a defesa de verdade da coluna role/org_id, não a policy.
+create or replace function guard_profiles_role() returns trigger
+  language plpgsql security definer set search_path = public as $$
+begin
+  if is_platform_admin() or auth.role() = 'service_role' then
+    return new;
+  end if;
+  new.org_id := old.org_id;
+  if auth_role() = 'admin' then
+    return new;
+  elsif auth_role() = 'socio' and old.role <> 'admin' and new.role <> 'admin' then
+    return new;
+  end if;
+  new.role := old.role;
+  return new;
+end;
+$$;
+create trigger trg_guard_profiles_role before update on profiles
+  for each row execute function guard_profiles_role();
 -- insert só o admin — feito pela Edge Function admin-create-user (supabase/functions/),
 -- que cria o Auth user com senha temporária (mandada por email) e insere o profile
 -- numa tacada, usando a service_role key.
