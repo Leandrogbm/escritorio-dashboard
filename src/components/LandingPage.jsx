@@ -24,11 +24,44 @@ const MODULE_COPY = {
 // As linhas da tabela são propositalmente abstratas/borradas: não é dado de cliente
 // disfarçado, é ilustração — representa "tem dado sensível ali" sem fingir ser print real.
 function ProdutoMockup() {
+  // Valores ilustrativos (não são dado de cliente real, mesmo espírito das linhas de tabela
+  // borradas abaixo) só pra dar ao mockup uma sensação de "produto vivo" via count-up +
+  // barra assentando, em vez de screenshot estático.
   const kpis = [
-    { label: "A pagar (mês)", cor: COLORS.brass },
-    { label: "Recebido (mês)", cor: COLORS.success },
-    { label: "Prazos abertos", cor: COLORS.wine },
+    { label: "A pagar (mês)", cor: COLORS.brass, valor: 4230, prefixo: "R$ ", largura: 62 },
+    { label: "Recebido (mês)", cor: COLORS.success, valor: 18650, prefixo: "R$ ", largura: 78 },
+    { label: "Prazos abertos", cor: COLORS.wine, valor: 7, prefixo: "", largura: 40 },
   ];
+  const [contagem, setContagem] = useState(kpis.map(() => 0));
+  const [assentado, setAssentado] = useState(false);
+  const [mostrarShimmer, setMostrarShimmer] = useState(true);
+  useEffect(() => {
+    const reduzMovimento = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (reduzMovimento) {
+      setContagem(kpis.map((k) => k.valor));
+      setAssentado(true);
+      setMostrarShimmer(false);
+      return;
+    }
+    const inicio = performance.now();
+    const duracao = 900;
+    let raf;
+    const passo = (agora) => {
+      const t = Math.min(1, (agora - inicio) / duracao);
+      const suavizado = 1 - Math.pow(1 - t, 3); // ease-out cúbico
+      setContagem(kpis.map((k) => Math.round(k.valor * suavizado)));
+      if (t < 1) raf = requestAnimationFrame(passo);
+    };
+    raf = requestAnimationFrame(passo);
+    const t1 = setTimeout(() => setAssentado(true), 50);
+    const t2 = setTimeout(() => setMostrarShimmer(false), 950);
+    return () => {
+      cancelAnimationFrame(raf);
+      clearTimeout(t1);
+      clearTimeout(t2);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   return (
     <div className="rounded-md overflow-hidden w-full" style={{ background: COLORS.paperRaised }}>
       <div className="flex items-center gap-1.5 px-3 py-2.5" style={{ background: COLORS.paper, borderBottom: `1px solid ${COLORS.line}` }}>
@@ -39,10 +72,27 @@ function ProdutoMockup() {
       </div>
       <div className="p-4 flex flex-col gap-3">
         <div className="grid grid-cols-3 gap-2">
-          {kpis.map(({ label, cor }) => (
+          {kpis.map(({ label, cor, prefixo, largura }, i) => (
             <div key={label} className="rounded p-2.5" style={{ background: COLORS.paper }}>
-              <p className="text-[9px] leading-tight mb-2" style={{ color: COLORS.slate }}>{label}</p>
-              <div className="h-2.5 rounded-full" style={{ width: "70%", background: cor, opacity: 0.85 }} />
+              <p className="text-[9px] leading-tight mb-1" style={{ color: COLORS.slate }}>{label}</p>
+              <p
+                className="text-[11px] font-semibold mb-1.5 tabular-nums"
+                style={{ fontFamily: "'IBM Plex Mono', monospace", color: COLORS.ink }}
+              >
+                {prefixo}{contagem[i].toLocaleString("pt-BR")}
+              </p>
+              <div className="relative h-2.5 rounded-full overflow-hidden" style={{ background: COLORS.line }}>
+                <div
+                  className="h-full rounded-full"
+                  style={{
+                    width: assentado ? `${largura}%` : "0%",
+                    background: cor,
+                    opacity: 0.85,
+                    transition: "width 900ms cubic-bezier(0.22, 1, 0.36, 1)",
+                  }}
+                />
+                {mostrarShimmer && <span className="kpi-shimmer" aria-hidden="true" />}
+              </div>
             </div>
           ))}
         </div>
@@ -106,9 +156,24 @@ const FRASE_WHATSAPP = "Olá, tudo bem? Se preferir, agende sua demonstração d
 // verdade (texto HTML, some/aparece no hover) em vez de ficar presa em pixel.
 function WhatsAppFlutuante() {
   const [aberto, setAberto] = useState(true);
+  const [compacto, setCompacto] = useState(false);
+  useEffect(() => {
+    // Encolhe o widget quando a seção "Comece agora" (logo antes do rodapé) entra na tela —
+    // sem isso o personagem em tamanho cheio fica sobrepondo o fim do FAQ/rodapé durante o
+    // scroll em telas menores.
+    const alvo = document.querySelector("[data-widget-boundary]");
+    if (!alvo) return;
+    const io = new IntersectionObserver(([entry]) => setCompacto(entry.isIntersecting), { threshold: 0.1 });
+    io.observe(alvo);
+    return () => io.disconnect();
+  }, []);
   if (!aberto) return null;
   return (
-    <div className="fixed bottom-5 right-5 sm:bottom-7 sm:right-7 z-50 w-[110px] group">
+    <div
+      className={`fixed bottom-5 right-5 sm:bottom-7 sm:right-7 z-50 w-[86px] sm:w-[110px] group transition-all duration-300 ${
+        compacto ? "whatsapp-widget-compacto" : ""
+      }`}
+    >
       <div className="relative">
         <button
           onClick={() => setAberto(false)}
@@ -148,7 +213,11 @@ function Reveal({ children, delay = 0, className = "" }) {
           io.disconnect();
         }
       },
-      { threshold: 0.15 }
+      // rootMargin positivo dispara a revelação ~200px antes do elemento entrar na tela —
+      // sem isso, um bloco grande (ex.: a seção "Sigilo de processo" inteira, revelada de
+      // uma vez) fica invisível até estar quase totalmente à vista, e no scroll normal isso
+      // lia como um vão em branco enorme antes do conteúdo "aparecer do nada".
+      { threshold: 0.15, rootMargin: "0px 0px 200px 0px" }
     );
     io.observe(el);
     return () => io.disconnect();
@@ -170,20 +239,37 @@ function planoFeatures(p) {
   ];
 }
 
-function Botao({ children, variant = "primary", ...props }) {
+function Botao({ children, variant = "primary", onClick, ...props }) {
   const styles =
     variant === "primary"
       ? { background: COLORS.brass, color: "#fff" }
       : variant === "onDark"
       ? { background: "transparent", color: "#fff", border: "1px solid rgba(255,255,255,0.35)" }
       : { background: "transparent", color: COLORS.ink, border: `1px solid ${COLORS.line}` };
+  // Ripple a partir do ponto de clique — só a landing usa (.btn-landing em index.css),
+  // CSS puro fazendo o resto (keyframe de scale+fade); aqui só calcula onde nasce o círculo.
+  const [ripple, setRipple] = useState(null);
+  function handleClick(e) {
+    const rect = e.currentTarget.getBoundingClientRect();
+    setRipple({ x: e.clientX - rect.left, y: e.clientY - rect.top, key: Date.now() });
+    onClick?.(e);
+  }
   return (
     <button
       {...props}
-      className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-md text-sm font-semibold whitespace-nowrap"
+      onClick={handleClick}
+      className="btn-landing inline-flex items-center justify-center gap-2 px-5 py-3 rounded-md text-sm font-semibold whitespace-nowrap"
       style={styles}
     >
       {children}
+      {ripple && (
+        <span
+          key={ripple.key}
+          className="btn-ripple"
+          style={{ left: ripple.x, top: ripple.y }}
+          onAnimationEnd={() => setRipple(null)}
+        />
+      )}
     </button>
   );
 }
@@ -234,7 +320,21 @@ export default function LandingPage({ onEntrar, onCadastrar }) {
               className="max-w-2xl text-[32px] sm:text-[46px] leading-[1.15]"
               style={{ fontFamily: "'Source Serif 4', serif", color: "#fff", fontWeight: 600 }}
             >
-              A gestão do escritório, com o rigor de um processo bem instruído.
+              A gestão do escritório, com o rigor de um{" "}
+              <span
+                // Gradiente estático (sem animação — sobriedade > efeito) só na frase final.
+                // COLORS.ink puro sumiria em cima do próprio fundo `ink` do hero, então o
+                // extremo escuro usa `paperRaised` (mesma família "papel" do resto da marca)
+                // em vez do ink literal — mantém legibilidade sem virar arco-íris.
+                style={{
+                  background: `linear-gradient(90deg, ${COLORS.paperRaised}, ${COLORS.brass})`,
+                  WebkitBackgroundClip: "text",
+                  backgroundClip: "text",
+                  color: "transparent",
+                }}
+              >
+                processo bem instruído.
+              </span>
             </h1>
             <p className="max-w-xl text-base sm:text-lg mt-5" style={{ color: "rgba(255,255,255,0.7)" }}>
               Clientes, processos, prazos, financeiro e equipe num só lugar — com acompanhamento
@@ -302,7 +402,9 @@ export default function LandingPage({ onEntrar, onCadastrar }) {
         </h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
           {MODULES.map(({ key, label, icon: Icon }, i) => (
-            <Reveal key={key} delay={(i % 3) * 90}>
+            // Stagger de 70ms entre cards (faixa pedida: 60-80ms) — perceptível sem virar
+            // "efeito cascata" chamativo.
+            <Reveal key={key} delay={(i % 3) * 70}>
               <Card hoverable className="flex flex-col gap-3 h-full">
                 <Icon size={22} color={COLORS.brassText} />
                 <p style={{ fontFamily: "'Source Serif 4', serif", color: COLORS.ink, fontWeight: 600, fontSize: 16 }}>{label}</p>
@@ -412,7 +514,7 @@ export default function LandingPage({ onEntrar, onCadastrar }) {
                 >
                   {destaque && (
                     <span
-                      className="absolute -top-3 left-5 px-2.5 py-1 rounded-full text-[10px] font-semibold tracking-widest uppercase"
+                      className="badge-glow-brass absolute -top-3 left-5 px-2.5 py-1 rounded-full text-[10px] font-semibold tracking-widest uppercase"
                       style={{ background: COLORS.brass, color: "#fff" }}
                     >
                       Mais escolhido
@@ -503,8 +605,10 @@ export default function LandingPage({ onEntrar, onCadastrar }) {
         </div>
       </section>
 
-      {/* CTA final */}
-      <section className="px-5 sm:px-8 pb-16">
+      {/* CTA final — marcado com data-widget-boundary: quando essa seção entra na tela, o
+          widget flutuante de WhatsApp encolhe (ver WhatsAppFlutuante) pra não sobrepor o
+          fim do FAQ/rodapé logo abaixo. */}
+      <section data-widget-boundary className="px-5 sm:px-8 pb-16">
         <Reveal className="max-w-6xl mx-auto">
         <div
           className="rounded-md px-6 sm:px-10 py-10 sm:py-12 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6"
