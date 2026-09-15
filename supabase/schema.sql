@@ -481,6 +481,23 @@ begin
 end;
 $$;
 
+-- set_org_id acima só cuida do INSERT. No UPDATE, "with check (true)" nas policies de
+-- clientes/processos/prazos/honorarios/despesas/leads/leads_captacao/tarefas/
+-- depositos_judiciais/role_permissions não impede trocar org_id pra outro tenant numa
+-- única chamada (RLS não compara valor antigo x novo, só enxerga a linha nova) — mover
+-- registro de tenant nunca é uma operação de UPDATE comum, então trava sempre, pra
+-- qualquer role. Mesmo padrão de guard_profiles_role.
+create or replace function guard_org_id_immutable() returns trigger
+  language plpgsql security definer set search_path = public as $$
+begin
+  if auth.role() = 'service_role' then
+    return new;
+  end if;
+  new.org_id := old.org_id;
+  return new;
+end;
+$$;
+
 -- ── Admin da plataforma (dono da Actum) ───────────────────────────────
 -- Separado do admin de cada empresa. Três coisas: (1) painel de billing — plano/valor/
 -- status que cada empresa paga PRA plataforma, nada a ver com o financeiro interno dela
@@ -604,11 +621,14 @@ create policy role_permissions_select on role_permissions for select using (org_
 create policy role_permissions_write on role_permissions for all
   using ((org_id = auth_org_id() and auth_role() in ('admin','socio')) or is_platform_admin())
   with check (true);
+create trigger trg_guard_org_id before update on role_permissions
+  for each row execute function guard_org_id_immutable();
 
 -- Tabelas de negócio: mesmo padrão de 4 policies, module key = chave em MODULES (src/config/permissions.js)
 
 alter table clientes enable row level security;
 create trigger trg_set_org_id before insert on clientes for each row execute function set_org_id();
+create trigger trg_guard_org_id before update on clientes for each row execute function guard_org_id_immutable();
 create policy clientes_sel on clientes for select using ((org_id = auth_org_id() and has_module('clientes')) or is_platform_admin());
 -- limite de clientes do plano — mesmo mecanismo do limite de processos (plan_limits.limite_clientes).
 create policy clientes_ins on clientes for insert with check (
@@ -733,6 +753,7 @@ $$;
 
 alter table processos enable row level security;
 create trigger trg_set_org_id before insert on processos for each row execute function set_org_id();
+create trigger trg_guard_org_id before update on processos for each row execute function guard_org_id_immutable();
 
 -- Formata sozinho pro padrão CNJ (NNNNNNN-DD.AAAA.J.TR.OOOO) sempre que numero tiver os 20
 -- dígitos mas vier sem pontuação (ou com pontuação errada) — não depende de nenhum
@@ -825,6 +846,7 @@ create policy processos_del on processos for delete using (
 
 alter table prazos enable row level security;
 create trigger trg_set_org_id before insert on prazos for each row execute function set_org_id();
+create trigger trg_guard_org_id before update on prazos for each row execute function guard_org_id_immutable();
 create policy prazos_sel on prazos for select using (
   (org_id = auth_org_id() and has_module('prazos'))
   or is_platform_admin()
@@ -836,6 +858,7 @@ create policy prazos_del on prazos for delete using ((org_id = auth_org_id() and
 
 alter table honorarios enable row level security;
 create trigger trg_set_org_id before insert on honorarios for each row execute function set_org_id();
+create trigger trg_guard_org_id before update on honorarios for each row execute function guard_org_id_immutable();
 -- Financeiro de processo confidencial segue a mesma regra do processo (ver processos_sel):
 -- some pra quem não é o responsável nem admin. honorario sem processo vinculado (avulso) não
 -- é afetado.
@@ -856,6 +879,7 @@ create policy honorarios_del on honorarios for delete using ((org_id = auth_org_
 
 alter table despesas enable row level security;
 create trigger trg_set_org_id before insert on despesas for each row execute function set_org_id();
+create trigger trg_guard_org_id before update on despesas for each row execute function guard_org_id_immutable();
 create policy despesas_sel on despesas for select using ((org_id = auth_org_id() and has_module('erp')) or is_platform_admin());
 create policy despesas_ins on despesas for insert with check ((org_id = auth_org_id() and has_module('erp')) or is_platform_admin());
 create policy despesas_upd on despesas for update
@@ -988,6 +1012,7 @@ create trigger trg_audit_notas_fiscais after insert or update or delete on notas
 
 alter table leads enable row level security;
 create trigger trg_set_org_id before insert on leads for each row execute function set_org_id();
+create trigger trg_guard_org_id before update on leads for each row execute function guard_org_id_immutable();
 create policy leads_sel on leads for select using ((org_id = auth_org_id() and has_module('leads')) or is_platform_admin());
 create policy leads_ins on leads for insert with check ((org_id = auth_org_id() and has_module('leads')) or is_platform_admin());
 create policy leads_upd on leads for update
@@ -997,6 +1022,7 @@ create trigger trg_audit_leads after insert or update or delete on leads for eac
 
 alter table leads_captacao enable row level security;
 create trigger trg_set_org_id before insert on leads_captacao for each row execute function set_org_id();
+create trigger trg_guard_org_id before update on leads_captacao for each row execute function guard_org_id_immutable();
 create policy leads_captacao_sel on leads_captacao for select using ((org_id = auth_org_id() and has_module('leads_captacao')) or is_platform_admin());
 create policy leads_captacao_upd on leads_captacao for update
   using ((org_id = auth_org_id() and has_module('leads_captacao')) or is_platform_admin()) with check (true);
@@ -1007,6 +1033,7 @@ create trigger trg_audit_leads_captacao after insert or update or delete on lead
 
 alter table tarefas enable row level security;
 create trigger trg_set_org_id before insert on tarefas for each row execute function set_org_id();
+create trigger trg_guard_org_id before update on tarefas for each row execute function guard_org_id_immutable();
 create policy tarefas_sel on tarefas for select using ((org_id = auth_org_id() and has_module('processos')) or is_platform_admin());
 create policy tarefas_ins on tarefas for insert with check ((org_id = auth_org_id() and has_module('processos')) or is_platform_admin());
 create policy tarefas_upd on tarefas for update
@@ -1016,6 +1043,7 @@ create trigger trg_audit_tarefas after insert or update or delete on tarefas for
 
 alter table depositos_judiciais enable row level security;
 create trigger trg_set_org_id before insert on depositos_judiciais for each row execute function set_org_id();
+create trigger trg_guard_org_id before update on depositos_judiciais for each row execute function guard_org_id_immutable();
 create policy depositos_judiciais_sel on depositos_judiciais for select using ((org_id = auth_org_id() and has_module('financeiro')) or is_platform_admin());
 create policy depositos_judiciais_ins on depositos_judiciais for insert with check ((org_id = auth_org_id() and has_module('financeiro')) or is_platform_admin());
 create policy depositos_judiciais_upd on depositos_judiciais for update
