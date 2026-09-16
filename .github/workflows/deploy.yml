@@ -37,6 +37,10 @@ jobs:
         env:
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+          # Public Key do Mercado Pago — feita pra ser pública, vai pro bundle do client
+          # (Payment Brick precisa dela no browser). O Access Token continua só como secret
+          # de Edge Function (Deno.env), nunca aqui.
+          VITE_MERCADO_PAGO_PUBLIC_KEY: ${{ secrets.VITE_MERCADO_PAGO_PUBLIC_KEY }}
 
       - name: Publica no branch gh-pages
         uses: peaceiris/actions-gh-pages@v4
