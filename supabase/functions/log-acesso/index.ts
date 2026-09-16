@@ -25,7 +25,7 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ error: "Não autenticado." }), { status: 401, headers: corsHeaders });
     }
 
-    const { pagina, orgIdSuporte } = await req.json();
+    const { pagina, orgIdSuporte, userAgent } = await req.json();
     if (!pagina || typeof pagina !== "string") {
       return new Response(JSON.stringify({ error: "pagina é obrigatória." }), { status: 400, headers: corsHeaders });
     }
@@ -50,6 +50,7 @@ Deno.serve(async (req) => {
       org_id: orgId,
       pagina: pagina.slice(0, 100),
       ip,
+      user_agent: typeof userAgent === "string" ? userAgent.slice(0, 300) : null,
     });
 
     return new Response(JSON.stringify({ ok: true }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });

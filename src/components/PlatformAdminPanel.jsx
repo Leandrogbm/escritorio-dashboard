@@ -11,6 +11,16 @@ import { supabase } from "../lib/supabaseClient.js";
 import { PLANOS, planoLabelCompleto } from "../config/planos.js";
 
 const STATUS_TONE = { pago: COLORS.success, pendente: COLORS.brass, atrasado: COLORS.wine };
+// Resumo curto de navigator.userAgent — só o essencial pra auditoria (navegador + sistema),
+// sem lib nova (ua-parser-js seria overkill pra "Chrome, Windows").
+function resumoDispositivo(ua) {
+  if (!ua) return "—";
+  const navegador = /Edg\//.test(ua) ? "Edge" : /OPR\//.test(ua) ? "Opera" : /Chrome\//.test(ua) ? "Chrome"
+    : /Firefox\//.test(ua) ? "Firefox" : /Safari\//.test(ua) ? "Safari" : "outro";
+  const sistema = /Windows/.test(ua) ? "Windows" : /Mac OS X/.test(ua) ? "macOS" : /Android/.test(ua) ? "Android"
+    : /iPhone|iPad/.test(ua) ? "iOS" : /Linux/.test(ua) ? "Linux" : "—";
+  return `${navegador}, ${sistema}`;
+}
 const CONFIG_FIELDS = [
   { key: "nome", label: "Nome da empresa" },
   { key: "cnpj", label: "CNPJ", optional: true },
@@ -44,7 +54,7 @@ export default function PlatformAdminPanel({ temPerfilProprio, onEntrarNaEmpresa
   useEffect(() => {
     (async () => {
       const [{ data: logs }, { data: perfis }, { data: orgs }] = await Promise.all([
-        supabase.from("access_log").select("user_id, org_id, pagina, ip, created_at").order("created_at", { ascending: false }).limit(500),
+        supabase.from("access_log").select("user_id, org_id, pagina, ip, user_agent, created_at").order("created_at", { ascending: false }).limit(500),
         supabase.from("profiles").select("id, nome"),
         supabase.from("organizations").select("id, nome"),
       ]);
@@ -58,12 +68,14 @@ export default function PlatformAdminPanel({ temPerfilProprio, onEntrarNaEmpresa
         const dia = log.created_at.slice(0, 10);
         const chave = `${log.user_id}|${dia}`;
         if (!grupos.has(chave)) {
-          grupos.set(chave, { usuario: nomePerfil.get(log.user_id) ?? "—", empresa: nomeOrg.get(log.org_id) ?? "—", dia, qtd: 0, paginas: new Set(), primeiro: log.created_at, ultimo: log.created_at, ip: log.ip });
+          grupos.set(chave, { usuario: nomePerfil.get(log.user_id) ?? "—", empresa: nomeOrg.get(log.org_id) ?? "—", dia, qtd: 0, paginas: new Set(), primeiro: log.created_at, ultimo: log.created_at, ip: log.ip, userAgent: log.user_agent });
         }
         const g = grupos.get(chave);
         g.qtd += 1;
         g.paginas.add(log.pagina);
-        if (log.created_at < g.primeiro) g.primeiro = log.created_at;
+        // "primeiro" = horário do login daquele dia — created_at é do evento mais antigo do
+        // grupo, então o user_agent dele é o de quando a sessão abriu de verdade.
+        if (log.created_at < g.primeiro) { g.primeiro = log.created_at; g.userAgent = log.user_agent; }
         if (log.created_at > g.ultimo) { g.ultimo = log.created_at; g.ip = log.ip; } // ip mais recente do dia
       }
       setAcessos([...grupos.values()].sort((a, b) => b.ultimo.localeCompare(a.ultimo)));
@@ -208,21 +220,22 @@ export default function PlatformAdminPanel({ temPerfilProprio, onEntrarNaEmpresa
           <p style={{ fontFamily: "'Source Serif 4', serif", fontWeight: 700, fontSize: 22, color: COLORS.ink }}>Acessos recentes</p>
         </div>
         <p className="text-sm mb-6" style={{ color: COLORS.slate }}>
-          Agrupado por usuário e dia — últimos 500 eventos de navegação (troca de aba/login).
+          Agrupado por usuário e dia — últimos 500 eventos de navegação (troca de aba/login),
+          com horário, IP e dispositivo de cada um.
         </p>
         <Card className="overflow-hidden !p-0">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr style={{ background: COLORS.ink }}>
-                  {["Usuário", "Empresa", "Dia", "Acessos", "Páginas", "Tempo logado", "IP"].map((h) => (
+                  {["Usuário", "Empresa", "Dia", "Horário do login", "Acessos", "Páginas", "Tempo logado", "IP", "Dispositivo"].map((h) => (
                     <th key={h} className="text-left px-4 py-3 font-semibold" style={{ color: COLORS.paper, fontSize: 11 }}>{h.toUpperCase()}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {acessos?.length === 0 && (
-                  <tr><td colSpan={7} className="px-4 py-6 text-center text-sm" style={{ color: COLORS.slate }}>Nenhum acesso registrado ainda.</td></tr>
+                  <tr><td colSpan={9} className="px-4 py-6 text-center text-sm" style={{ color: COLORS.slate }}>Nenhum acesso registrado ainda.</td></tr>
                 )}
                 {(acessos ?? []).map((a, i) => {
                   const minutos = Math.round((new Date(a.ultimo) - new Date(a.primeiro)) / 60000);
@@ -232,10 +245,12 @@ export default function PlatformAdminPanel({ temPerfilProprio, onEntrarNaEmpresa
                       <td className="px-4 py-3" style={{ color: COLORS.ink, fontWeight: 600 }}>{a.usuario}</td>
                       <td className="px-4 py-3" style={{ color: COLORS.slate }}>{a.empresa}</td>
                       <td className="px-4 py-3" style={{ color: COLORS.slate }}>{new Date(`${a.dia}T00:00:00`).toLocaleDateString("pt-BR")}</td>
+                      <td className="px-4 py-3" style={{ color: COLORS.ink }}>{new Date(a.primeiro).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}</td>
                       <td className="px-4 py-3" style={{ color: COLORS.ink }}>{a.qtd}</td>
                       <td className="px-4 py-3" style={{ color: COLORS.slate }} title={[...a.paginas].join(", ")}>{[...a.paginas].slice(0, 3).join(", ")}{a.paginas.size > 3 ? ` +${a.paginas.size - 3}` : ""}</td>
                       <td className="px-4 py-3" style={{ color: COLORS.ink }}>{tempo}</td>
                       <td className="px-4 py-3" style={{ color: COLORS.slate }}>{a.ip ?? "—"}</td>
+                      <td className="px-4 py-3" style={{ color: COLORS.slate }} title={a.userAgent ?? ""}>{resumoDispositivo(a.userAgent)}</td>
                     </tr>
                   );
                 })}

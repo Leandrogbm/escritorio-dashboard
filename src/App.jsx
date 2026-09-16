@@ -83,7 +83,7 @@ export default function App() {
     // Em modo suporte, atribui o acesso à empresa que o platform admin está visitando, não à
     // própria conta dele (a function só aceita isso de quem é platform admin de verdade).
     const orgIdSuporte = emSuporte ? orgOverride.org_id : undefined;
-    supabase.functions.invoke("log-acesso", { body: { pagina: activeTab, orgIdSuporte } }).catch(() => {});
+    supabase.functions.invoke("log-acesso", { body: { pagina: activeTab, orgIdSuporte, userAgent: navigator.userAgent } }).catch(() => {});
   }, [session, activeTab, emSuporte, orgOverride]);
   const [menuMobileAberto, setMenuMobileAberto] = useState(false); // sidebar vira gaveta em telas pequenas
   // Página pública antes do login: "landing" (default, ninguém logado ainda) → "login"/

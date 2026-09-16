@@ -1553,6 +1553,7 @@ create table access_log (
   org_id uuid references organizations(id) on delete cascade,
   pagina text not null,
   ip text,
+  user_agent text, -- navegador/dispositivo (navigator.userAgent) — painel resume em "Chrome, Windows" etc.
   created_at timestamptz not null default now()
 );
 create index access_log_user_id_created_at_idx on access_log (user_id, created_at desc);
