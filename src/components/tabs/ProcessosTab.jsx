@@ -14,6 +14,7 @@ import { supabase } from "../../lib/supabaseClient.js";
 import { AREAS_DIREITO_COMUNS } from "../../config/areasDireito.js";
 import { avisoLimitePlano } from "../../lib/limitesPlano.js";
 import { formatNumeroProcesso } from "../../lib/numeroProcesso.js";
+import { gerarUuid } from "../../lib/uuid.js";
 
 const STATUS_TONE = { "Em andamento": "ok", "Aguardando decisão": "warn", "Suspenso": "neutral", "Encerrado": "neutral" };
 const STATUS_OPTIONS = Object.keys(STATUS_TONE).map((s) => ({ value: s, label: s }));
@@ -127,7 +128,7 @@ export default function ProcessosTab({ currentRole, orgId, profile, abrirProcess
     // level security policy" — mesmo já tendo passado no WITH CHECK. Sem select() depois do
     // insert, isso não acontece; sabendo o id de antemão (gerado aqui), também não
     // precisamos ler a linha de volta pra saber o id.
-    if (!processoId) { processoId = crypto.randomUUID(); v.id = processoId; }
+    if (!processoId) { processoId = gerarUuid(); v.id = processoId; }
     try {
       if (editing?.id) await update(processoId, v);
       else await insert(v, { semSelect: true });

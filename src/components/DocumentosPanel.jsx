@@ -6,6 +6,7 @@ import { COLORS } from "../lib/theme.js";
 import { useSupabaseTable } from "../hooks/useSupabaseTable.js";
 import { useEscClose } from "../hooks/useEscClose.js";
 import { supabase } from "../lib/supabaseClient.js";
+import { gerarUuid } from "../lib/uuid.js";
 
 const ASSINATURA_TONE = { enviado: "warn", assinado_parcial: "warn", finalizado: "ok", cancelado: "urgent" };
 
@@ -41,7 +42,7 @@ export default function DocumentosPanel({ processo, orgId, profile, onClose, emb
     if (!file) return;
     setEnviando(true);
     setErro("");
-    const path = `${orgIdReal}/${processo.id}/${crypto.randomUUID()}-${file.name}`;
+    const path = `${orgIdReal}/${processo.id}/${gerarUuid()}-${file.name}`;
     const { error: upErr } = await supabase.storage.from(BUCKET).upload(path, file);
     if (upErr) { setEnviando(false); return setErro(upErr.message); }
     try {

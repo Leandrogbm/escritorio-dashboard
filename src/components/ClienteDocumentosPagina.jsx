@@ -5,6 +5,7 @@ import { COLORS } from "../lib/theme.js";
 import { useSupabaseTable } from "../hooks/useSupabaseTable.js";
 import { supabase } from "../lib/supabaseClient.js";
 import { useEscClose } from "../hooks/useEscClose.js";
+import { gerarUuid } from "../lib/uuid.js";
 
 const BUCKET = "documentos-cliente";
 
@@ -47,7 +48,7 @@ export default function ClienteDocumentosPagina({ cliente, orgId, profile, onVol
     }
     setEnviando(true);
     setErro("");
-    const path = `${orgIdReal}/${cliente.id}/${crypto.randomUUID()}-${file.name}`;
+    const path = `${orgIdReal}/${cliente.id}/${gerarUuid()}-${file.name}`;
     const { error: upErr } = await supabase.storage.from(BUCKET).upload(path, file);
     if (upErr) { setEnviando(false); return setErro(upErr.message); }
     try {
