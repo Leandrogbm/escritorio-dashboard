@@ -108,11 +108,11 @@ export default function MinhaEmpresaTab({ profile, onAtualizado }) {
               Cancelamento agendado — acesso ao plano pago continua até {new Date(org.cancelamento_agendado_para).toLocaleDateString("pt-BR")}, depois volta pro grátis.
             </p>
           )}
-          {org.pix_valido_ate && !temAssinaturaCartao && (
-            <p className="text-xs mb-3" style={{ color: new Date(org.pix_valido_ate) > new Date() ? COLORS.slate : COLORS.wine }}>
-              {new Date(org.pix_valido_ate) > new Date()
-                ? `Período pago via PIX válido até ${new Date(org.pix_valido_ate).toLocaleDateString("pt-BR")} — sem renovação automática, é só pagar de novo antes disso.`
-                : `Período pago via PIX venceu em ${new Date(org.pix_valido_ate).toLocaleDateString("pt-BR")}.`}
+          {org.acesso_pago_ate && !temAssinaturaCartao && (
+            <p className="text-xs mb-3" style={{ color: new Date(org.acesso_pago_ate) > new Date() ? COLORS.slate : COLORS.wine }}>
+              {new Date(org.acesso_pago_ate) > new Date()
+                ? `Período pago (pagamento único, PIX ou cartão) válido até ${new Date(org.acesso_pago_ate).toLocaleDateString("pt-BR")} — sem renovação automática nem cancelamento, é só pagar de novo antes disso.`
+                : `Período pago venceu em ${new Date(org.acesso_pago_ate).toLocaleDateString("pt-BR")}.`}
             </p>
           )}
 

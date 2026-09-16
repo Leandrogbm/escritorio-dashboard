@@ -3,7 +3,7 @@ import { X, CreditCard, QrCode, Copy } from "lucide-react";
 import { COLORS } from "../lib/theme.js";
 import { useEscClose } from "../hooks/useEscClose.js";
 import { supabase } from "../lib/supabaseClient.js";
-import { PLANOS_ASSINAVEIS, planoLabelCompleto, valorCobranca, DESCONTO_ANUAL, valorPix, DESCONTO_PIX } from "../config/planos.js";
+import { PLANOS_ASSINAVEIS, planoLabelCompleto, valorCobranca, DESCONTO_ANUAL, valorPagamentoAvulso, DESCONTO_PAGAMENTO_AVULSO } from "../config/planos.js";
 
 const MP_SDK_SRC = "https://sdk.mercadopago.com/js/v2";
 const TITULOS = { assinar: "Assinar plano", trocar: "Trocar de plano", cartao: "Atualizar forma de pagamento" };
@@ -23,16 +23,21 @@ function carregarSdkMercadoPago() {
 
 // Assina, troca de plano ou troca a forma de pagamento — 3 modos, mesmo componente:
 //   'assinar': plano grátis/expirado -> pago. Dois MÉTODOS possíveis (só aqui, os outros modos
-//     são sempre cartão): cartão (Payment Brick, ciclo mensal ou anual com desconto, gera
-//     assinatura recorrente de verdade) ou PIX (pagamento único, pré-paga 3/6/12 meses de
-//     acesso com desconto — sem token salvo, não é assinatura, ver mercado-pago-criar-pix).
+//     são sempre cartão de assinatura recorrente): cartão ou PIX. Cada um com dois FORMATOS:
+//       - recorrente (só cartão): Payment Brick, ciclo mensal ou anual com desconto, gera
+//         assinatura de verdade (Preapproval) — cancelável, fidelidade de 3 meses.
+//       - avulso/pré-pago (cartão OU PIX): pagamento único, pré-paga 3/6/12 meses de acesso
+//         com desconto (3%/4%/5%) — sem token salvo, NUNCA vira assinatura, e por isso NUNCA é
+//         cancelável (já foi cobrado o valor total; ver mercado-pago-criar-pix/
+//         mercado-pago-criar-pagamento-cartao). Quando o período acaba, é só pagar de novo.
 //   'cartao': assinatura de cartão já ativa, só troca o cartão (Payment Brick de novo, mesmo
 //     plano e mesmo ciclo — trocar de ciclo é assinar de novo, não dá pra fazer aqui).
 //   'trocar': assinatura de cartão já ativa, upgrade/downgrade de plano SEM pedir cartão de
 //     novo (o Mercado Pago já tem um em arquivo — mercado-pago-criar-assinatura só ajusta o
 //     valor, mantendo o ciclo que a assinatura já tinha).
 // SDK JS do Mercado Pago (Card Payment Brick, v2) tokeniza o cartão dentro do próprio
-// browser quando precisa — só o token (card_token_id) vai pra Edge Function, nunca o número.
+// browser quando precisa — só o token (e os campos que o Brick já coletou) vai pra Edge
+// Function, nunca o número do cartão.
 export default function AssinaturaModal({ modo, planoAtual, cicloAtual, onClose, onAtualizado }) {
   useEscClose(onClose);
   const requerCartao = modo !== "trocar";
@@ -46,11 +51,14 @@ export default function AssinaturaModal({ modo, planoAtual, cicloAtual, onClose,
     if (modo === "assinar" && opcoesPlano.some((p) => p.value === planoAtual)) return planoAtual;
     return opcoesPlano.find((p) => p.value !== planoAtual)?.value ?? opcoesPlano[0]?.value;
   });
-  // Método só é escolhível ao assinar do zero — trocar cartão/plano de uma assinatura
-  // recorrente já existente é sempre cartão (PIX não tem token pra "trocar", é pagamento novo).
+  // Método/formato só são escolhíveis ao assinar do zero — trocar cartão/plano de uma
+  // assinatura recorrente já existente é sempre cartão recorrente (PIX e pré-pago não têm
+  // token salvo pra "trocar", são sempre pagamento novo).
   const [metodo, setMetodo] = useState("cartao"); // 'cartao' | 'pix', só relevante em modo='assinar'
+  const [formatoCartao, setFormatoCartao] = useState("recorrente"); // 'recorrente' | 'avulso', só cartão+assinar
   // Ciclo só é escolhível ao assinar do zero — trocar de cartão/plano mantém o que já existia.
   const [ciclo, setCiclo] = useState(modo === "assinar" ? "mensal" : (cicloAtual ?? "mensal"));
+  const [meses, setMeses] = useState(3); // período do pré-pago (cartão avulso OU PIX)
   const [erro, setErro] = useState("");
   const [enviando, setEnviando] = useState(false);
   const containerRef = useRef(null);
@@ -58,11 +66,12 @@ export default function AssinaturaModal({ modo, planoAtual, cicloAtual, onClose,
   const planoEscolhido = PLANOS_ASSINAVEIS.find((p) => p.value === plano);
 
   // PIX: pagamento único por período, sem Brick — só gera o QR code e exibe.
-  const [mesesPix, setMesesPix] = useState(3);
   const [pixDados, setPixDados] = useState(null); // { qr_code, qr_code_base64, valor }
   const [copiado, setCopiado] = useState(false);
 
   const usaPix = modo === "assinar" && metodo === "pix";
+  const cartaoAvulso = modo === "assinar" && metodo === "cartao" && formatoCartao === "avulso";
+  const ehPrePago = usaPix || cartaoAvulso; // pagamento único, nunca cancelável
 
   const confirmarTroca = async () => {
     setEnviando(true);
@@ -82,7 +91,7 @@ export default function AssinaturaModal({ modo, planoAtual, cicloAtual, onClose,
     setEnviando(true);
     setErro("");
     setPixDados(null);
-    const { data, error } = await supabase.functions.invoke("mercado-pago-criar-pix", { body: { plano, meses: mesesPix } });
+    const { data, error } = await supabase.functions.invoke("mercado-pago-criar-pix", { body: { plano, meses } });
     setEnviando(false);
     if (error) {
       const corpo = await error.context?.json?.().catch(() => null);
@@ -109,9 +118,10 @@ export default function AssinaturaModal({ modo, planoAtual, cicloAtual, onClose,
         if (!publicKey) { setErro("Assinatura ainda não foi configurada (chave pública do Mercado Pago ausente)."); return; }
         containerRef.current.innerHTML = "";
         const mp = new window.MercadoPago(publicKey, { locale: "pt-BR" });
+        const amount = cartaoAvulso ? valorPagamentoAvulso(planoEscolhido.valor, meses) : valorCobranca(planoEscolhido.valor, ciclo);
         mp.bricks()
           .create("cardPayment", containerRef.current.id, {
-            initialization: { amount: valorCobranca(planoEscolhido.valor, ciclo) },
+            initialization: { amount },
             callbacks: {
               onReady: () => {},
               onError: (err) => setErro(err?.message ?? "Não foi possível carregar o formulário de cartão."),
@@ -119,8 +129,10 @@ export default function AssinaturaModal({ modo, planoAtual, cicloAtual, onClose,
                 new Promise((resolve, reject) => {
                   setEnviando(true);
                   setErro("");
-                  supabase.functions
-                    .invoke("mercado-pago-criar-assinatura", { body: { plano, card_token_id: formData.token, ciclo } })
+                  const chamada = cartaoAvulso
+                    ? supabase.functions.invoke("mercado-pago-criar-pagamento-cartao", { body: { plano, meses, brickData: formData } })
+                    : supabase.functions.invoke("mercado-pago-criar-assinatura", { body: { plano, card_token_id: formData.token, ciclo } });
+                  chamada
                     .then(async ({ error }) => {
                       setEnviando(false);
                       if (error) {
@@ -146,7 +158,7 @@ export default function AssinaturaModal({ modo, planoAtual, cicloAtual, onClose,
       brickRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [plano, ciclo, requerCartao, usaPix]);
+  }, [plano, ciclo, meses, requerCartao, usaPix, cartaoAvulso]);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(22,35,59,0.35)" }}>
@@ -179,6 +191,26 @@ export default function AssinaturaModal({ modo, planoAtual, cicloAtual, onClose,
           </div>
         )}
 
+        {modo === "assinar" && metodo === "cartao" && (
+          <div className="flex gap-2 mb-4">
+            {[{ value: "recorrente", label: "Assinatura mensal/anual" }, { value: "avulso", label: "Pagamento único (3/6/12 meses)" }].map((op) => (
+              <button
+                key={op.value}
+                type="button"
+                onClick={() => setFormatoCartao(op.value)}
+                className="flex-1 px-2.5 py-2 rounded-md text-xs font-semibold"
+                style={{
+                  border: `1px solid ${formatoCartao === op.value ? COLORS.brass : COLORS.line}`,
+                  background: formatoCartao === op.value ? "rgba(165,121,59,0.08)" : "transparent",
+                  color: COLORS.ink,
+                }}
+              >
+                {op.label}
+              </button>
+            ))}
+          </div>
+        )}
+
         {modo !== "cartao" && (
           <label className="flex flex-col gap-1.5 text-xs mb-4" style={{ color: COLORS.slate }}>
             Plano
@@ -190,7 +222,7 @@ export default function AssinaturaModal({ modo, planoAtual, cicloAtual, onClose,
           </label>
         )}
 
-        {modo === "assinar" && metodo === "cartao" && planoEscolhido && (
+        {modo === "assinar" && metodo === "cartao" && formatoCartao === "recorrente" && planoEscolhido && (
           <div className="flex flex-col gap-1.5 text-xs mb-4" style={{ color: COLORS.slate }}>
             Cobrança
             <div className="flex gap-2">
@@ -216,7 +248,7 @@ export default function AssinaturaModal({ modo, planoAtual, cicloAtual, onClose,
           </div>
         )}
 
-        {usaPix && planoEscolhido && (
+        {ehPrePago && planoEscolhido && (
           <div className="flex flex-col gap-1.5 text-xs mb-4" style={{ color: COLORS.slate }}>
             Período (pagamento único, sem renovação automática)
             <div className="grid grid-cols-3 gap-2">
@@ -224,30 +256,32 @@ export default function AssinaturaModal({ modo, planoAtual, cicloAtual, onClose,
                 <button
                   key={m}
                   type="button"
-                  onClick={() => { setMesesPix(m); setPixDados(null); }}
+                  onClick={() => { setMeses(m); setPixDados(null); }}
                   className="px-2 py-2 rounded-md text-center"
                   style={{
-                    border: `1px solid ${mesesPix === m ? COLORS.brass : COLORS.line}`,
-                    background: mesesPix === m ? "rgba(165,121,59,0.08)" : "transparent",
+                    border: `1px solid ${meses === m ? COLORS.brass : COLORS.line}`,
+                    background: meses === m ? "rgba(165,121,59,0.08)" : "transparent",
                   }}
                 >
                   <span className="block font-semibold" style={{ color: COLORS.ink }}>{m} meses</span>
-                  <span className="block">R${valorPix(planoEscolhido.valor, m)}</span>
-                  <span className="block">({DESCONTO_PIX[m] * 100}% off)</span>
+                  <span className="block">R${valorPagamentoAvulso(planoEscolhido.valor, m)}</span>
+                  <span className="block">({DESCONTO_PAGAMENTO_AVULSO[m] * 100}% off)</span>
                 </button>
               ))}
             </div>
           </div>
         )}
 
-        {modo === "assinar" && metodo === "cartao" && (
+        {modo === "assinar" && metodo === "cartao" && formatoCartao === "recorrente" && (
           <p className="text-xs mb-3" style={{ color: COLORS.slate }}>
             Fidelidade mínima de 3 meses a partir da confirmação do primeiro pagamento — depois disso, cancela quando quiser.
           </p>
         )}
-        {usaPix && (
+        {ehPrePago && (
           <p className="text-xs mb-3" style={{ color: COLORS.slate }}>
-            Sem fidelidade nem renovação automática — o acesso vale até o fim do período pago; pra continuar depois, é só pagar de novo.
+            Pagamento único, cobrado de uma vez só — sem fidelidade, sem renovação automática e{" "}
+            <strong style={{ color: COLORS.ink }}>sem cancelamento</strong> (já paga o período inteiro, não tem como devolver parcial).
+            O acesso vale até o fim do período; pra continuar depois, é só pagar de novo.
           </p>
         )}
 

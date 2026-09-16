@@ -47,13 +47,14 @@ export function valorCobranca(valorMensal, ciclo) {
   return ciclo === "anual" ? Math.round(valorMensal * 12 * (1 - DESCONTO_ANUAL) * 100) / 100 : Number(valorMensal);
 }
 
-// PIX pré-pago por período (mercado-pago-criar-pix) — trilho separado da assinatura de
-// cartão: pagamento único, sem token salvo, "meses" pré-paga um período de acesso. Descontos
-// maiores que o anual de cartão por período curto, iguais no de 12 meses (mesmo número, trilho
-// diferente) — mesmos usados no servidor, nunca confiados do client.
-export const DESCONTO_PIX = { 3: 0.03, 6: 0.04, 12: 0.05 };
+// Pagamento único pré-pago por período (3/6/12 meses) — PIX (mercado-pago-criar-pix) OU
+// cartão sem assinatura (mercado-pago-criar-pagamento-cartao), mesmo desconto pros dois
+// trilhos: sem token salvo, nunca vira assinatura, nunca cancelável (já cobrado o valor
+// total). Espelha supabase/functions/_shared/pagamentoAvulso.ts — preço de verdade sempre
+// sai de lá, isso aqui é só pra exibir.
+export const DESCONTO_PAGAMENTO_AVULSO = { 3: 0.03, 6: 0.04, 12: 0.05 };
 
-export function valorPix(valorMensal, meses) {
-  const desconto = DESCONTO_PIX[meses] ?? 0;
+export function valorPagamentoAvulso(valorMensal, meses) {
+  const desconto = DESCONTO_PAGAMENTO_AVULSO[meses] ?? 0;
   return Math.round(valorMensal * meses * (1 - desconto) * 100) / 100;
 }

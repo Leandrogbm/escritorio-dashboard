@@ -12,10 +12,14 @@
 //   - "subscription_preapproval": mudança de status da própria assinatura — só confirma e
 //     registra, sem ação destrutiva (cancelamento de verdade é mercado-pago-cancelar-assinatura,
 //     iniciado pelo próprio Actum; aqui é só acompanhar o que o Mercado Pago avisa).
-//   - "payment": pagamento único (PIX pré-pago, mercado-pago-criar-pix — trilho separado do
-//     cartão, sem token salvo pra cobrar de novo sozinho; também cobre o checkout avulso
-//     legado, sem uso desde o modelo de trial por uso, mas mantido pra não deixar um pagamento
-//     em trânsito antigo sem tratamento). `metadata.tipo` decide qual dos dois é.
+//   - "payment": pagamento único pré-pago por período — PIX (mercado-pago-criar-pix) ou cartão
+//     (mercado-pago-criar-pagamento-cartao), mesmo conceito nos dois: sem token salvo pra
+//     cobrar de novo sozinho, "meses" pré-paga um período de acesso (organizations.
+//     acesso_pago_ate), NUNCA vira mercado_pago_subscription_id — por isso nunca é cancelável
+//     (mercado-pago-cancelar-assinatura só mexe em quem tem assinatura recorrente de verdade).
+//     Também cobre o checkout avulso legado (sem uso desde o modelo de trial por uso, mantido
+//     só pra não deixar um pagamento em trânsito antigo sem tratamento). `metadata.tipo` decide
+//     qual dos três é.
 //
 // Nota: `metadata` do Mercado Pago às vezes normaliza chaves com underscore na volta — por
 // isso a org sempre viaja em `external_reference` (campo top-level, nunca dentro de metadata),
@@ -117,27 +121,28 @@ Deno.serve(async (req) => {
       const paymentIdText = String(id);
       if (await jaProcessado(admin, paymentIdText)) return new Response("ok", { status: 200 });
 
-      if (payment.metadata?.tipo === "actum_pix_prepago") {
-        // PIX é sempre pagamento único — não tem token salvo pra cobrar de novo sozinho.
-        // "meses" pré-paga um período de acesso; quando pix_valido_ate vence, o cron
-        // efetivar_cancelamentos_agendados bloqueia a org de novo (ver migração 20260915040000).
+      if (["actum_pix_prepago", "actum_pagamento_cartao"].includes(payment.metadata?.tipo)) {
+        // Pagamento único pré-pago (PIX ou cartão) — nunca é assinatura, não tem token salvo
+        // pra cobrar de novo sozinho. "meses" pré-paga um período de acesso; quando
+        // acesso_pago_ate vence, o cron efetivar_cancelamentos_agendados bloqueia a org de novo
+        // (ver migração 20260915050000) — nunca é cancelável antes disso, já foi pago inteiro.
         const meses = Number(payment.metadata?.meses);
-        const planoPix = String(payment.metadata?.plano ?? "");
-        if (![3, 6, 12].includes(meses) || !planoPix) {
-          return new Response("ignorado: metadata de PIX inválida", { status: 200 });
+        const planoPago = String(payment.metadata?.plano ?? "");
+        if (![3, 6, 12].includes(meses) || !planoPago) {
+          return new Response("ignorado: metadata de pagamento avulso inválida", { status: 200 });
         }
-        const { data: limite } = await admin.from("plan_limits").select("plano, valor_mensal").eq("plano", planoPix).maybeSingle();
-        if (!limite) return new Response("ignorado: plano de PIX inválido", { status: 200 });
+        const { data: limite } = await admin.from("plan_limits").select("plano, valor_mensal").eq("plano", planoPago).maybeSingle();
+        if (!limite) return new Response("ignorado: plano de pagamento avulso inválido", { status: 200 });
 
-        const validoAte = new Date();
-        validoAte.setMonth(validoAte.getMonth() + meses);
+        const acessoPagoAte = new Date();
+        acessoPagoAte.setMonth(acessoPagoAte.getMonth() + meses);
         const { error: orgError } = await admin
           .from("organizations")
           .update({
             plano: limite.plano,
             valor_mensal: limite.valor_mensal,
             status_pagamento: "pago",
-            pix_valido_ate: validoAte.toISOString(),
+            acesso_pago_ate: acessoPagoAte.toISOString(),
           })
           .eq("id", orgId);
         if (orgError) throw orgError;

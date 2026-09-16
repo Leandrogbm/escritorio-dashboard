@@ -39,7 +39,7 @@ Deno.serve(async (req) => {
 
     const { plano, meses } = await req.json();
     const mesesNum = Number(meses);
-    if (!plano || !DESCONTO_PIX[mesesNum]) {
+    if (!plano || !mesesValidos(mesesNum)) {
       return new Response(JSON.stringify({ error: "Escolha um plano e um período válido (3, 6 ou 12 meses)." }), { status: 400, headers: corsHeaders });
     }
 
@@ -48,7 +48,7 @@ Deno.serve(async (req) => {
     if (!limite || Number(limite.valor_mensal) <= 0) {
       return new Response(JSON.stringify({ error: "Plano inválido." }), { status: 400, headers: corsHeaders });
     }
-    const valor = Math.round(Number(limite.valor_mensal) * mesesNum * (1 - DESCONTO_PIX[mesesNum]) * 100) / 100;
+    const valor = valorPagamentoAvulso(Number(limite.valor_mensal), mesesNum);
 
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 25000);

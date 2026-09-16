@@ -11,6 +11,12 @@
 // extra via /v1/payments) — não dá pra testar isso em produção real com segurança agora,
 // então só bloqueia o cancelamento em vez de tentar cobrar algo não testado.
 //
+// Só existe pra quem tem mercado_pago_subscription_id preenchido (assinatura recorrente de
+// verdade). Pagamento pré-pago (PIX ou cartão avulso, mercado-pago-criar-pix/
+// mercado-pago-criar-pagamento-cartao) NUNCA seta essa coluna — "não cancelável" já é
+// automático (já foi cobrado o valor total, sem como devolver parcial): o erro abaixo
+// ("Não há assinatura ativa") é o que essas contas sempre recebem, de propósito.
+//
 // Deploy: supabase functions deploy mercado-pago-cancelar-assinatura
 // Secret necessário: supabase secrets set MERCADO_PAGO_ACCESS_TOKEN=<access-token-de-produção>
 

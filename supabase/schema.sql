@@ -33,11 +33,14 @@ create table organizations (
   -- Edge Function, nunca confiado do client) — mesmo mecanismo de fidelidade/cancelamento,
   -- só muda como cancelamento_agendado_para é calculado (ver mercado-pago-cancelar-assinatura).
   assinatura_ciclo text not null default 'mensal' check (assinatura_ciclo in ('mensal', 'anual')),
-  -- PIX pré-pago por período (mercado-pago-criar-pix) — trilho separado da assinatura de
-  -- cartão acima: PIX não tem token salvo pra cobrar de novo sozinho, é sempre pagamento
-  -- único. Até quando o período pago continua liberando acesso (ver
+  -- Pagamento único pré-pago por período (3/6/12 meses, PIX via mercado-pago-criar-pix OU
+  -- cartão via mercado-pago-criar-pagamento-cartao) — trilho separado da assinatura recorrente
+  -- de cartão acima: nenhum dos dois tem token salvo pra cobrar de novo sozinho, nem seta
+  -- mercado_pago_subscription_id, então NUNCA é cancelável (já foi cobrado o valor total, sem
+  -- como devolver parcial — mercado-pago-cancelar-assinatura só mexe em quem tem assinatura de
+  -- verdade). Até quando o período pago continua liberando acesso (ver
   -- efetivar_cancelamentos_agendados: vencido e sem assinatura de cartão ativa -> 'atrasado').
-  pix_valido_ate timestamptz,
+  acesso_pago_ate timestamptz,
   status_pagamento text check (status_pagamento in ('pago','pendente','atrasado')) not null default 'pendente',
   suspenso boolean not null default false, -- bloqueia login de toda a empresa (App.jsx), sem apagar nada
   created_at timestamptz not null default now(),
@@ -572,7 +575,7 @@ begin
     new.assinatura_iniciada_em := old.assinatura_iniciada_em;
     new.cancelamento_agendado_para := old.cancelamento_agendado_para;
     new.assinatura_ciclo := old.assinatura_ciclo;
-    new.pix_valido_ate := old.pix_valido_ate;
+    new.acesso_pago_ate := old.acesso_pago_ate;
     -- cnpj saiu da lista de protegidos: admin/sócio edita pela aba Minha Empresa.
   end if;
   return new;
@@ -1486,9 +1489,10 @@ select cron.schedule('prazos-alertas-diario', '0 8 * * *', $$ select gerar_alert
 -- mercado-pago-cancelar-assinatura já para de cobrar no Mercado Pago na hora, mas só marca
 -- cancelamento_agendado_para (fim do ciclo corrente) — o downgrade de verdade pro grátis
 -- acontece aqui, 1x/dia, sem reembolso e sem cortar acesso no meio do período já pago.
--- Segundo bloco: período PIX pré-pago vencido (pix_valido_ate) sem assinatura de cartão ativa
--- vira 'atrasado' — diferente do cartão, não desce pro grátis (era um plano pago que só não
--- foi renovado), bloqueia a plataforma inteira até pagar de novo (gate em App.jsx já cobre
+-- Segundo bloco: período pré-pago vencido (acesso_pago_ate — PIX ou cartão, mesmo mecanismo
+-- pros dois) sem assinatura de cartão ativa vira 'atrasado' — diferente da assinatura
+-- recorrente, não desce pro grátis (era um plano pago que só não foi renovado, nunca
+-- cancelável), bloqueia a plataforma inteira até pagar de novo (gate em App.jsx já cobre
 -- plano pago + status_pagamento != 'pago', sem UI nova).
 create or replace function efetivar_cancelamentos_agendados() returns void
   language plpgsql security definer set search_path = public as $$
@@ -1500,7 +1504,7 @@ begin
 
   update organizations
   set status_pagamento = 'atrasado'
-  where pix_valido_ate is not null and pix_valido_ate <= now()
+  where acesso_pago_ate is not null and acesso_pago_ate <= now()
     and mercado_pago_subscription_id is null
     and status_pagamento = 'pago';
 end;
