@@ -52,6 +52,7 @@ export default function Signup({ onCancel }) {
       if (cancelado || !turnstileRef.current) return;
       widgetId = window.turnstile.render(turnstileRef.current, {
         sitekey: siteKey,
+        action: "signup",
         callback: (token) => setCaptchaToken(token),
         "expired-callback": () => setCaptchaToken(""),
       });

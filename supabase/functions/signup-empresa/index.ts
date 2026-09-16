@@ -43,7 +43,9 @@ async function captchaValido(token: string, ip: string | null) {
       signal: controller.signal,
     });
     const data = await res.json().catch(() => null);
-    return !!data?.success;
+    // action confere que o token foi gerado pro widget de cadastro, não reaproveitado de
+    // outro fluxo — validação recomendada pela própria Cloudflare, além do success puro.
+    return !!data?.success && (!data?.action || data.action === "signup");
   } catch {
     return false; // Cloudflare fora do ar/timeout — mais seguro recusar que deixar passar.
   } finally {
