@@ -331,10 +331,21 @@ Deno.serve(async (req) => {
     const { data: processos, error: procErr } = await query;
     if (procErr) throw procErr;
 
-    const resultados = [];
-    for (const p of processos ?? []) {
-      resultados.push(await sincronizarProcesso(admin, p, apiKey, termos, anthropicKey));
+    // Achado real: 1 processo de cada vez, em sequência, estourava o tempo de execução da
+    // Edge Function pra empresa com muitos processos ativos (74 num caso real — a function
+    // era derrubada no meio, sem terminar de responder, e o client só via um erro genérico
+    // sem corpo). Paralelo com teto (não todos de uma vez, pra não estourar rate limit do
+    // DataJud/Escavador nem memória) resolve sem precisar virar fila/job em background.
+    const CONCORRENCIA = 8;
+    const fila = [...(processos ?? [])];
+    const resultados: Awaited<ReturnType<typeof sincronizarProcesso>>[] = [];
+    async function worker() {
+      let p;
+      while ((p = fila.shift())) {
+        resultados.push(await sincronizarProcesso(admin, p, apiKey, termos, anthropicKey));
+      }
     }
+    await Promise.all(Array.from({ length: Math.min(CONCORRENCIA, fila.length) }, () => worker()));
 
     const resumo = {
       processados: resultados.length,
