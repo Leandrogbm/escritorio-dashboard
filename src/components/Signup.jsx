@@ -1,10 +1,25 @@
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import Card from "./Card.jsx";
 import PoliticaPrivacidadeModal from "./PoliticaPrivacidadeModal.jsx";
 import { AuthField, AuthTabs } from "./AuthKit.jsx";
 import { COLORS } from "../lib/theme.js";
 import { supabase } from "../lib/supabaseClient.js";
 import { formatCpfOuCnpj } from "../lib/documento.js";
+
+const TURNSTILE_SRC = "https://challenges.cloudflare.com/turnstile/v0/api.js";
+
+function carregarTurnstile() {
+  if (window.turnstile) return Promise.resolve();
+  const existente = document.querySelector(`script[src^="${TURNSTILE_SRC}"]`);
+  if (existente) return new Promise((resolve) => existente.addEventListener("load", () => resolve()));
+  return new Promise((resolve) => {
+    const script = document.createElement("script");
+    script.src = TURNSTILE_SRC;
+    script.async = true;
+    script.onload = () => resolve();
+    document.body.appendChild(script);
+  });
+}
 
 // Cadastro self-service de uma empresa nova (organization + admin) via Edge Function
 // signup-empresa. Sem cobrança nesse momento — toda org nova entra no plano 'gratis' (trial
@@ -21,20 +36,46 @@ export default function Signup({ onCancel }) {
   const [loading, setLoading] = useState(false);
   const [termosAceitos, setTermosAceitos] = useState(false);
   const [mostrarPrivacidade, setMostrarPrivacidade] = useState(false);
+  // Turnstile (Cloudflare) — evita criação de conta em massa/automatizada. Verificado de
+  // verdade dentro da Edge Function signup-empresa (o CAPTCHA nativo do Supabase Auth não
+  // adianta aqui: signup-empresa usa a Admin API/service role, não o signUp padrão do
+  // GoTrue, então o gate nativo deles nunca é acionado).
+  const [captchaToken, setCaptchaToken] = useState("");
+  const turnstileRef = useRef(null);
+  const siteKey = import.meta.env.VITE_TURNSTILE_SITE_KEY;
+
+  useEffect(() => {
+    if (!siteKey || !turnstileRef.current) return;
+    let widgetId;
+    let cancelado = false;
+    carregarTurnstile().then(() => {
+      if (cancelado || !turnstileRef.current) return;
+      widgetId = window.turnstile.render(turnstileRef.current, {
+        sitekey: siteKey,
+        callback: (token) => setCaptchaToken(token),
+        "expired-callback": () => setCaptchaToken(""),
+      });
+    });
+    return () => { cancelado = true; if (widgetId) window.turnstile?.remove(widgetId); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [siteKey]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (password !== confirm) return setError("As senhas não coincidem.");
     if (!termosAceitos) return setError("Você precisa aceitar os Termos de Uso e a Política de Privacidade pra continuar.");
+    if (siteKey && !captchaToken) return setError("Confirma que você não é um robô pra continuar.");
     setError("");
     setLoading(true);
     const { error: signupError } = await supabase.functions.invoke("signup-empresa", {
-      body: { nomeEmpresa, cnpj, nomeResponsavel, email, password, termosAceitos: true },
+      body: { nomeEmpresa, cnpj, nomeResponsavel, email, password, termosAceitos: true, captchaToken },
     });
     if (signupError) {
       const body = await signupError.context?.json?.().catch(() => null);
       setError(body?.error ?? signupError.message);
       setLoading(false);
+      window.turnstile?.reset();
+      setCaptchaToken("");
       return;
     }
     const { error: loginError } = await supabase.auth.signInWithPassword({ email, password });
@@ -77,6 +118,8 @@ export default function Signup({ onCancel }) {
               do Actum.
             </span>
           </label>
+
+          {siteKey && <div ref={turnstileRef} />}
 
           {error && <p className="text-xs" style={{ color: COLORS.wine }}>{error}</p>}
 

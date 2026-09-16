@@ -25,6 +25,32 @@ function limparCnpj(cnpj: string) {
   return (cnpj || "").replace(/\D/g, "");
 }
 
+// Verifica o token do Cloudflare Turnstile direto com a Cloudflare — nunca confia no token
+// vindo do client sozinho. Evita criação de conta em massa/automatizada (achado real do
+// qa-guardian: combinado com a trava de pagamento, sem isso um atacante contornava o limite
+// de tentativas por org só criando conta nova a cada 5 tentativas de cartão).
+async function captchaValido(token: string, ip: string | null) {
+  const secret = Deno.env.get("TURNSTILE_SECRET_KEY");
+  if (!secret) return true; // Turnstile ainda não configurado — não bloqueia cadastro por isso.
+  if (!token) return false;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 10000);
+  try {
+    const res = await fetch("https://challenges.cloudflare.com/turnstile/v0/siteverify", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({ secret, response: token, ...(ip ? { remoteip: ip } : {}) }),
+      signal: controller.signal,
+    });
+    const data = await res.json().catch(() => null);
+    return !!data?.success;
+  } catch {
+    return false; // Cloudflare fora do ar/timeout — mais seguro recusar que deixar passar.
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 // Rollback do Auth user quando um passo seguinte do cadastro falha. Achado real: se esse
 // delete falhar também (raro, mas já aconteceu — deixou "teste@teste.com.br" travado por
 // dias, sem profile nenhum, bloqueando qualquer novo cadastro com esse email), a falha
@@ -40,8 +66,12 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const { nomeEmpresa, cnpj, nomeResponsavel, email, password, termosAceitos } = await req.json();
+    const { nomeEmpresa, cnpj, nomeResponsavel, email, password, termosAceitos, captchaToken } = await req.json();
     const cnpjDigits = limparCnpj(cnpj);
+
+    if (!(await captchaValido(captchaToken, req.headers.get("x-forwarded-for")))) {
+      return new Response(JSON.stringify({ error: "Confirma que você não é um robô pra continuar." }), { status: 400, headers: corsHeaders });
+    }
 
     if (cnpjDigits && ![11, 14].includes(cnpjDigits.length)) {
       return new Response(JSON.stringify({ error: "Informe um CPF (11 dígitos) ou CNPJ (14 dígitos) válido." }), { status: 400, headers: corsHeaders });
