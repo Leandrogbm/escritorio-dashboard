@@ -13,15 +13,12 @@
 // Secret necessário: supabase secrets set MERCADO_PAGO_ACCESS_TOKEN=<access-token-de-produção>
 
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { mesesValidos, valorPagamentoAvulso } from "../_shared/pagamentoAvulso.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
-
-// Mesmos números que src/config/planos.js usa só pra exibir — desconto de verdade é aplicado
-// aqui, no servidor.
-const DESCONTO_PIX: Record<number, number> = { 3: 0.03, 6: 0.04, 12: 0.05 };
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
@@ -59,7 +56,9 @@ Deno.serve(async (req) => {
     try {
       pixRes = await fetch("https://api.mercadopago.com/v1/payments", {
         method: "POST",
-        headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+        // X-Idempotency-Key é obrigatório em POST /v1/payments (evita cobrar 2x se a chamada
+        // for reenviada) — crypto.randomUUID() por chamada, cada PIX gerado é um pagamento novo.
+        headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json", "X-Idempotency-Key": crypto.randomUUID() },
         body: JSON.stringify({
           transaction_amount: valor,
           payment_method_id: "pix",
