@@ -15,6 +15,7 @@ import PortalCliente from "./components/PortalCliente.jsx";
 import LeadForm from "./components/LeadForm.jsx";
 import PageLoader from "./components/PageLoader.jsx";
 import AceitarTermosGate from "./components/AceitarTermosGate.jsx";
+import AssinaturaModal from "./components/AssinaturaModal.jsx";
 
 // code-splitting por aba (vercel-react-best-practices: bundle-dynamic-imports) — só uma aba
 // renderiza por vez (`activeTab`), mas antes todas (Financeiro/ERP com Recharts, PDF/OCR do
@@ -48,6 +49,10 @@ export default function App() {
   // platform_org_metrics, tem org_id/nome/suspenso etc.) — null no uso normal.
   const [orgOverride, setOrgOverride] = useState(null);
   const emSuporte = isPlatformAdmin && !!orgOverride;
+  // Abre o Payment Brick/PIX direto da tela de bloqueio (plano pago com pagamento pendente ou
+  // atrasado) — sem isso, admin/sócio bloqueado não tinha como voltar a pagar sem sair e achar
+  // outro caminho (Minha Empresa também fica atrás do próprio gate).
+  const [mostrarAssinaturaGate, setMostrarAssinaturaGate] = useState(false);
   const { permissions, togglePermission } = useRolePermissions(emSuporte ? orgOverride.org_id : profile?.org_id);
   // Persiste a aba ativa: navegador às vezes descarta/recarrega uma aba parada por um
   // tempo (economia de memória, comum em celular) — sem isso, o reload sempre caía de
@@ -191,23 +196,40 @@ export default function App() {
     );
   }
   if (!emSuporte && profile.organizations?.plano && profile.organizations?.status_pagamento !== "pago") {
-    const checkoutUrl = profile.organizations.mercado_pago_checkout_url;
+    // Cobre tanto "assinatura de cartão aguardando o 1º pagamento confirmar" quanto "PIX
+    // pré-pago venceu" (status_pagamento vira 'atrasado' sozinho, ver cron
+    // efetivar_cancelamentos_agendados) — mesma tela, só quem pode assinar (admin/sócio) vê o
+    // botão de pagar de novo; os outros cargos só esperam ou avisam o admin.
+    const podePagar = profile.role === "admin" || profile.role === "socio";
     return (
       <FullScreenMessage>
-        <span className="block" style={{ color: COLORS.ink, fontWeight: 600 }}>Aguardando confirmação do pagamento</span>
-        <span className="block mt-2">O acesso à plataforma será liberado assim que o pagamento do plano for confirmado.</span>
-        {checkoutUrl && (
-          <a
-            href={checkoutUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-block mt-4 px-3.5 py-2.5 rounded-md text-sm font-semibold"
+        <span className="block" style={{ color: COLORS.ink, fontWeight: 600 }}>
+          {profile.organizations.status_pagamento === "atrasado" ? "Pagamento em atraso" : "Aguardando confirmação do pagamento"}
+        </span>
+        <span className="block mt-2">
+          {profile.organizations.status_pagamento === "atrasado"
+            ? "O período pago venceu. Pague novamente pra liberar o acesso."
+            : "O acesso à plataforma será liberado assim que o pagamento do plano for confirmado."}
+        </span>
+        {podePagar && (
+          <button
+            onClick={() => setMostrarAssinaturaGate(true)}
+            className="block mx-auto mt-4 px-3.5 py-2.5 rounded-md text-sm font-semibold"
             style={{ background: COLORS.brass, color: "#fff" }}
           >
             Pagar agora
-          </a>
+          </button>
         )}
         <button onClick={signOut} className="block mx-auto mt-4 text-sm underline" style={{ color: COLORS.brassText }}>Sair</button>
+        {mostrarAssinaturaGate && (
+          <AssinaturaModal
+            modo="assinar"
+            planoAtual={profile.organizations.plano}
+            cicloAtual={profile.organizations.assinatura_ciclo}
+            onClose={() => setMostrarAssinaturaGate(false)}
+            onAtualizado={() => { setMostrarAssinaturaGate(false); refreshProfile(); }}
+          />
+        )}
       </FullScreenMessage>
     );
   }

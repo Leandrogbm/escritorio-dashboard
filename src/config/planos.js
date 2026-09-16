@@ -39,10 +39,21 @@ export function planoPorValor(valor) {
   return PLANOS.find((p) => Number(p.valor) === Number(valor)) ?? null;
 }
 
-export const DESCONTO_ANUAL = 0.05; // 5% sobre o valor mensal x12 — mesmo número usado em mercado-pago-criar-assinatura
+export const DESCONTO_ANUAL = 0.05; // 5% sobre o valor mensal x12 (assinatura de cartão) — mesmo número usado em mercado-pago-criar-assinatura
 
 // Valor de fato cobrado no ciclo escolhido — só pra exibir na UI (preço real é recalculado no
 // banco pela Edge Function, nunca confia no que chega daqui). 'anual' já vem com o desconto.
 export function valorCobranca(valorMensal, ciclo) {
   return ciclo === "anual" ? Math.round(valorMensal * 12 * (1 - DESCONTO_ANUAL) * 100) / 100 : Number(valorMensal);
+}
+
+// PIX pré-pago por período (mercado-pago-criar-pix) — trilho separado da assinatura de
+// cartão: pagamento único, sem token salvo, "meses" pré-paga um período de acesso. Descontos
+// maiores que o anual de cartão por período curto, iguais no de 12 meses (mesmo número, trilho
+// diferente) — mesmos usados no servidor, nunca confiados do client.
+export const DESCONTO_PIX = { 3: 0.03, 6: 0.04, 12: 0.05 };
+
+export function valorPix(valorMensal, meses) {
+  const desconto = DESCONTO_PIX[meses] ?? 0;
+  return Math.round(valorMensal * meses * (1 - desconto) * 100) / 100;
 }

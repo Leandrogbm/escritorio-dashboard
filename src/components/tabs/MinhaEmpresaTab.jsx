@@ -22,6 +22,7 @@ export default function MinhaEmpresaTab({ profile, onAtualizado }) {
   const org = profile.organizations ?? {};
   const podeAssinar = profile.role === "admin" || profile.role === "socio";
   const plano = planoPorValue(org.plano);
+  const temAssinaturaCartao = !!org.mercado_pago_subscription_id;
   const [modalAssinatura, setModalAssinatura] = useState(null); // 'assinar' | 'trocar' | 'cartao' | null
   const [cancelando, setCancelando] = useState(false);
   const [msgAssinatura, setMsgAssinatura] = useState("");
@@ -107,6 +108,13 @@ export default function MinhaEmpresaTab({ profile, onAtualizado }) {
               Cancelamento agendado — acesso ao plano pago continua até {new Date(org.cancelamento_agendado_para).toLocaleDateString("pt-BR")}, depois volta pro grátis.
             </p>
           )}
+          {org.pix_valido_ate && !temAssinaturaCartao && (
+            <p className="text-xs mb-3" style={{ color: new Date(org.pix_valido_ate) > new Date() ? COLORS.slate : COLORS.wine }}>
+              {new Date(org.pix_valido_ate) > new Date()
+                ? `Período pago via PIX válido até ${new Date(org.pix_valido_ate).toLocaleDateString("pt-BR")} — sem renovação automática, é só pagar de novo antes disso.`
+                : `Período pago via PIX venceu em ${new Date(org.pix_valido_ate).toLocaleDateString("pt-BR")}.`}
+            </p>
+          )}
 
           <div className="flex flex-wrap gap-2 mt-1">
             {(!org.plano || org.plano === "gratis") && (
@@ -114,7 +122,7 @@ export default function MinhaEmpresaTab({ profile, onAtualizado }) {
                 Assinar um plano
               </button>
             )}
-            {org.plano && org.plano !== "gratis" && !org.cancelamento_agendado_para && (
+            {org.plano && org.plano !== "gratis" && temAssinaturaCartao && !org.cancelamento_agendado_para && (
               <>
                 <button onClick={() => setModalAssinatura("trocar")} disabled={org.status_pagamento !== "pago"} className="px-3 py-2 rounded-md text-sm font-semibold" style={{ ...botaoSecundario, opacity: org.status_pagamento !== "pago" ? 0.5 : 1 }}>
                   Trocar de plano
@@ -126,6 +134,11 @@ export default function MinhaEmpresaTab({ profile, onAtualizado }) {
                   {cancelando ? "Cancelando..." : "Cancelar assinatura"}
                 </button>
               </>
+            )}
+            {org.plano && org.plano !== "gratis" && !temAssinaturaCartao && (
+              <button onClick={() => setModalAssinatura("assinar")} className="px-3 py-2 rounded-md text-sm font-semibold" style={{ background: COLORS.brass, color: "#fff" }}>
+                {org.status_pagamento === "atrasado" ? "Pagar novamente" : "Renovar / trocar forma de pagamento"}
+              </button>
             )}
           </div>
 

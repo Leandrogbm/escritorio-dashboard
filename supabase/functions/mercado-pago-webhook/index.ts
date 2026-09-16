@@ -2,18 +2,25 @@
 // confiada por si só: a função sempre consulta a API do Mercado Pago com o token privado
 // antes de alterar organizations/platform_cobrancas.
 //
-// Dois eventos:
-//   - "subscription_authorized_payment": pagamento de uma assinatura recorrente (Payment
-//     Brick, mercado-pago-criar-assinatura) — libera a org e lança 1 platform_cobrancas pro
-//     mês corrente (uma linha por vez, não 6 de uma vez como a atribuição manual de plano).
+// Eventos:
+//   - "subscription_authorized_payment": pagamento de uma assinatura recorrente de cartão
+//     (Payment Brick, mercado-pago-criar-assinatura) — libera a org e lança 1 platform_cobrancas
+//     pro mês corrente (uma linha por vez, não 6 de uma vez como a atribuição manual de plano).
 //     Assinatura anual (assinatura_ciclo='anual') chega aqui do mesmo jeito, como 1 pagamento
 //     só do valor cheio do ano — vira 1 linha em platform_cobrancas também, não 12; o valor já
 //     vem certo de payment.transaction_amount, não precisa saber o ciclo aqui pra isso.
 //   - "subscription_preapproval": mudança de status da própria assinatura — só confirma e
 //     registra, sem ação destrutiva (cancelamento de verdade é mercado-pago-cancelar-assinatura,
 //     iniciado pelo próprio Actum; aqui é só acompanhar o que o Mercado Pago avisa).
-//   - "payment": checkout avulso (legado — sem uso desde o modelo de trial por uso, mas
-//     mantido pra não deixar um pagamento em trânsito antigo sem tratamento).
+//   - "payment": pagamento único (PIX pré-pago, mercado-pago-criar-pix — trilho separado do
+//     cartão, sem token salvo pra cobrar de novo sozinho; também cobre o checkout avulso
+//     legado, sem uso desde o modelo de trial por uso, mas mantido pra não deixar um pagamento
+//     em trânsito antigo sem tratamento). `metadata.tipo` decide qual dos dois é.
+//
+// Nota: `metadata` do Mercado Pago às vezes normaliza chaves com underscore na volta — por
+// isso a org sempre viaja em `external_reference` (campo top-level, nunca dentro de metadata),
+// nunca em `metadata.org_id`. `metadata.tipo`/`metadata.meses`/`metadata.plano` não têm
+// underscore, ficam seguros.
 //
 // Configuração:
 //   supabase secrets set MERCADO_PAGO_ACCESS_TOKEN=<access-token-de-produção>
@@ -29,28 +36,22 @@ function notificationId(body: Record<string, unknown>, url: URL) {
   return data?.id ?? body?.id ?? url.searchParams.get("data.id") ?? url.searchParams.get("id");
 }
 
-// Lança/atualiza 1 cobrança do mês corrente e marca a org como paga — idempotente via
-// mercado_pago_payment_id (mesma defesa que o pagamento avulso já usava).
-async function confirmarCobrancaMes(admin: ReturnType<typeof createClient>, orgId: string, valor: number, paymentIdText: string) {
-  const { data: jaProcessada } = await admin
-    .from("platform_cobrancas")
-    .select("id")
-    .eq("mercado_pago_payment_id", paymentIdText)
-    .maybeSingle();
-  if (jaProcessada) return;
+// Idempotente via mercado_pago_payment_id (unique) — reentrega do mesmo webhook não duplica.
+async function jaProcessado(admin: ReturnType<typeof createClient>, paymentIdText: string) {
+  const { data } = await admin.from("platform_cobrancas").select("id").eq("mercado_pago_payment_id", paymentIdText).maybeSingle();
+  return !!data;
+}
 
-  const { error: orgError } = await admin.from("organizations").update({ status_pagamento: "pago" }).eq("id", orgId);
-  if (orgError) throw orgError;
-
+async function lancarCobranca(admin: ReturnType<typeof createClient>, orgId: string, valor: number, paymentIdText: string) {
   const mesReferencia = new Date();
   mesReferencia.setDate(1);
-  const { error: cobrancaError } = await admin
+  const { error } = await admin
     .from("platform_cobrancas")
     .upsert(
       { org_id: orgId, mes_referencia: mesReferencia.toISOString().slice(0, 10), valor, status: "pago", mercado_pago_payment_id: paymentIdText },
       { onConflict: "org_id,mes_referencia" }
     );
-  if (cobrancaError) throw cobrancaError;
+  if (error) throw error;
 }
 
 Deno.serve(async (req) => {
@@ -82,7 +83,11 @@ Deno.serve(async (req) => {
         .maybeSingle();
       if (!org) return new Response("ignorado: assinatura não pertence a nenhuma organização", { status: 200 });
 
-      await confirmarCobrancaMes(admin, org.id, Number(payment.transaction_amount), String(id));
+      const paymentIdText = String(id);
+      if (await jaProcessado(admin, paymentIdText)) return new Response("ok", { status: 200 });
+      const { error: orgError } = await admin.from("organizations").update({ status_pagamento: "pago" }).eq("id", org.id);
+      if (orgError) throw orgError;
+      await lancarCobranca(admin, org.id, Number(payment.transaction_amount), paymentIdText);
       return new Response("ok", { status: 200 });
     }
 
@@ -105,13 +110,46 @@ Deno.serve(async (req) => {
       if (payment.status !== "approved") return new Response("ignorado: pagamento ainda não aprovado", { status: 200 });
 
       const orgId = payment.external_reference;
-      if (!orgId || payment.metadata?.tipo !== "actum_assinatura") {
-        return new Response("ignorado: pagamento não pertence a uma assinatura Actum", { status: 200 });
-      }
+      if (!orgId) return new Response("ignorado: pagamento sem organização de referência", { status: 200 });
       const { data: organization } = await admin.from("organizations").select("id").eq("id", orgId).maybeSingle();
       if (!organization) return new Response("ignorado: organização não encontrada", { status: 200 });
 
-      await confirmarCobrancaMes(admin, orgId, Number(payment.transaction_amount), String(id));
+      const paymentIdText = String(id);
+      if (await jaProcessado(admin, paymentIdText)) return new Response("ok", { status: 200 });
+
+      if (payment.metadata?.tipo === "actum_pix_prepago") {
+        // PIX é sempre pagamento único — não tem token salvo pra cobrar de novo sozinho.
+        // "meses" pré-paga um período de acesso; quando pix_valido_ate vence, o cron
+        // efetivar_cancelamentos_agendados bloqueia a org de novo (ver migração 20260915040000).
+        const meses = Number(payment.metadata?.meses);
+        const planoPix = String(payment.metadata?.plano ?? "");
+        if (![3, 6, 12].includes(meses) || !planoPix) {
+          return new Response("ignorado: metadata de PIX inválida", { status: 200 });
+        }
+        const { data: limite } = await admin.from("plan_limits").select("plano, valor_mensal").eq("plano", planoPix).maybeSingle();
+        if (!limite) return new Response("ignorado: plano de PIX inválido", { status: 200 });
+
+        const validoAte = new Date();
+        validoAte.setMonth(validoAte.getMonth() + meses);
+        const { error: orgError } = await admin
+          .from("organizations")
+          .update({
+            plano: limite.plano,
+            valor_mensal: limite.valor_mensal,
+            status_pagamento: "pago",
+            pix_valido_ate: validoAte.toISOString(),
+          })
+          .eq("id", orgId);
+        if (orgError) throw orgError;
+      } else if (payment.metadata?.tipo === "actum_assinatura") {
+        // Checkout avulso legado — sem uso desde o modelo de trial por uso.
+        const { error: orgError } = await admin.from("organizations").update({ status_pagamento: "pago" }).eq("id", orgId);
+        if (orgError) throw orgError;
+      } else {
+        return new Response("ignorado: pagamento não pertence a nenhum fluxo Actum conhecido", { status: 200 });
+      }
+
+      await lancarCobranca(admin, orgId, Number(payment.transaction_amount), paymentIdText);
       return new Response("ok", { status: 200 });
     }
 
