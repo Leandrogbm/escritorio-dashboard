@@ -100,7 +100,11 @@ export default function ProcessosTab({ currentRole, orgId, profile, abrirProcess
     const ativos = processos.filter((p) => p.status !== "Encerrado").length;
     const aviso = avisoLimitePlano(profile?.organizations, "limite_processos", ativos, "processos ativos");
     if (aviso) return alert(aviso);
-    setEditing({});
+    // Achado real: processo não-confidencial nasce sem responsável nenhum (RLS processos_sel
+    // exige "não é advogado OU é responsável" pra ver processo não-confidencial) — advogado
+    // que cadastra e não se marca como responsável fica sem ver o próprio processo que
+    // acabou de criar. Pré-marca quem está criando; continua editável no form normal.
+    setEditing({ responsaveis: profile?.id ? [profile.id] : [] });
   };
 
   // Constraint unique (org_id, numero) já barra duplicado no banco — aqui só troca o erro

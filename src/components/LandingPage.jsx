@@ -158,19 +158,26 @@ function WhatsAppFlutuante() {
   const [aberto, setAberto] = useState(true);
   const [compacto, setCompacto] = useState(false);
   useEffect(() => {
-    // Encolhe o widget quando a seção "Comece agora" (logo antes do rodapé) entra na tela —
-    // sem isso o personagem em tamanho cheio fica sobrepondo o fim do FAQ/rodapé durante o
-    // scroll em telas menores.
-    const alvo = document.querySelector("[data-widget-boundary]");
-    if (!alvo) return;
-    const io = new IntersectionObserver(([entry]) => setCompacto(entry.isIntersecting), { threshold: 0.1 });
-    io.observe(alvo);
+    // Encolhe o widget quando algum `[data-widget-boundary]` entra na tela — a seção "Comece
+    // agora" (logo antes do rodapé, personagem em tamanho cheio sobrepondo o fim do
+    // FAQ/rodapé) e também o bloco de CTA do hero em mobile (botão "Já tenho conta — Entrar"
+    // some atrás do personagem no primeiro paint, antes de rolar, já que ambos ficam no canto
+    // inferior direito nessa largura). Mais de um alvo pode existir; compacta se QUALQUER um
+    // estiver visível.
+    const alvos = document.querySelectorAll("[data-widget-boundary]");
+    if (!alvos.length) return;
+    const estados = new Map();
+    const io = new IntersectionObserver((entries) => {
+      entries.forEach((e) => estados.set(e.target, e.isIntersecting));
+      setCompacto([...estados.values()].some(Boolean));
+    }, { threshold: 0.1 });
+    alvos.forEach((alvo) => io.observe(alvo));
     return () => io.disconnect();
   }, []);
   if (!aberto) return null;
   return (
     <div
-      className={`fixed bottom-5 right-5 sm:bottom-7 sm:right-7 z-50 w-[86px] sm:w-[110px] group transition-all duration-300 ${
+      className={`fixed bottom-5 right-5 sm:bottom-7 sm:right-7 z-50 w-16 sm:w-[110px] group transition-all duration-300 ${
         compacto ? "whatsapp-widget-compacto" : ""
       }`}
     >
@@ -239,7 +246,7 @@ function planoFeatures(p) {
   ];
 }
 
-function Botao({ children, variant = "primary", onClick, ...props }) {
+function Botao({ children, variant = "primary", onClick, className = "", ...props }) {
   const styles =
     variant === "primary"
       ? { background: COLORS.brass, color: "#fff" }
@@ -258,7 +265,7 @@ function Botao({ children, variant = "primary", onClick, ...props }) {
     <button
       {...props}
       onClick={handleClick}
-      className="btn-landing inline-flex items-center justify-center gap-2 px-5 py-3 rounded-md text-sm font-semibold whitespace-nowrap"
+      className={`btn-landing inline-flex items-center justify-center gap-2 px-5 py-3 rounded-md text-sm font-semibold whitespace-nowrap ${className}`}
       style={styles}
     >
       {children}
@@ -340,7 +347,10 @@ export default function LandingPage({ onEntrar, onCadastrar }) {
               Clientes, processos, prazos, financeiro e equipe num só lugar — com acompanhamento
               automático de andamento processual e portal pro seu cliente acompanhar sozinho.
             </p>
-            <div className="flex flex-col sm:flex-row gap-3 mt-8">
+            {/* data-widget-boundary: mesmo boundary do WhatsAppFlutuante lá embaixo — encolhe
+                o widget enquanto esse CTA está visível, senão ele cobre o botão "Entrar" no
+                primeiro paint em mobile (ambos disputam o canto inferior direito). */}
+            <div className="flex flex-col sm:flex-row gap-3 mt-8" data-widget-boundary>
               <Botao onClick={onCadastrar}>
                 Cadastrar meu escritório <ArrowRight size={16} />
               </Botao>
