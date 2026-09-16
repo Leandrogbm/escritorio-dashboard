@@ -21,6 +21,7 @@
 // (mesmo token de mercado-pago-webhook — nunca vai pro client, só Deno.env aqui.)
 
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { checarBloqueioPagamento, registrarTentativaFalha, registrarTentativaSucesso } from "../_shared/limitePagamento.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -64,6 +65,13 @@ Deno.serve(async (req) => {
     if (!profile || !["admin", "socio"].includes(profile.role)) {
       return new Response(JSON.stringify({ error: "Só admin ou sócio pode mexer na assinatura." }), { status: 403, headers: corsHeaders });
     }
+
+    // Trava contra carding (mesmo achado real do qa-guardian que motivou isso em
+    // mercado-pago-criar-pagamento-cartao/mercado-pago-criar-pix) — só se aplica de verdade
+    // quando vem card_token_id (cartão novo sendo testado), mas checar sempre é mais simples
+    // e não atrapalha troca de plano legítima na prática.
+    const bloqueio = await checarBloqueioPagamento(admin, profile.org_id);
+    if (bloqueio) return new Response(JSON.stringify({ error: bloqueio }), { status: 429, headers: corsHeaders });
 
     const { plano, card_token_id, ciclo } = await req.json();
     if (!plano) return new Response(JSON.stringify({ error: "Escolha um plano." }), { status: 400, headers: corsHeaders });
@@ -142,8 +150,10 @@ Deno.serve(async (req) => {
     if (erroCriar) return new Response(JSON.stringify({ error: erroCriar }), { status: 504, headers: corsHeaders });
     const preapproval = await preapprovalRes!.json().catch(() => null);
     if (!preapprovalRes!.ok || !preapproval?.id) {
+      await registrarTentativaFalha(admin, profile.org_id);
       return new Response(JSON.stringify({ error: preapproval?.message ?? "Não foi possível criar a assinatura. Confira os dados do cartão." }), { status: 502, headers: corsHeaders });
     }
+    await registrarTentativaSucesso(admin, profile.org_id);
 
     // status_pagamento fica 'pendente' até o webhook confirmar o primeiro pagamento de
     // verdade (subscription_authorized_payment) — nunca libera com base só na resposta

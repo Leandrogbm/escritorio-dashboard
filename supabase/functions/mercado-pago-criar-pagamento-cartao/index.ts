@@ -18,6 +18,7 @@
 
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { mesesValidos, valorPagamentoAvulso } from "../_shared/pagamentoAvulso.ts";
+import { checarBloqueioPagamento, registrarTentativaFalha, registrarTentativaSucesso } from "../_shared/limitePagamento.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -40,6 +41,12 @@ Deno.serve(async (req) => {
     if (!profile || !["admin", "socio"].includes(profile.role)) {
       return new Response(JSON.stringify({ error: "Só admin ou sócio pode pagar a assinatura." }), { status: 403, headers: corsHeaders });
     }
+
+    // Trava contra carding — achado real do qa-guardian: sem isso, chamadas repetidas com
+    // card_token_id inválido testavam cartão roubado direto contra a API real do MP, sem
+    // nenhum bloqueio (10/10 tentativas passaram no teste ao vivo).
+    const bloqueio = await checarBloqueioPagamento(admin, profile.org_id);
+    if (bloqueio) return new Response(JSON.stringify({ error: bloqueio }), { status: 429, headers: corsHeaders });
 
     const { plano, meses, brickData } = await req.json();
     const mesesNum = Number(meses);
@@ -84,9 +91,14 @@ Deno.serve(async (req) => {
       clearTimeout(timeout);
     }
     const payment = await pagamentoRes.json().catch(() => null);
-    if (!pagamentoRes.ok || !payment?.id) {
-      return new Response(JSON.stringify({ error: payment?.message ?? "Não foi possível cobrar o cartão. Confira os dados." }), { status: 502, headers: corsHeaders });
+    // 'rejected' volta com HTTP 201 normal (não é erro HTTP) — contar como falha aqui também é
+    // essencial pra trava de carding funcionar: um cartão roubado recusado NÃO pode resetar o
+    // contador, senão a trava não protege nada.
+    if (!pagamentoRes.ok || !payment?.id || payment.status === "rejected") {
+      await registrarTentativaFalha(admin, profile.org_id);
+      return new Response(JSON.stringify({ error: payment?.status_detail ?? payment?.message ?? "Não foi possível cobrar o cartão. Confira os dados." }), { status: 502, headers: corsHeaders });
     }
+    await registrarTentativaSucesso(admin, profile.org_id);
     // status pode vir 'approved' (cartões de teste/alguns emissores respondem na hora) ou
     // 'in_process' (mais comum) — de qualquer forma, quem libera acesso de verdade é sempre o
     // webhook consultando a API, nunca essa resposta síncrona.

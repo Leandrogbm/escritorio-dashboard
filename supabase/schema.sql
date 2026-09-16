@@ -41,6 +41,12 @@ create table organizations (
   -- verdade). Até quando o período pago continua liberando acesso (ver
   -- efetivar_cancelamentos_agendados: vencido e sem assinatura de cartão ativa -> 'atrasado').
   acesso_pago_ate timestamptz,
+  -- Trava contra carding (ver supabase/functions/_shared/limitePagamento.ts) — contador de
+  -- tentativas de pagamento falhas seguidas + bloqueio temporário ao bater o limite. Achado
+  -- real do qa-guardian: sem isso, uma conta trial recém-criada tinha chamadas ilimitadas pra
+  -- testar card_token_id de cartão roubado contra a API real do Mercado Pago.
+  tentativas_pagamento_falhas int not null default 0,
+  bloqueado_pagamento_ate timestamptz,
   status_pagamento text check (status_pagamento in ('pago','pendente','atrasado')) not null default 'pendente',
   suspenso boolean not null default false, -- bloqueia login de toda a empresa (App.jsx), sem apagar nada
   created_at timestamptz not null default now(),
@@ -576,6 +582,8 @@ begin
     new.cancelamento_agendado_para := old.cancelamento_agendado_para;
     new.assinatura_ciclo := old.assinatura_ciclo;
     new.acesso_pago_ate := old.acesso_pago_ate;
+    new.tentativas_pagamento_falhas := old.tentativas_pagamento_falhas;
+    new.bloqueado_pagamento_ate := old.bloqueado_pagamento_ate;
     -- cnpj saiu da lista de protegidos: admin/sócio edita pela aba Minha Empresa.
   end if;
   return new;

@@ -14,6 +14,7 @@
 
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { mesesValidos, valorPagamentoAvulso } from "../_shared/pagamentoAvulso.ts";
+import { checarBloqueioPagamento, registrarTentativaFalha, registrarTentativaSucesso } from "../_shared/limitePagamento.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -36,6 +37,9 @@ Deno.serve(async (req) => {
     if (!profile || !["admin", "socio"].includes(profile.role)) {
       return new Response(JSON.stringify({ error: "Só admin ou sócio pode pagar a assinatura." }), { status: 403, headers: corsHeaders });
     }
+
+    const bloqueio = await checarBloqueioPagamento(admin, profile.org_id);
+    if (bloqueio) return new Response(JSON.stringify({ error: bloqueio }), { status: 429, headers: corsHeaders });
 
     const { plano, meses } = await req.json();
     const mesesNum = Number(meses);
@@ -80,8 +84,10 @@ Deno.serve(async (req) => {
     const payment = await pixRes.json().catch(() => null);
     const qr = payment?.point_of_interaction?.transaction_data;
     if (!pixRes.ok || !qr?.qr_code) {
+      await registrarTentativaFalha(admin, profile.org_id);
       return new Response(JSON.stringify({ error: payment?.message ?? "Não foi possível gerar o PIX. Tenta de novo." }), { status: 502, headers: corsHeaders });
     }
+    await registrarTentativaSucesso(admin, profile.org_id);
 
     return new Response(
       JSON.stringify({ ok: true, payment_id: payment.id, qr_code: qr.qr_code, qr_code_base64: qr.qr_code_base64, valor }),
