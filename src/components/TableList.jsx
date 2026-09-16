@@ -26,7 +26,7 @@ export function TableHead({ columns }) {
 // linha — quando informado, vira uma lombada colorida à esquerda (mesmo semáforo do carimbo,
 // só que visível antes de ler qualquer texto). Sem tone = linha sem status pra comunicar,
 // fica neutra de propósito (nada de cor decorativa sem significado).
-export function Tr({ children, onClick, tone, className = "" }) {
+export function Tr({ children, onClick, tone, className = "", style }) {
   const accent = tone ? TONE_COLOR[tone] ?? COLORS.line : "transparent";
   return (
     <tr
@@ -36,6 +36,7 @@ export function Tr({ children, onClick, tone, className = "" }) {
         borderBottom: `1px solid ${COLORS.line}`,
         borderLeft: `3px solid ${accent}`,
         background: COLORS.paperRaised,
+        ...style,
       }}
     >
       {children}

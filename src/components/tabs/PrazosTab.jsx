@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from "react";
-import { Clock, Plus, ChevronLeft, ChevronRight, List, CalendarDays } from "lucide-react";
+import { Clock, Plus, ChevronLeft, ChevronRight, List, CalendarDays, Check } from "lucide-react";
 import Card from "../Card.jsx";
 import SectionTitle from "../SectionTitle.jsx";
 import Stamp, { urgencia, diasAte } from "../Stamp.jsx";
@@ -12,24 +12,40 @@ import { useSupabaseTable } from "../../hooks/useSupabaseTable.js";
 
 const DIAS_SEMANA = ["D", "S", "T", "Q", "Q", "S", "S"];
 
-function linhaPrazo(p, onEdit, onDelete) {
+// Marca/desmarca cumprido — histórico continua (não exclui), só sai da urgência visual.
+function BotaoFeito({ feito, onToggle }) {
+  return (
+    <button
+      onClick={(e) => { e.stopPropagation(); onToggle(); }}
+      aria-label={feito ? "Marcar como não feito" : "Marcar como feito"}
+      title={feito ? "Feito — clique pra desfazer" : "Marcar como feito"}
+      className="p-1.5 rounded-full flex items-center justify-center"
+      style={{ background: feito ? COLORS.success : "transparent", border: `1.5px solid ${feito ? COLORS.success : COLORS.line}`, color: feito ? "#fff" : COLORS.slate }}
+    >
+      <Check size={13} />
+    </button>
+  );
+}
+
+function linhaPrazo(p, onEdit, onDelete, onToggleFeito) {
   const dias = diasAte(p.data);
   const u = urgencia(dias);
   return (
-    <div key={p.id} onClick={() => onEdit(p)} className="flex items-center justify-between gap-3 px-4 py-3 cursor-pointer" style={{ borderTop: `1px solid ${COLORS.line}` }}>
+    <div key={p.id} onClick={() => onEdit(p)} className="flex items-center justify-between gap-3 px-4 py-3 cursor-pointer" style={{ borderTop: `1px solid ${COLORS.line}`, opacity: p.feito ? 0.55 : 1 }}>
       <div className="min-w-0">
-        <p className="text-sm truncate" style={{ color: COLORS.ink, fontWeight: 600 }}>{p.tipo}</p>
+        <p className="text-sm truncate" style={{ color: COLORS.ink, fontWeight: 600, textDecoration: p.feito ? "line-through" : "none" }}>{p.tipo}</p>
         <p className="text-xs truncate" style={{ color: COLORS.slate }}>{p.processo?.numero ?? "sem processo"} · {p.cliente?.nome ?? "—"} · {p.responsavel?.nome ?? "sem responsável"}</p>
       </div>
       <div className="flex items-center gap-2 shrink-0" onClick={(e) => e.stopPropagation()}>
-        <Stamp tone={u.tone}>{u.label} · {dias}d</Stamp>
+        <BotaoFeito feito={p.feito} onToggle={() => onToggleFeito(p)} />
+        {!p.feito && <Stamp tone={u.tone}>{u.label} · {dias}d</Stamp>}
         <RowActions onEdit={() => onEdit(p)} onDelete={() => onDelete(p.id)} />
       </div>
     </div>
   );
 }
 
-function CalendarioPrazos({ prazos, onEdit, onDelete }) {
+function CalendarioPrazos({ prazos, onEdit, onDelete, onToggleFeito }) {
   const [mesRef, setMesRef] = useState(() => { const d = new Date(); d.setDate(1); return d; });
   const [diaSelecionado, setDiaSelecionado] = useState(null);
 
@@ -109,7 +125,7 @@ function CalendarioPrazos({ prazos, onEdit, onDelete }) {
         {!diaSelecionado && (
           <p className="px-4 py-6 text-center text-sm" style={{ color: COLORS.slate }}>Os dias com bolinha têm prazo cadastrado.</p>
         )}
-        {(diaSelecionado ? porDia.get(diaSelecionado) ?? [] : []).map((p) => linhaPrazo(p, onEdit, onDelete))}
+        {(diaSelecionado ? porDia.get(diaSelecionado) ?? [] : []).map((p) => linhaPrazo(p, onEdit, onDelete, onToggleFeito))}
       </Card>
     </div>
   );
@@ -129,6 +145,12 @@ export default function PrazosTab({ orgId } = {}) {
   const [editing, setEditing] = useState(null);
   const [view, setView] = useState("lista"); // "lista" | "calendario"
   const [busca, setBusca] = useState("");
+  // Filtro por data, pedido do usuário: HOJE (só vencimento de hoje), TODOS (sem filtro) ou
+  // DATA (escolhe um dia específico no seletor que aparece do lado).
+  const [filtroData, setFiltroData] = useState("todos"); // "hoje" | "todos" | "data"
+  const [dataEscolhida, setDataEscolhida] = useState(() => new Date().toISOString().slice(0, 10));
+  const hojeStr = new Date().toISOString().slice(0, 10);
+  const onToggleFeito = (p) => update(p.id, { feito: !p.feito });
 
   // "Data" pode ser digitada direto (prazo simples) OU calculada a partir de início +
   // quantidade de dias (dias_uteis pula sábado/domingo/feriado nacional) — se início e
@@ -152,6 +174,8 @@ export default function PrazosTab({ orgId } = {}) {
   const abrirEdicao = (p) => setEditing({ ...p, cliente_id: p.cliente?.id, processo_id: p.processo?.id, responsavel_id: p.responsavel?.id });
 
   const prazosFiltrados = prazos.filter((p) => {
+    if (filtroData === "hoje" && p.data !== hojeStr) return false;
+    if (filtroData === "data" && p.data !== dataEscolhida) return false;
     const q = busca.trim().toLowerCase();
     if (!q) return true;
     return p.tipo.toLowerCase().includes(q)
@@ -170,6 +194,27 @@ export default function PrazosTab({ orgId } = {}) {
         action={
           <div className="flex flex-wrap items-center gap-2">
             <SearchInput value={busca} onChange={setBusca} placeholder="Buscar prazo, processo ou cliente..." />
+            <div className="flex rounded-md overflow-hidden text-xs font-semibold" style={{ border: `1px solid ${COLORS.line}` }}>
+              {[{ v: "hoje", l: "Hoje" }, { v: "todos", l: "Todos" }, { v: "data", l: "Data" }].map((o) => (
+                <button
+                  key={o.v}
+                  onClick={() => setFiltroData(o.v)}
+                  className="px-3 py-2"
+                  style={{ background: filtroData === o.v ? COLORS.ink : "transparent", color: filtroData === o.v ? "#fff" : COLORS.slate }}
+                >
+                  {o.l}
+                </button>
+              ))}
+            </div>
+            {filtroData === "data" && (
+              <input
+                type="date"
+                value={dataEscolhida}
+                onChange={(e) => setDataEscolhida(e.target.value)}
+                className="px-2.5 py-2 rounded-md text-sm"
+                style={{ border: `1px solid ${COLORS.line}`, color: COLORS.ink }}
+              />
+            )}
             <div className="flex rounded-md overflow-hidden" style={{ border: `1px solid ${COLORS.line}` }}>
               <button onClick={() => setView("lista")} className="p-2" style={{ background: view === "lista" ? COLORS.ink : "transparent", color: view === "lista" ? "#fff" : COLORS.slate }} aria-label="Lista">
                 <List size={14} />
@@ -186,27 +231,30 @@ export default function PrazosTab({ orgId } = {}) {
       />
 
       {view === "calendario" ? (
-        <CalendarioPrazos prazos={prazosFiltrados} onEdit={abrirEdicao} onDelete={remove} />
+        <CalendarioPrazos prazos={prazosFiltrados} onEdit={abrirEdicao} onDelete={remove} onToggleFeito={onToggleFeito} />
       ) : (
         <Card className="overflow-hidden !p-0">
           <div className="overflow-x-auto">
           <table className="w-full text-sm">
-            <TableHead columns={["Processo", "Cliente", "Tipo", "Data", "Responsável", "Situação", ""]} />
+            <TableHead columns={["Processo", "Cliente", "Tipo", "Data", "Responsável", "Situação", "Feito", ""]} />
             <tbody>
               {!loading && sorted.length === 0 && (
-                <tr><td colSpan={7} className="px-4 py-6 text-center text-sm" style={{ color: COLORS.slate }}>{busca ? "Nenhum prazo encontrado." : "Nenhum prazo cadastrado ainda."}</td></tr>
+                <tr><td colSpan={8} className="px-4 py-6 text-center text-sm" style={{ color: COLORS.slate }}>{busca ? "Nenhum prazo encontrado." : "Nenhum prazo cadastrado ainda."}</td></tr>
               )}
               {sorted.map((p) => {
                 const dias = diasAte(p.data);
                 const u = urgencia(dias);
                 return (
-                  <Tr key={p.id} onClick={() => abrirEdicao(p)} tone={u.tone}>
+                  <Tr key={p.id} onClick={() => abrirEdicao(p)} tone={u.tone} style={p.feito ? { opacity: 0.55 } : undefined}>
                     <td className="px-4 py-3.5" style={{ fontFamily: "'IBM Plex Mono', monospace", color: COLORS.inkSoft, fontSize: 12.5 }}>{p.processo?.numero ?? "sem processo"}</td>
                     <td className="px-4 py-3.5" style={{ fontFamily: "'Source Serif 4', serif", fontWeight: 600, fontSize: 15, color: COLORS.ink }}>{p.cliente?.nome ?? "—"}</td>
-                    <td className="px-4 py-3.5" style={{ color: COLORS.slate }}>{p.tipo}</td>
+                    <td className="px-4 py-3.5" style={{ color: COLORS.slate, textDecoration: p.feito ? "line-through" : "none" }}>{p.tipo}</td>
                     <td className="px-4 py-3.5" style={{ color: COLORS.slate }}>{new Date(`${p.data}T00:00:00`).toLocaleDateString("pt-BR")}</td>
                     <td className="px-4 py-3.5" style={{ color: COLORS.slate }}>{p.responsavel?.nome ?? "—"}</td>
-                    <td className="px-4 py-3.5"><Stamp tone={u.tone}>{u.label} · {dias}d</Stamp></td>
+                    <td className="px-4 py-3.5">{p.feito ? <Stamp tone="ok">Concluído</Stamp> : <Stamp tone={u.tone}>{u.label} · {dias}d</Stamp>}</td>
+                    <td className="px-4 py-3.5" onClick={(e) => e.stopPropagation()}>
+                      <BotaoFeito feito={p.feito} onToggle={() => onToggleFeito(p)} />
+                    </td>
                     <td className="px-4 py-3.5" onClick={(e) => e.stopPropagation()}>
                       <RowActions onEdit={() => abrirEdicao(p)} onDelete={() => remove(p.id)} />
                     </td>

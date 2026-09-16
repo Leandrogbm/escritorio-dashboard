@@ -148,7 +148,10 @@ create table prazos (
   tipo text not null,
   data date not null,
   responsavel_id uuid references profiles(id),
-  created_at timestamptz not null default now()
+  created_at timestamptz not null default now(),
+  -- Marca cumprido sem excluir — histórico continua, só sai da urgência visual (botão
+  -- "Feito" em PrazosTab.jsx).
+  feito boolean not null default false
 );
 create index prazos_org_id_idx on prazos (org_id);
 
