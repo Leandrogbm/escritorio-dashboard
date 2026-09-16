@@ -65,7 +65,10 @@ export default function PlatformAdminPanel({ temPerfilProprio, onEntrarNaEmpresa
       // entre 1º e último evento do dia) sem precisar de evento explícito de logout.
       const grupos = new Map();
       for (const log of logs) {
-        const dia = log.created_at.slice(0, 10);
+        // Dia LOCAL, não UTC: created_at.slice(0,10) pegava a data direto da string UTC — um
+        // login de 21h30 de ontem (horário de Brasília) já virava meia-noite+ em UTC, caindo
+        // errado no dia seguinte. toLocaleDateString("sv") dá yyyy-mm-dd no fuso do navegador.
+        const dia = new Date(log.created_at).toLocaleDateString("sv");
         const chave = `${log.user_id}|${dia}`;
         if (!grupos.has(chave)) {
           grupos.set(chave, { usuario: nomePerfil.get(log.user_id) ?? "—", empresa: nomeOrg.get(log.org_id) ?? "—", dia, qtd: 0, paginas: new Set(), primeiro: log.created_at, ultimo: log.created_at, ip: log.ip, userAgent: log.user_agent });
