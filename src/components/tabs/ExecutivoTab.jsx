@@ -16,12 +16,19 @@ const anoAtual = hojeStr.slice(0, 4);
 
 // `embutido`: true quando usado como sub-aba dentro de ErpTab.jsx ("Visão geral") — sem
 // título/ícone próprio, porque a página já tem o cabeçalho do ERP.
+//
+// "Cache" (ver supabase/migrations/20260916080000_cache_executivo.sql): em vez de baixar toda
+// linha de processos/honorarios da empresa e somar no navegador a cada abertura de aba, lê
+// das materialized views (exec_*_view) já pré-somadas no banco — poucas linhas em vez de
+// todo o histórico, atualizadas a cada 15min por cron (não precisa ser exato ao segundo pra
+// um painel executivo). Reagrupar por período/área aqui ainda é JS, mas em cima de um
+// resumo pequeno, não da tabela inteira.
 export default function ExecutivoTab({ orgId, embutido = false } = {}) {
   const orgEq = orgId ? ["org_id", orgId] : undefined;
-  // FK explícito: ver comentário em ProcessosTab.jsx (processo_responsaveis criou ambiguidade).
-  const { data: processos, loading } = useSupabaseTable("processos", { select: "area, valor, status, responsavel:profiles!processos_responsavel_id_fkey(nome)", eq: orgEq });
+  const { data: resumoProcessos, loading } = useSupabaseTable("exec_processos_view", { select: "area, status, qtd, valor_total", eq: orgEq });
   const { data: clientes } = useSupabaseTable("clientes", { select: "id", eq: orgEq });
-  const { data: honorarios, loading: loadingFinanceiro } = useSupabaseTable("honorarios", { select: "valor, status, vencimento, processo:processos(area)", eq: orgEq });
+  const { data: resumoHonorarios, loading: loadingFinanceiro } = useSupabaseTable("exec_honorarios_view", { select: "ano_mes, area, status, valor_total", eq: orgEq });
+  const { data: resumoCarga } = useSupabaseTable("exec_carga_responsavel_view", { select: "responsavel_id, responsavel_nome, qtd", eq: orgEq });
   const [periodo, setPeriodo] = useState("mes"); // "mes" | "ano" — agrupamento do gráfico financeiro (tendência, todos os períodos)
 
   // Filtro de período pros KPIs do topo (honorários/rentabilidade) — diferente do `periodo`
@@ -31,80 +38,75 @@ export default function ExecutivoTab({ orgId, embutido = false } = {}) {
   const [periodoKpi, setPeriodoKpi] = useState(mesAtual);
   const trocarModoKpi = (modo) => { setModoKpi(modo); setPeriodoKpi(modo === "ano" ? anoAtual : mesAtual); };
   const honorariosDoPeriodo = useMemo(() => {
-    const chave = (v) => (modoKpi === "ano" ? v?.slice(0, 4) : v?.slice(0, 7));
-    return honorarios.filter((h) => chave(h.vencimento) === periodoKpi);
-  }, [honorarios, modoKpi, periodoKpi]);
+    const chave = (v) => (modoKpi === "ano" ? v?.slice(0, 4) : v);
+    return resumoHonorarios.filter((h) => chave(h.ano_mes) === periodoKpi);
+  }, [resumoHonorarios, modoKpi, periodoKpi]);
 
   const receitaPorArea = useMemo(() => {
     const porArea = {};
-    for (const p of processos) porArea[p.area] = (porArea[p.area] ?? 0) + Number(p.valor ?? 0);
+    for (const p of resumoProcessos) porArea[p.area] = (porArea[p.area] ?? 0) + Number(p.valor_total ?? 0);
     return Object.entries(porArea).map(([area, valor]) => ({ area, valor }));
-  }, [processos]);
+  }, [resumoProcessos]);
 
   const totalReceita = receitaPorArea.reduce((s, r) => s + r.valor, 0);
-  const ativos = processos.filter((p) => p.status !== "Encerrado").length;
+  const ativos = resumoProcessos.filter((p) => p.status !== "Encerrado").reduce((s, p) => s + p.qtd, 0);
 
   const processosPorStatus = useMemo(() => {
     const porStatus = {};
-    for (const p of processos) porStatus[p.status] = (porStatus[p.status] ?? 0) + 1;
+    for (const p of resumoProcessos) porStatus[p.status] = (porStatus[p.status] ?? 0) + p.qtd;
     return Object.entries(porStatus).map(([status, total]) => ({ status, total }));
-  }, [processos]);
+  }, [resumoProcessos]);
 
-  // Carga de trabalho por responsável — só processos ativos, senão advogado que encerrou
-  // tudo aparece "sobrecarregado" com casos que já acabaram.
+  // Carga de trabalho por responsável — já vem pronta da view (só processo ativo, mesmo
+  // critério de antes), só falta rótulo pra quem não tem responsável e ordenar.
   const processosPorResponsavel = useMemo(() => {
-    const porResp = {};
-    for (const p of processos) {
-      if (p.status === "Encerrado") continue;
-      const nome = p.responsavel?.nome ?? "Sem responsável";
-      porResp[nome] = (porResp[nome] ?? 0) + 1;
-    }
-    return Object.entries(porResp).map(([nome, total]) => ({ nome, total })).sort((a, b) => b.total - a.total);
-  }, [processos]);
+    return [...resumoCarga]
+      .map((r) => ({ nome: r.responsavel_nome ?? "Sem responsável", total: r.qtd }))
+      .sort((a, b) => b.total - a.total);
+  }, [resumoCarga]);
 
   // Mesmo critério do FinanceiroTab: "Pago" é recebido, qualquer outra situação (em aberto
   // ou vencido) ainda está a receber. Escopado ao período selecionado (mês ou ano) no topo.
-  const totalHonorarios = honorariosDoPeriodo.reduce((s, h) => s + Number(h.valor ?? 0), 0);
-  const recebido = honorariosDoPeriodo.filter((h) => h.status === "Pago").reduce((s, h) => s + Number(h.valor ?? 0), 0);
+  const totalHonorarios = honorariosDoPeriodo.reduce((s, h) => s + Number(h.valor_total ?? 0), 0);
+  const recebido = honorariosDoPeriodo.filter((h) => h.status === "Pago").reduce((s, h) => s + Number(h.valor_total ?? 0), 0);
   const aReceber = totalHonorarios - recebido;
 
-  // Rentabilidade por área do direito: só honorários com processo_id vinculado entram aqui
-  // (cobrança avulsa sem processo, tipo consultoria solta, não tem área pra atribuir) —
+  // Rentabilidade por área do direito: só honorários com área vinculada (via processo) entram
+  // aqui (cobrança avulsa sem processo, tipo consultoria solta, não tem área pra atribuir) —
   // "recebido" é o que já entrou de verdade, "aReceber" ainda tá pendente/atrasado.
   const rentabilidadePorArea = useMemo(() => {
     const map = new Map();
     for (const h of honorariosDoPeriodo) {
-      const area = h.processo?.area;
-      if (!area) continue;
-      if (!map.has(area)) map.set(area, { area, recebido: 0, aReceber: 0 });
-      const bucket = map.get(area);
-      if (h.status === "Pago") bucket.recebido += Number(h.valor ?? 0);
-      else bucket.aReceber += Number(h.valor ?? 0);
+      if (!h.area) continue;
+      if (!map.has(h.area)) map.set(h.area, { area: h.area, recebido: 0, aReceber: 0 });
+      const bucket = map.get(h.area);
+      if (h.status === "Pago") bucket.recebido += Number(h.valor_total ?? 0);
+      else bucket.aReceber += Number(h.valor_total ?? 0);
     }
     return [...map.values()].sort((a, b) => (b.recebido + b.aReceber) - (a.recebido + a.aReceber));
   }, [honorariosDoPeriodo]);
   const semVinculoDeArea = honorariosDoPeriodo.length > 0 && rentabilidadePorArea.length === 0;
 
-  // Agrupa por mês (vencimento.slice(0,7)) ou por ano (slice(0,4)); dentro de cada período
-  // separa recebido x a receber pro gráfico empilhado.
+  // Agrupa por mês (ano_mes) ou por ano (ano_mes.slice(0,4)); dentro de cada período separa
+  // recebido x a receber pro gráfico empilhado.
   const financeiroPorPeriodo = useMemo(() => {
-    const chave = (v) => (periodo === "ano" ? v?.slice(0, 4) : v?.slice(0, 7));
+    const chave = (v) => (periodo === "ano" ? v?.slice(0, 4) : v);
     const rotulo = (k) => {
       if (periodo === "ano") return k;
       const [ano, mes] = k.split("-");
       return `${MES_LABEL[Number(mes) - 1]}/${ano.slice(2)}`;
     };
     const map = new Map();
-    for (const h of honorarios) {
-      const k = chave(h.vencimento);
+    for (const h of resumoHonorarios) {
+      const k = chave(h.ano_mes);
       if (!k) continue;
       if (!map.has(k)) map.set(k, { chave: k, recebido: 0, aReceber: 0 });
       const bucket = map.get(k);
-      if (h.status === "Pago") bucket.recebido += Number(h.valor ?? 0);
-      else bucket.aReceber += Number(h.valor ?? 0);
+      if (h.status === "Pago") bucket.recebido += Number(h.valor_total ?? 0);
+      else bucket.aReceber += Number(h.valor_total ?? 0);
     }
     return [...map.values()].sort((a, b) => a.chave.localeCompare(b.chave)).map((b) => ({ ...b, nome: rotulo(b.chave) }));
-  }, [honorarios, periodo]);
+  }, [resumoHonorarios, periodo]);
 
   return (
     <div>
