@@ -2,6 +2,7 @@ import React from "react";
 import { useState, useEffect, useRef } from "react";
 import { Scale, ArrowRight, FileSearch, ShieldCheck, Users2, LayoutGrid, Check, X, Lock, ChevronDown } from "lucide-react";
 import Card from "./Card.jsx";
+import ActumShowcase from "./ActumShowcase.jsx";
 import { COLORS } from "../lib/theme.js";
 import { MODULES } from "../config/permissions.js";
 import { PLANOS } from "../config/planos.js";
@@ -364,6 +365,8 @@ export default function LandingPage({ onEntrar, onCadastrar }) {
           </div>
         </div>
       </section>
+
+      <ActumShowcase />
 
       {/* Como funciona */}
       <section className="max-w-6xl mx-auto px-5 sm:px-8 py-14 sm:py-20">

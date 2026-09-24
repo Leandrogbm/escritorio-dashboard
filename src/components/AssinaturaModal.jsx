@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { X, CreditCard, QrCode, Copy } from "lucide-react";
+import { X, CreditCard, QrCode, Copy, CheckCircle2 } from "lucide-react";
 import { COLORS } from "../lib/theme.js";
 import { useEscClose } from "../hooks/useEscClose.js";
 import { supabase } from "../lib/supabaseClient.js";
@@ -61,6 +61,7 @@ export default function AssinaturaModal({ modo, planoAtual, cicloAtual, onClose,
   const [meses, setMeses] = useState(3); // período do pré-pago (cartão avulso OU PIX)
   const [erro, setErro] = useState("");
   const [enviando, setEnviando] = useState(false);
+  const [sucesso, setSucesso] = useState(false); // breve "pagamento confirmado" antes de fechar
   const containerRef = useRef(null);
   const brickRef = useRef(null);
   const planoEscolhido = PLANOS_ASSINAVEIS.find((p) => p.value === plano);
@@ -143,7 +144,8 @@ export default function AssinaturaModal({ modo, planoAtual, cicloAtual, onClose,
                         return;
                       }
                       resolve();
-                      onAtualizado?.();
+                      setSucesso(true);
+                      setTimeout(() => onAtualizado?.(), 1100);
                     })
                     .catch((e) => { setEnviando(false); setErro(e.message); reject(e); });
                 }),
@@ -178,7 +180,7 @@ export default function AssinaturaModal({ modo, planoAtual, cicloAtual, onClose,
                 key={op.value}
                 type="button"
                 onClick={() => { setMetodo(op.value); setErro(""); setPixDados(null); }}
-                className="flex-1 px-3 py-2 rounded-md text-sm font-semibold"
+                className="flex-1 px-3 py-2 rounded-md text-sm font-semibold transition-transform duration-150 hover:-translate-y-0.5"
                 style={{
                   border: `1px solid ${metodo === op.value ? COLORS.brass : COLORS.line}`,
                   background: metodo === op.value ? "rgba(165,121,59,0.08)" : "transparent",
@@ -198,7 +200,7 @@ export default function AssinaturaModal({ modo, planoAtual, cicloAtual, onClose,
                 key={op.value}
                 type="button"
                 onClick={() => setFormatoCartao(op.value)}
-                className="flex-1 px-2.5 py-2 rounded-md text-xs font-semibold"
+                className="flex-1 px-2.5 py-2 rounded-md text-xs font-semibold transition-transform duration-150 hover:-translate-y-0.5"
                 style={{
                   border: `1px solid ${formatoCartao === op.value ? COLORS.brass : COLORS.line}`,
                   background: formatoCartao === op.value ? "rgba(165,121,59,0.08)" : "transparent",
@@ -234,7 +236,7 @@ export default function AssinaturaModal({ modo, planoAtual, cicloAtual, onClose,
                   key={op.value}
                   type="button"
                   onClick={() => setCiclo(op.value)}
-                  className="flex-1 px-3 py-2 rounded-md text-left"
+                  className="flex-1 px-3 py-2 rounded-md text-left transition-transform duration-150 hover:-translate-y-0.5"
                   style={{
                     border: `1px solid ${ciclo === op.value ? COLORS.brass : COLORS.line}`,
                     background: ciclo === op.value ? "rgba(165,121,59,0.08)" : "transparent",
@@ -257,7 +259,7 @@ export default function AssinaturaModal({ modo, planoAtual, cicloAtual, onClose,
                   key={m}
                   type="button"
                   onClick={() => { setMeses(m); setPixDados(null); }}
-                  className="px-2 py-2 rounded-md text-center"
+                  className="px-2 py-2 rounded-md text-center transition-transform duration-150 hover:-translate-y-0.5"
                   style={{
                     border: `1px solid ${meses === m ? COLORS.brass : COLORS.line}`,
                     background: meses === m ? "rgba(165,121,59,0.08)" : "transparent",
@@ -283,6 +285,34 @@ export default function AssinaturaModal({ modo, planoAtual, cicloAtual, onClose,
             <strong style={{ color: COLORS.ink }}>sem cancelamento</strong> (já paga o período inteiro, não tem como devolver parcial).
             O acesso vale até o fim do período; pra continuar depois, é só pagar de novo.
           </p>
+        )}
+
+        {requerCartao && !usaPix && planoEscolhido && (
+          <div
+            className="relative overflow-hidden rounded-xl p-4 mb-4 transition-transform duration-200 hover:-translate-y-1"
+            style={{ background: `linear-gradient(135deg, ${COLORS.ink}, ${COLORS.inkSoft})`, boxShadow: "0 10px 24px -12px rgba(27,51,40,0.45)" }}
+          >
+            <div className="flex items-center justify-between mb-6">
+              <span className="w-8 h-6 rounded-[3px]" style={{ background: `linear-gradient(135deg, ${COLORS.brass}, #D8B978)` }} />
+              <span className="text-[10px] font-semibold tracking-[0.15em]" style={{ color: COLORS.paper, opacity: 0.7 }}>ACTUM</span>
+            </div>
+            {sucesso ? (
+              <div className="flex flex-col items-center gap-1.5 py-2">
+                <CheckCircle2 size={30} style={{ color: "#6FCF97" }} />
+                <p className="text-sm font-semibold" style={{ color: COLORS.paper }}>Pagamento confirmado!</p>
+              </div>
+            ) : (
+              <>
+                <p className="text-[10px] mb-0.5" style={{ color: COLORS.paper, opacity: 0.6 }}>
+                  {cartaoAvulso ? `${meses} meses · pagamento único` : ciclo === "anual" ? "Assinatura anual" : "Assinatura mensal"}
+                </p>
+                <p className="text-2xl font-bold" style={{ fontFamily: "'IBM Plex Mono', monospace", color: COLORS.paper }}>
+                  R${cartaoAvulso ? valorPagamentoAvulso(planoEscolhido.valor, meses) : valorCobranca(planoEscolhido.valor, ciclo)}
+                </p>
+                <p className="text-xs mt-2" style={{ color: COLORS.paper, opacity: 0.75 }}>{planoEscolhido.label}</p>
+              </>
+            )}
+          </div>
         )}
 
         {usaPix ? (
@@ -313,7 +343,7 @@ export default function AssinaturaModal({ modo, planoAtual, cicloAtual, onClose,
             </button>
           )
         ) : requerCartao ? (
-          <div id="assinatura-brick-container" ref={containerRef} />
+          <div id="assinatura-brick-container" ref={containerRef} style={{ display: sucesso ? "none" : undefined }} />
         ) : (
           <button
             onClick={confirmarTroca}

@@ -114,9 +114,12 @@ export default function HojeTab({ orgId, currentRole, profile, onAbrirProcesso }
           className="w-full text-left flex items-center justify-between gap-3 px-4 py-3.5 hover:bg-black/[0.02]"
           style={{ borderTop: `1px solid ${COLORS.line}`, cursor: p.processo?.id ? "pointer" : "default" }}
         >
-          <div className="min-w-0">
-            <p className="text-sm truncate" style={{ color: COLORS.ink, fontWeight: 600 }}>{p.tipo}</p>
-            <p className="text-xs" style={{ color: COLORS.slate }}>{p.processo?.numero ?? "sem processo"} · {p.cliente?.nome ?? "—"}</p>
+          <div className="flex items-center gap-3 min-w-0">
+            <DataBadge data={p.data} urgente={p.u.tone === "urgent"} />
+            <div className="min-w-0">
+              <p className="text-sm truncate" style={{ color: COLORS.ink, fontWeight: 600 }}>{p.tipo}</p>
+              <p className="text-xs" style={{ color: COLORS.slate }}>{p.processo?.numero ?? "sem processo"} · {p.cliente?.nome ?? "—"}</p>
+            </div>
           </div>
           <Stamp tone={p.u.tone}>{p.dias < 0 ? `Venceu · ${-p.dias}d` : p.dias === 0 ? "Vence hoje" : `${p.u.label} · ${p.dias}d`}</Stamp>
         </button>
@@ -222,6 +225,26 @@ export default function HojeTab({ orgId, currentRole, profile, onAbrirProcesso }
           ))}
         </Card>
       </div>
+    </div>
+  );
+}
+
+// Selo mês/dia à esquerda de cada linha de prazo — a tela vira uma "agenda" em vez de uma
+// lista de texto plano, mesmo padrão de linha-com-data das referências de dashboard financeiro.
+function DataBadge({ data, urgente }) {
+  const d = new Date(`${data}T00:00:00`);
+  const mes = d.toLocaleDateString("pt-BR", { month: "short" }).toUpperCase().replace(".", "");
+  return (
+    <div
+      className="flex flex-col items-center justify-center rounded-md shrink-0"
+      style={{
+        width: 42, height: 42,
+        border: `1px solid ${urgente ? COLORS.wine : COLORS.line}`,
+        background: urgente ? "rgba(193,39,45,0.05)" : COLORS.paperRaised,
+      }}
+    >
+      <span className="text-[9px] font-bold tracking-wide leading-none" style={{ color: urgente ? COLORS.wine : COLORS.slate }}>{mes}</span>
+      <span className="text-base font-bold leading-none mt-0.5" style={{ color: COLORS.ink }}>{d.getDate()}</span>
     </div>
   );
 }

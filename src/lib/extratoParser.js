@@ -75,12 +75,13 @@ function extrairDeLinhas(linhasTexto) {
   return out;
 }
 
-// Comprovante avulso (print de Pix/TED) — layout de "rótulo numa linha, valor/data na linha
-// de baixo" (ex.: "Valor pago" / "R$ 1.650,00"), não tabela — por isso extrairDeLinhas (que
-// exige data E valor na MESMA linha) não acha nada nesse formato. Fallback: pega o primeiro
-// valor em R$ e a primeira data do texto inteiro — só 1 comprovante por foto, então "o
-// primeiro valor que aparece" já é o valor pago na prática (layout desses apps é sempre
-// "Valor pago" logo no topo do comprovante).
+// Comprovante avulso (print ou PDF de Pix/TED — todo banco emite os dois formatos pro mesmo
+// comprovante) — layout de "rótulo numa linha, valor/data na linha de baixo" (ex.: "Valor
+// pago" / "R$ 1.650,00"), não tabela — por isso extrairDeLinhas (que exige data E valor na
+// MESMA linha) não acha nada nesse formato. Fallback: pega o primeiro valor em R$ e a
+// primeira data do texto inteiro — só 1 comprovante por vez, então "o primeiro valor que
+// aparece" já é o valor pago na prática (layout desses apps é sempre "Valor pago" logo no
+// topo do comprovante).
 function extrairComprovanteUnico(texto) {
   const valorMatch = texto.match(VALOR_RE);
   const dataMatch = texto.match(DATA_RE);
@@ -88,7 +89,13 @@ function extrairComprovanteUnico(texto) {
   const valor = normalizarValor(valorMatch[0]);
   const data = normalizarData(dataMatch[1]);
   if (!data || valor == null) return [];
-  return [{ data, valor, memo: "" }];
+  // Nome de quem pagou ("De") e de quem recebeu ("Para") — comprovante de Pix/TED sempre tem
+  // essas duas linhas de rótulo seguidas do nome. Junta os dois no memo pra casar tanto
+  // entrada (nome do cliente que pagou) quanto saída (nome do fornecedor que recebeu) sem
+  // precisar adivinhar qual lado é "de fora" do próprio escritório.
+  const nomeApos = (rotulo) => texto.match(new RegExp(`\\b${rotulo}\\b\\s*\\n\\s*([^\\n]+)`, "i"))?.[1]?.trim();
+  const memo = [nomeApos("De"), nomeApos("Para")].filter(Boolean).join(" ");
+  return [{ data, valor, memo }];
 }
 
 // Foto de extrato ou comprovante (celular) — OCR client-side via Tesseract.js, sem
@@ -130,7 +137,11 @@ async function parsePdf(file) {
     }
   }
 
-  return extrairDeLinhas(linhasTexto);
+  // Extrato em tabela primeiro; se não achar nada (caso comum: comprovante avulso de Pix/TED
+  // em PDF, cada dado numa linha só) cai pro fallback de comprovante único — mesma lógica já
+  // usada no caminho de foto/OCR.
+  const porLinha = extrairDeLinhas(linhasTexto);
+  return porLinha.length > 0 ? porLinha : extrairComprovanteUnico(linhasTexto.join("\n"));
 }
 
 // Valor mantém o sinal: positivo = entrada (crédito, casa com honorário recebido),

@@ -42,8 +42,12 @@ function casarComPendentes(linhas, pendentes, getNome, getVencimento) {
         const pontuacaoNome = pontuarNome(linha.memo, getNome(p));
         // nome batendo pesa muito mais que data — um match de valor+nome é bem mais confiável
         // que valor+data (várias cobranças podem vencer perto uma da outra)
-        return { p, pontuacao: pontuacaoNome * 100 - diasDiferenca };
+        return { p, pontuacaoNome, pontuacao: pontuacaoNome * 100 - diasDiferenca };
       })
+      // valor batendo sozinho não basta — sem nenhuma palavra do nome no memo do extrato, dois
+      // clientes com cobrança pendente do mesmo valor "roubavam" o match um do outro só pela
+      // data mais próxima (achado real do usuário: nome nenhum batia e ainda assim aparecia).
+      .filter((c) => c.pontuacaoNome > 0)
       .sort((a, b) => b.pontuacao - a.pontuacao);
     const match = candidatos[0]?.p ?? null;
     if (match) usados.add(match.id);
