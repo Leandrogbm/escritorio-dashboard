@@ -54,7 +54,7 @@ capta bastante lead solto — hoje isso vive em planilha ou na cabeça de algué
 
 ## 3. AdvBox — pontos específicos que eles têm e a gente não
 
-Concorrente direto, boa parte já coberta no `ROADMAP-projuris.md`. Três coisas novas que
+Concorrente direto, boa parte já coberta no `roadmap-projuris.md`. Três coisas novas que
 apareceram na pesquisa e ainda não estão no nosso roadmap:
 
 - **Rentabilidade por tipo de ação (BI)**: cruzar `processos.area` com `honorarios`
@@ -165,7 +165,7 @@ a peça mínima que destrava o resto, sem virar ERP genérico (isso é outro pro
 
 ## Segunda rodada de comparativo (27/08/2026) — Astrea, Legal One, CPJ-3C, GOJUR, LegalSuite, Themis
 
-(Projuris já tinha comparativo próprio e quase tudo coberto — ver `ROADMAP-projuris.md`.)
+(Projuris já tinha comparativo próprio e quase tudo coberto — ver `roadmap-projuris.md`.)
 
 Pesquisei os 6. Resumo honesto: a esmagadora maioria das "funcionalidades diferenciais"
 divulgadas por eles é **captura automática de andamento em todos os tribunais/diários

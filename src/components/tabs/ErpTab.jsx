@@ -13,7 +13,7 @@ import SearchInput from "../SearchInput.jsx";
 import ImportarExtratoModal from "./ImportarExtratoModal.jsx";
 import FornecedorBell from "../FornecedorBell.jsx";
 import { COLORS } from "../../lib/theme.js";
-import { BRL } from "../../data/mockData.js";
+import { BRL } from "../../lib/format.js";
 import { useSupabaseTable } from "../../hooks/useSupabaseTable.js";
 import { useEscClose } from "../../hooks/useEscClose.js";
 import { CATEGORIAS_DESPESA_COMUNS } from "../../config/categoriasDespesa.js";

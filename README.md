@@ -1,73 +1,39 @@
 # Actum
 
-Dashboard interno para escritório de advocacia. Cada perfil (Sócio, Advogado, Financeiro, Recepção) enxerga apenas as abas liberadas pelo Administrador, configuráveis em tempo real na aba **Configurações**.
+SaaS multi-tenant de gestão jurídica para escritórios de advocacia — clientes, processos,
+prazos, quadro de tarefas, financeiro/ERP, equipe e portal do cliente.
+Em produção em [actumjus.com.br](https://actumjus.com.br).
 
-## Estrutura do projeto
+## Stack
 
-```
-escritorio-dashboard/
-├── index.html
-├── package.json
-├── vite.config.js
-├── tailwind.config.js
-├── postcss.config.js
-└── src/
-    ├── main.jsx              # ponto de entrada do React
-    ├── App.jsx                # componente raiz: estado de perfil/permissões e roteamento de abas
-    ├── index.css               # tailwind + fontes
-    ├── lib/
-    │   └── theme.js            # paleta de cores (tokens de design)
-    ├── config/
-    │   └── permissions.js      # lista de perfis, módulos e permissões padrão
-    ├── data/
-    │   └── mockData.js         # dados fictícios (trocar por chamadas de API depois)
-    └── components/
-        ├── Sidebar.jsx         # menu lateral (mostra só as abas liberadas)
-        ├── TopBar.jsx          # topo com o seletor "Visualizando como"
-        ├── Card.jsx
-        ├── Stamp.jsx           # selo de status (Urgente/Atenção/Em dia)
-        ├── SectionTitle.jsx
-        ├── EmptyState.jsx
-        └── tabs/
-            ├── PrazosTab.jsx
-            ├── ProcessosTab.jsx
-            ├── FinanceiroTab.jsx
-            ├── ClientesTab.jsx
-            ├── EquipeTab.jsx
-            ├── ExecutivoTab.jsx
-            └── ConfigTab.jsx    # só aparece para o perfil Administrador
-```
+React 18 + Vite + Tailwind no frontend; Supabase (Postgres + RLS, Auth, Edge Functions em
+Deno, Storage) no backend.
 
-## Rodando localmente
+## Rodar localmente
 
 ```bash
 npm install
-npm run dev
+cp .env.example .env   # preencher as chaves VITE_*
+npm run dev            # http://localhost:5173
 ```
 
-Abre em `http://localhost:5173`.
+## Estrutura
 
-## Onde ajustar cada coisa
+```
+src/
+  App.jsx              navegação por abas (activeTab), sem router
+  components/          telas compartilhadas, modais, landing
+  components/tabs/     um componente por módulo (Clientes, Processos, Prazos…)
+  config/ hooks/ lib/  permissões, planos, hooks do Supabase, helpers
+supabase/
+  schema.sql           provisiona o banco do zero (fonte da verdade)
+  migrations/          histórico de mudanças aplicadas
+  functions/           Edge Functions
+public/                assets servidos no site (ícones, CNAME do domínio)
+docs/                  roadmaps e arquivos de marca que não vão pro site
+```
 
-- **Cores e tipografia** → `src/lib/theme.js` e o `@import` de fontes em `src/index.css`
-- **Quais abas cada perfil vê por padrão** → `src/config/permissions.js` (`DEFAULT_PERMISSIONS`)
-- **Dados exibidos (prazos, processos, financeiro, etc.)** → `src/data/mockData.js`
-- **Layout de uma aba específica** → arquivo correspondente em `src/components/tabs/`
+## Deploy
 
-## Subindo para o GitHub pelo VS Code
-
-O repositório já existe em `https://github.com/Leandrogbm/escritorio-dashboard` (criado com um README inicial). Para subir esses arquivos:
-
-1. Extraia esta pasta e abra ela no VS Code.
-2. No terminal integrado do VS Code (`Ctrl+\``):
-   ```bash
-   git init
-   git remote add origin https://github.com/Leandrogbm/escritorio-dashboard.git
-   git pull origin main --allow-unrelated-histories
-   git add .
-   git commit -m "Estrutura inicial do dashboard em componentes"
-   git push origin main
-   ```
-3. Na primeira vez, o VS Code vai pedir para autenticar com sua conta do GitHub — use a extensão do GitHub ou o login pelo navegador que ele abrir.
-
-Depois disso, qualquer alteração é só `git add .`, `git commit -m "..."`, `git push`.
+`git push origin main` builda e publica sozinho no GitHub Pages
+(`.github/workflows/deploy.yml`). Detalhes, convenções e regras do projeto: `CLAUDE.md`.

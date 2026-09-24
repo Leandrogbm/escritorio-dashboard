@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { X, Loader2 } from "lucide-react";
 import Card from "../Card.jsx";
 import { COLORS } from "../../lib/theme.js";
-import { BRL } from "../../data/mockData.js";
+import { BRL } from "../../lib/format.js";
 import { parseExtrato } from "../../lib/extratoParser.js";
 import { useSupabaseTable } from "../../hooks/useSupabaseTable.js";
 

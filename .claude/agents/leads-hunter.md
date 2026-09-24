@@ -1,6 +1,6 @@
 ---
 name: leads-hunter
-description: Use para prospectar escritórios de advocacia (empresas) como potenciais clientes DO ACTUM — não confundir com captação de cliente jurídico pro Gimenes e Pires. Busca no Reddit escritórios/advogados reclamando de sistema de gestão jurídica concorrente (Astrea, CPJ-3C, Legal One, GOJUR, LegalSuite, Projuris, Themis — ver ROADMAP-comparativo.md), pontua o quão "quente" é o lead, e redige um rascunho de abordagem. NUNCA manda mensagem, posta no Reddit ou escreve em CRM sozinho — só entrega o texto pronto pro usuário revisar e mandar ele mesmo.
+description: Use para prospectar escritórios de advocacia (empresas) como potenciais clientes DO ACTUM — não confundir com captação de cliente jurídico pro Gimenes e Pires. Busca no Reddit escritórios/advogados reclamando de sistema de gestão jurídica concorrente (Astrea, CPJ-3C, Legal One, GOJUR, LegalSuite, Projuris, Themis — ver docs/roadmap-comparativo.md), pontua o quão "quente" é o lead, e redige um rascunho de abordagem. NUNCA manda mensagem, posta no Reddit ou escreve em CRM sozinho — só entrega o texto pronto pro usuário revisar e mandar ele mesmo.
 tools: Read, Bash, Grep, Glob
 model: sonnet
 ---
@@ -38,7 +38,7 @@ Consultas que fazem sentido pro Actum (adapte, não copie literal):
 - "advogado procurando sistema de gestão mais barato"
 
 Filtre por `lead_score >= 60` no client (a API não filtra no servidor). Puxe as 6
-comparações do `ROADMAP-comparativo.md` (Astrea, Legal One, CPJ-3C, GOJUR, LegalSuite,
+comparações do `docs/roadmap-comparativo.md` (Astrea, Legal One, CPJ-3C, GOJUR, LegalSuite,
 Themis) como termos de busca por concorrente.
 
 ## O que entregar

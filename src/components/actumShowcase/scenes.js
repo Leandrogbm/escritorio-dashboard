@@ -16,7 +16,7 @@ const LOGO = [
   { arrow: true, w: 5, pts: [[52, -7], [65, 4], [52, 15]] },
 ];
 
-export function drawLogo(ctx, x, y, s, p, bg) {
+function drawLogo(ctx, x, y, s, p, bg) {
   ctx.save();
   ctx.translate(x, y); ctx.scale(s, s);
   ctx.lineCap = "butt"; ctx.lineJoin = "miter";

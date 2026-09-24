@@ -5,7 +5,7 @@ import { COLORS } from "../lib/theme.js";
 // referência (card escuro "Register Identity" do codepen @ilmah), reinterpretada com a
 // paleta ink/brass do Actum: label pequena maiúscula acima do campo, abas de texto com
 // sublinhado na aba ativa em vez do link "Cadastrar minha empresa" solto no rodapé.
-export const FIELD_STYLE = { border: `1px solid ${COLORS.line}`, color: COLORS.ink, background: COLORS.paperRaised };
+const FIELD_STYLE = { border: `1px solid ${COLORS.line}`, color: COLORS.ink, background: COLORS.paperRaised };
 
 export function AuthField({ id, label, className = "", ...inputProps }) {
   return (

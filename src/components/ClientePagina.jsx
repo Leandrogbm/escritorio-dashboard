@@ -3,7 +3,7 @@ import { ArrowLeft, Pencil, Trash2, FolderOpen, Briefcase, DollarSign } from "lu
 import Card from "./Card.jsx";
 import StatusPicker from "./StatusPicker.jsx";
 import { COLORS } from "../lib/theme.js";
-import { BRL } from "../data/mockData.js";
+import { BRL } from "../lib/format.js";
 import { useSupabaseTable } from "../hooks/useSupabaseTable.js";
 import { useEscClose } from "../hooks/useEscClose.js";
 import { formatCelular } from "../lib/celular.js";

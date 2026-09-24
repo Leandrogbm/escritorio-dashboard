@@ -44,7 +44,7 @@ them.
   propose them.
 - **A `{false && (...)}` ponytail block is a deliberate backlog marker, not dead code** —
   don't propose "deepening" or deleting a backlogged feature (Asaas, funil de leads,
-  captação pública, rentabilidade por área) without checking `ROADMAP-comparativo.md`
+  captação pública, rentabilidade por área) without checking `docs/roadmap-comparativo.md`
   first for why it's parked.
 - **Do not weaken the `integracoes` vs `organizations` security boundary** while deepening
   anything nearby — any refactor touching credential storage or the `trello-proxy` pattern

@@ -57,7 +57,7 @@ vasculhar rede social/fórum atrás de dúvida jurídica, ou buscar empresa por 
 oferecer serviço — vedado pelo Código de Ética da OAB (arts. 5º-7º/39-41), **a doutrina trata
 a própria compilação de contato não solicitado como o ato vedado, não só o envio da
 mensagem** — independente da fonte (rede social, Google, agregador pago). Isso já foi pedido
-3x em formas diferentes e recusado nas 3 (histórico completo em `ROADMAP-comparativo.md`).
+3x em formas diferentes e recusado nas 3 (histórico completo em `docs/roadmap-comparativo.md`).
 Modelo aceito: só **inbound** (empresa/cliente procura o escritório sozinho — formulário
 público, WhatsApp, indicação). `leads_captacao` (formulário+mapa) existe pronta no código mas
 está em back log a pedido do usuário — não reativar sem pedido novo e explícito.
@@ -125,13 +125,8 @@ verificar `actumjus.com.br` em resend.com/domains (copiar os registros TXT que e
 cadastrar no Registro.br), esses 3 e-mails têm risco real de não entregar. Confirmar isso
 resolvido antes de considerar a migração 100% completa.
 
-Fallback manual de emergência (sem depender do Actions, publica na hora):
-```
-npx vite build
-npm i --no-save basic-ftp   # só se ainda precisar de algum FTP legado — GitHub Pages não usa
-```
-Pra publicar manual no `gh-pages` sem esperar o Actions: `git worktree add /tmp/gh
-gh-pages`, copiar `dist/*` pra lá, commit + `git push origin gh-pages`.
+Fallback manual de emergência (sem depender do Actions): `npx vite build`, `git worktree
+add /tmp/gh gh-pages`, copiar `dist/*` pra lá, commit + `git push origin gh-pages`.
 
 Edge Function nova/alterada: `npx supabase functions deploy <nome>` (`--no-verify-jwt` só
 pra function chamada sem JWT de usuário). Schema novo: rodar via `npx supabase db query
@@ -143,7 +138,7 @@ projeto novo do zero", não um changelog — editar em lugar, não acrescentar n
 - **`embutido` prop**: componente serve como modal standalone OU conteúdo embutido em outra
   tela — `MovimentacoesPanel`, `TarefasPanel`, `DepositosPanel`, `DocumentosPanel`, `ExecutivoTab`.
 - **"ponytail"**: feature pronta mas segurada em back log — código/schema/Edge Function
-  intactos, só a UI some (`{false && (<JSX/>)}` com comentário). Ver `ROADMAP-comparativo.md`
+  intactos, só a UI some (`{false && (<JSX/>)}` com comentário). Ver `docs/roadmap-comparativo.md`
   pro motivo de cada uma (Asaas, rentabilidade por área, funil de leads, `leads_captacao`).
 - **Clique na linha inteira** abre editar/ver — Clientes/Processos/Financeiro/Prazos/Depósitos/ERP.
 - **`StatusPicker`**: clicar no badge muda o status direto, sem abrir editar.
@@ -161,7 +156,7 @@ manual completo.
 
 ## Onde procurar antes de perguntar
 
-- `ROADMAP-comparativo.md` / `ROADMAP-projuris.md`: gaps pesquisados vs concorrentes, o que
+- `docs/roadmap-comparativo.md` / `docs/roadmap-projuris.md`: gaps pesquisados vs concorrentes, o que
   foi construído, o que foi decidido segurar, o que depende de provedor pago, e o histórico
   completo de pedidos recusados por ética (captação de leads).
 - `.claude/agents/qa-guardian.md`: checklist de segurança + lista completa de bugs reais já

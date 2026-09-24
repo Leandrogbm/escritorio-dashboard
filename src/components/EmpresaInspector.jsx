@@ -2,7 +2,7 @@ import React from "react";
 import { X, Trash2 } from "lucide-react";
 import Card from "./Card.jsx";
 import { COLORS } from "../lib/theme.js";
-import { BRL } from "../data/mockData.js";
+import { BRL } from "../lib/format.js";
 import { useSupabaseTable } from "../hooks/useSupabaseTable.js";
 import { useEscClose } from "../hooks/useEscClose.js";
 import { supabase } from "../lib/supabaseClient.js";

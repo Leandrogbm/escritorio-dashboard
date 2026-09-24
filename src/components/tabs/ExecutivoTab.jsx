@@ -5,7 +5,7 @@ import Card from "../Card.jsx";
 import KpiCard from "../KpiCard.jsx";
 import SectionTitle from "../SectionTitle.jsx";
 import { COLORS } from "../../lib/theme.js";
-import { BRL } from "../../data/mockData.js";
+import { BRL } from "../../lib/format.js";
 import { useSupabaseTable } from "../../hooks/useSupabaseTable.js";
 
 const MES_LABEL = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];

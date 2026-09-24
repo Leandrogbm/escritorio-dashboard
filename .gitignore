@@ -6,3 +6,8 @@ dist
 supabase/.temp
 graphify-out/
 imagens teste/
+*.zip
+scratchpad/
+.claude/worktrees/
+# links locais para .agents/skills (recriados pelo npx skills a partir do skills-lock.json)
+.claude/skills/

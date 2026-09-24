@@ -3,7 +3,7 @@ import { X, Wallet, ExternalLink } from "lucide-react";
 import Card from "./Card.jsx";
 import StatusPicker from "./StatusPicker.jsx";
 import { COLORS } from "../lib/theme.js";
-import { BRL } from "../data/mockData.js";
+import { BRL } from "../lib/format.js";
 import { useSupabaseTable } from "../hooks/useSupabaseTable.js";
 import { useEscClose } from "../hooks/useEscClose.js";
 import { planoPorValor } from "../config/planos.js";

@@ -6,7 +6,7 @@ import RecordFormModal from "./RecordFormModal.jsx";
 import EmpresaInspector from "./EmpresaInspector.jsx";
 import EmpresaCobrancas from "./EmpresaCobrancas.jsx";
 import { COLORS } from "../lib/theme.js";
-import { BRL } from "../data/mockData.js";
+import { BRL } from "../lib/format.js";
 import { supabase } from "../lib/supabaseClient.js";
 import { PLANOS, planoLabelCompleto } from "../config/planos.js";
 

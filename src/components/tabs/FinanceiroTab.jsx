@@ -11,7 +11,7 @@ import SearchInput from "../SearchInput.jsx";
 import ImportarExtratoModal from "./ImportarExtratoModal.jsx";
 import ClienteBell from "../ClienteBell.jsx";
 import { COLORS } from "../../lib/theme.js";
-import { BRL } from "../../data/mockData.js";
+import { BRL } from "../../lib/format.js";
 import { useSupabaseTable } from "../../hooks/useSupabaseTable.js";
 import { useEscClose } from "../../hooks/useEscClose.js";
 import { supabase } from "../../lib/supabaseClient.js";

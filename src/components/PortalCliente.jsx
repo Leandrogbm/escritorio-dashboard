@@ -4,7 +4,7 @@ import Card from "./Card.jsx";
 import Stamp from "./Stamp.jsx";
 import MovimentacoesPanel from "./MovimentacoesPanel.jsx";
 import { COLORS } from "../lib/theme.js";
-import { BRL } from "../data/mockData.js";
+import { BRL } from "../lib/format.js";
 import { useSupabaseTable } from "../hooks/useSupabaseTable.js";
 
 const STATUS_TONE = { "Em andamento": "ok", "Aguardando decisão": "warn", "Suspenso": "neutral", "Encerrado": "neutral" };

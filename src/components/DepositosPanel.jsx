@@ -5,7 +5,7 @@ import StatusPicker from "./StatusPicker.jsx";
 import RowActions from "./RowActions.jsx";
 import RecordFormModal from "./RecordFormModal.jsx";
 import { COLORS } from "../lib/theme.js";
-import { BRL } from "../data/mockData.js";
+import { BRL } from "../lib/format.js";
 import { useSupabaseTable } from "../hooks/useSupabaseTable.js";
 import { useEscClose } from "../hooks/useEscClose.js";
 
