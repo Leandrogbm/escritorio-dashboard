@@ -151,6 +151,9 @@ export default function PrazosTab({ orgId } = {}) {
   const [dataEscolhida, setDataEscolhida] = useState(() => new Date().toISOString().slice(0, 10));
   const hojeStr = new Date().toISOString().slice(0, 10);
   const onToggleFeito = (p) => update(p.id, { feito: !p.feito });
+  // Subabas: prazo marcado como feito sai de "Em aberto" e vai pra "Concluídos".
+  const [aba, setAba] = useState("abertos"); // "abertos" | "concluidos"
+  const qtdConcluidos = prazos.filter((p) => p.feito).length;
 
   // "Data" pode ser digitada direto (prazo simples) OU calculada a partir de início +
   // quantidade de dias (dias_uteis pula sábado/domingo/feriado nacional) — se início e
@@ -174,6 +177,7 @@ export default function PrazosTab({ orgId } = {}) {
   const abrirEdicao = (p) => setEditing({ ...p, cliente_id: p.cliente?.id, processo_id: p.processo?.id, responsavel_id: p.responsavel?.id });
 
   const prazosFiltrados = prazos.filter((p) => {
+    if (!!p.feito !== (aba === "concluidos")) return false;
     if (filtroData === "hoje" && p.data !== hojeStr) return false;
     if (filtroData === "data" && p.data !== dataEscolhida) return false;
     const q = busca.trim().toLowerCase();
@@ -183,7 +187,8 @@ export default function PrazosTab({ orgId } = {}) {
       || (p.cliente?.nome || "").toLowerCase().includes(q)
       || (p.responsavel?.nome || "").toLowerCase().includes(q);
   });
-  const sorted = [...prazosFiltrados].sort((a, b) => diasAte(a.data) - diasAte(b.data));
+  // Concluídos: mais recente primeiro (o que acabou de ser feito no topo).
+  const sorted = [...prazosFiltrados].sort((a, b) => (aba === "concluidos" ? -1 : 1) * (diasAte(a.data) - diasAte(b.data)));
 
   return (
     <div>
@@ -230,6 +235,22 @@ export default function PrazosTab({ orgId } = {}) {
         }
       />
 
+      <div className="flex gap-2 mb-4">
+        {[
+          { v: "abertos", l: `Em aberto (${prazos.length - qtdConcluidos})` },
+          { v: "concluidos", l: `Concluídos (${qtdConcluidos})` },
+        ].map((o) => (
+          <button
+            key={o.v}
+            onClick={() => setAba(o.v)}
+            className="px-3 py-2 rounded-md text-sm font-semibold"
+            style={{ background: aba === o.v ? COLORS.ink : "transparent", color: aba === o.v ? "#fff" : COLORS.ink, border: `1px solid ${aba === o.v ? COLORS.ink : COLORS.line}` }}
+          >
+            {o.l}
+          </button>
+        ))}
+      </div>
+
       {view === "calendario" ? (
         <CalendarioPrazos prazos={prazosFiltrados} onEdit={abrirEdicao} onDelete={remove} onToggleFeito={onToggleFeito} />
       ) : (
@@ -239,7 +260,7 @@ export default function PrazosTab({ orgId } = {}) {
             <TableHead columns={["Processo", "Cliente", "Tipo", "Data", "Responsável", "Situação", "Feito", ""]} />
             <tbody>
               {!loading && sorted.length === 0 && (
-                <tr><td colSpan={8} className="px-4 py-6 text-center text-sm" style={{ color: COLORS.slate }}>{busca ? "Nenhum prazo encontrado." : "Nenhum prazo cadastrado ainda."}</td></tr>
+                <tr><td colSpan={8} className="px-4 py-6 text-center text-sm" style={{ color: COLORS.slate }}>{busca ? "Nenhum prazo encontrado." : aba === "concluidos" ? "Nenhum prazo concluído ainda." : "Nenhum prazo em aberto."}</td></tr>
               )}
               {sorted.map((p) => {
                 const dias = diasAte(p.data);

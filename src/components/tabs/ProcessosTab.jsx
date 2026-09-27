@@ -364,6 +364,9 @@ export default function ProcessosTab({ currentRole, orgId, profile, abrirProcess
                 Cliente com {atrasos} honorário{atrasos > 1 ? "s" : ""} em atraso
               </div>
             )}
+            {p.observacao && (
+              <p className="mt-2 text-xs line-clamp-2" style={{ color: COLORS.slate }} title={p.observacao}>{p.observacao}</p>
+            )}
             <div className="flex items-center justify-between mt-4 pt-4" style={{ borderTop: `1px solid ${COLORS.line}` }}>
               <span className="text-xs uppercase tracking-wide" style={{ color: COLORS.brassText, fontWeight: 600 }}>{p.area}</span>
               <span className="text-sm" style={{ color: COLORS.slate }}>
