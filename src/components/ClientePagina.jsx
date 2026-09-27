@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { ArrowLeft, Pencil, Trash2, FolderOpen, Briefcase, DollarSign } from "lucide-react";
+import { ArrowLeft, Pencil, Trash2, FolderOpen, Briefcase, DollarSign, Archive, ArchiveRestore } from "lucide-react";
 import Card from "./Card.jsx";
 import StatusPicker from "./StatusPicker.jsx";
 import { COLORS } from "../lib/theme.js";
@@ -17,7 +17,7 @@ const STATUS_HONORARIO = { "Em aberto": "warn", "Vencido": "urgent", "Pago": "ok
 // cima de popup ficava confuso pra fechar com Esc). Pedido do usuário: clicar no cliente não
 // deve só abrir o formulário de edição, tem que mostrar os processos e o financeiro dele
 // junto, com a edição de dados acessível dali (botão "Editar", abre o form de sempre).
-export default function ClientePagina({ cliente, orgId, podeExcluir, onVoltar, onEditar, onExcluir, onDocumentos, onAbrirProcesso, onAbrirFinanceiro }) {
+export default function ClientePagina({ cliente, orgId, podeExcluir, onVoltar, onEditar, onExcluir, onArquivar, onDocumentos, onAbrirProcesso, onAbrirFinanceiro }) {
   useEscClose(onVoltar, true);
   const orgEq = orgId ? ["org_id", orgId] : undefined;
   const { data: processos, update: updateProcesso } = useSupabaseTable("processos", {
@@ -26,7 +26,25 @@ export default function ClientePagina({ cliente, orgId, podeExcluir, onVoltar, o
   const { data: honorarios, update: updateHonorario } = useSupabaseTable("honorarios", {
     select: "id, valor, vencimento, status", orderBy: "vencimento", ascending: false, eq: ["cliente_id", cliente.id],
   });
+  const { data: prazos } = useSupabaseTable("prazos", { select: "id, feito", eq: ["cliente_id", cliente.id] });
+  const prazosAbertos = prazos.filter((p) => !p.feito);
   const [aba, setAba] = useState("processos");
+
+  // Regra do arquivo: só arquiva cliente sem pendência — todo processo encerrado, todo
+  // honorário pago e nenhum prazo em aberto. Desarquivar é livre.
+  const pendencias = [
+    processos.some((p) => p.status !== "Encerrado") && "processo não encerrado",
+    honorarios.some((h) => h.status !== "Pago") && "pagamento em aberto",
+    prazosAbertos.length > 0 && "prazo em aberto",
+  ].filter(Boolean);
+  const alternarArquivo = () => {
+    if (cliente.arquivado) return onArquivar?.(false);
+    if (pendencias.length) return alert(`Não dá pra arquivar ainda: ${pendencias.join(", ")}.`);
+    if (confirm(`Arquivar "${cliente.nome}"? O cliente e os processos dele saem das listas e ficam no Arquivo.`)) {
+      onArquivar?.(true);
+      onVoltar();
+    }
+  };
 
   const totalPago = honorarios.filter((h) => h.status === "Pago").reduce((s, h) => s + Number(h.valor), 0);
   const totalReceber = honorarios.filter((h) => h.status !== "Pago").reduce((s, h) => s + Number(h.valor), 0);
@@ -52,6 +70,16 @@ export default function ClientePagina({ cliente, orgId, podeExcluir, onVoltar, o
           <button onClick={onEditar} className="flex items-center gap-1.5 px-3 py-2 rounded-md text-sm font-semibold" style={{ border: `1px solid ${COLORS.line}`, color: COLORS.ink }}>
             <Pencil size={14} /> Editar dados
           </button>
+          {onArquivar && (
+            <button
+              onClick={alternarArquivo}
+              title={!cliente.arquivado && pendencias.length ? `Pendente: ${pendencias.join(", ")}` : undefined}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-md text-sm font-semibold"
+              style={{ border: `1px solid ${COLORS.line}`, color: COLORS.ink, opacity: !cliente.arquivado && pendencias.length ? 0.5 : 1 }}
+            >
+              {cliente.arquivado ? <ArchiveRestore size={14} /> : <Archive size={14} />} {cliente.arquivado ? "Desarquivar" : "Arquivar"}
+            </button>
+          )}
           {podeExcluir && (
             <button onClick={() => confirmarExclusao("o nome do cliente", cliente.nome, onExcluir)} className="flex items-center gap-1.5 px-3 py-2 rounded-md text-sm font-semibold" style={{ border: `1px solid ${COLORS.line}`, color: COLORS.wine }}>
               <Trash2 size={14} />

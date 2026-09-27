@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { ArrowLeft, AlertTriangle, FileClock, ListTodo, Landmark, FileText, Pencil, Trash2 } from "lucide-react";
+import { ArrowLeft, AlertTriangle, FileClock, ListTodo, Landmark, FileText, Pencil, Trash2, Archive, ArchiveRestore } from "lucide-react";
 import Card from "./Card.jsx";
 import StatusPicker from "./StatusPicker.jsx";
 import MovimentacoesPanel from "./MovimentacoesPanel.jsx";
@@ -9,15 +9,29 @@ import DocumentosPanel from "./DocumentosPanel.jsx";
 import { COLORS } from "../lib/theme.js";
 import { useEscClose } from "../hooks/useEscClose.js";
 import { confirmarExclusao } from "../lib/confirmarExclusao.js";
+import { useSupabaseTable } from "../hooks/useSupabaseTable.js";
 
 const STATUS_TONE = { "Em andamento": "ok", "Aguardando decisão": "warn", "Suspenso": "neutral", "Encerrado": "neutral" };
 
 // Página cheia do processo (substitui a lista dentro da própria aba Processos, não é popup)
 // — clicar num processo troca o conteúdo da tela, com botão "Voltar", em vez de empilhar
 // modal em cima de modal (era confuso: Esc fechava um de cada vez, fora de ordem).
-export default function ProcessoPagina({ processo: p, responsaveis, atrasos, equipe, orgId, profile, onVoltar, onEditar, onExcluir, onRegistrarPrazo, onMudarStatus }) {
+export default function ProcessoPagina({ processo: p, responsaveis, atrasos, equipe, orgId, profile, onVoltar, onEditar, onExcluir, onRegistrarPrazo, onMudarStatus, onArquivar }) {
   useEscClose(onVoltar, true);
   const [aba, setAba] = useState("andamentos");
+  const { data: prazos } = useSupabaseTable("prazos", { select: "id, feito", eq: ["processo_id", p.id] });
+
+  // Mesma regra do arquivo de cliente, no escopo do processo: encerrado e sem prazo em aberto.
+  // Processo de cliente arquivado já está no Arquivo pelo cliente — desarquiva por lá.
+  const pendencias = [
+    p.status !== "Encerrado" && "processo não encerrado",
+    prazos.some((x) => !x.feito) && "prazo em aberto",
+  ].filter(Boolean);
+  const alternarArquivo = () => {
+    if (p.arquivado) return onArquivar(false);
+    if (pendencias.length) return alert(`Não dá pra arquivar ainda: ${pendencias.join(", ")}.`);
+    if (confirm("Arquivar este processo? Ele sai da lista e fica no Arquivo.")) onArquivar(true);
+  };
 
   const abas = [
     { key: "andamentos", label: "Andamentos", icon: FileClock, alerta: p.datajud_status === "erro" },
@@ -78,6 +92,16 @@ export default function ProcessoPagina({ processo: p, responsaveis, atrasos, equ
           <button onClick={onEditar} className="flex items-center gap-1.5 px-3 py-2 rounded-md text-sm font-semibold" style={{ border: `1px solid ${COLORS.line}`, color: COLORS.ink }}>
             <Pencil size={14} /> Editar
           </button>
+          {onArquivar && !p.cliente?.arquivado && (
+            <button
+              onClick={alternarArquivo}
+              title={!p.arquivado && pendencias.length ? `Pendente: ${pendencias.join(", ")}` : undefined}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-md text-sm font-semibold"
+              style={{ border: `1px solid ${COLORS.line}`, color: COLORS.ink, opacity: !p.arquivado && pendencias.length ? 0.5 : 1 }}
+            >
+              {p.arquivado ? <ArchiveRestore size={14} /> : <Archive size={14} />} {p.arquivado ? "Desarquivar" : "Arquivar"}
+            </button>
+          )}
           <button onClick={() => confirmarExclusao("o número do processo", p.numero, onExcluir)} className="flex items-center gap-1.5 px-3 py-2 rounded-md text-sm font-semibold" style={{ border: `1px solid ${COLORS.line}`, color: COLORS.wine }}>
             <Trash2 size={14} /> Excluir
           </button>

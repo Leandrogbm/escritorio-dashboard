@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { Users, Plus, MessageCircle, UserCheck, KeyRound, FolderOpen, Search } from "lucide-react";
 import Card from "../Card.jsx";
 import SectionTitle from "../SectionTitle.jsx";
+import BotaoArquivo from "../BotaoArquivo.jsx";
 import RowActions from "../RowActions.jsx";
 import { TableHead, Tr } from "../TableList.jsx";
 import RecordFormModal from "../RecordFormModal.jsx";
@@ -66,6 +67,7 @@ export default function ClientesTab({ currentRole, orgId, profile, onAbrirProces
   const [buscandoProcessos, setBuscandoProcessos] = useState(null); // cliente aberto na busca Escavador
   const [clienteAberto, setClienteAberto] = useState(null); // cliente aberto na página cheia (processos+financeiro)
   const [busca, setBusca] = useState("");
+  const [verArquivo, setVerArquivo] = useState(false);
   const podeExcluir = currentRole === "admin" || currentRole === "socio"; // RLS (clientes_del) já barra no banco — isso só esconde o botão
 
   // Limite do plano (plan_limits.limite_clientes) — checagem client-side só pra avisar antes
@@ -96,6 +98,7 @@ export default function ClientesTab({ currentRole, orgId, profile, onAbrirProces
   };
 
   const filtrados = clientes.filter((c) => {
+    if (!!c.arquivado !== verArquivo) return false;
     const q = busca.trim().toLowerCase();
     if (!q) return true;
     const qDigits = q.replace(/\D/g, "");
@@ -124,6 +127,7 @@ export default function ClientesTab({ currentRole, orgId, profile, onAbrirProces
           onVoltar={() => setClienteAberto(null)}
           onEditar={() => setEditing(atual)}
           onExcluir={() => { remove(atual.id); setClienteAberto(null); }}
+          onArquivar={(arquivado) => update(atual.id, { arquivado })}
           onDocumentos={() => setVendoDocumentos(atual)}
           onAbrirProcesso={onAbrirProcesso}
           onAbrirFinanceiro={onAbrirFinanceiro}
@@ -144,11 +148,12 @@ export default function ClientesTab({ currentRole, orgId, profile, onAbrirProces
     <div>
       <SectionTitle
         icon={Users}
-        title="Clientes"
-        subtitle="Base de clientes e contratos"
+        title={verArquivo ? "Clientes arquivados" : "Clientes"}
+        subtitle={verArquivo ? "Casos encerrados e quitados — clique pra ver processos e financeiro" : "Base de clientes e contratos"}
         action={
           <div className="flex flex-wrap items-center gap-2">
             <SearchInput value={busca} onChange={setBusca} placeholder="Buscar cliente..." />
+            <BotaoArquivo ativo={verArquivo} onClick={() => setVerArquivo((v) => !v)} />
             <button
               onClick={abrirNovoCliente}
               className="flex items-center gap-1.5 px-3 py-2 rounded-md text-sm font-semibold"
@@ -165,7 +170,7 @@ export default function ClientesTab({ currentRole, orgId, profile, onAbrirProces
           <TableHead columns={["Cliente", "CPF/CNPJ", "Celular", "Origem", "Início do contrato", ""]} />
           <tbody>
             {!loading && filtrados.length === 0 && (
-              <tr><td colSpan={6} className="px-4 py-6 text-center text-sm" style={{ color: COLORS.slate }}>{busca ? "Nenhum cliente encontrado." : "Nenhum cliente cadastrado ainda."}</td></tr>
+              <tr><td colSpan={6} className="px-4 py-6 text-center text-sm" style={{ color: COLORS.slate }}>{busca ? "Nenhum cliente encontrado." : verArquivo ? "Nenhum cliente arquivado." : "Nenhum cliente cadastrado ainda."}</td></tr>
             )}
             {filtrados.map((c) => (
               <Tr key={c.id} onClick={() => setClienteAberto(c)}>

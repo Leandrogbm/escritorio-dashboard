@@ -42,9 +42,11 @@ const toneDoCliente = (c) => (c.atrasado > 0 ? "urgent" : c.pendente > 0 ? "warn
 
 export default function FinanceiroTab({ orgId, abrirClienteId, onAbriuCliente } = {}) {
   const orgEq = orgId ? ["org_id", orgId] : undefined;
-  const { data: honorarios, loading, insert, update, remove, refresh } = useSupabaseTable("honorarios", {
-    select: "*, cliente:clientes(id,nome,tipo)", eq: orgEq,
+  const { data: honorariosTodos, loading, insert, update, remove, refresh } = useSupabaseTable("honorarios", {
+    select: "*, cliente:clientes(id,nome,tipo,arquivado)", eq: orgEq,
   });
+  // Cliente arquivado leva o financeiro junto pro Arquivo (só chega lá com tudo pago).
+  const honorarios = useMemo(() => honorariosTodos.filter((h) => !h.cliente?.arquivado), [honorariosTodos]);
   const { data: clientes } = useSupabaseTable("clientes", { select: "id,nome,tipo", orderBy: "nome", ascending: true, eq: orgEq });
   // Só pro Importar extrato casar saída (débito) com despesa a pagar, na mesma leitura que já
   // casa entrada com honorário — funciona igual daqui ou do ERP (ver ImportarExtratoModal.jsx).

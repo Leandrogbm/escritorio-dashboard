@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { Briefcase, Plus, AlertTriangle, RefreshCw, Lock } from "lucide-react";
 import Card from "../Card.jsx";
 import SectionTitle from "../SectionTitle.jsx";
+import BotaoArquivo from "../BotaoArquivo.jsx";
 import RowActions from "../RowActions.jsx";
 import RecordFormModal from "../RecordFormModal.jsx";
 import ProcessoPagina from "../ProcessoPagina.jsx";
@@ -53,7 +54,7 @@ export default function ProcessosTab({ currentRole, orgId, profile, abrirProcess
     // FK explícito (!processos_responsavel_id_fkey): a tabela processo_responsaveis (ponytail,
     // dormant) criou um segundo caminho processos<->profiles, e sem isso o PostgREST recusa o
     // embed por ambiguidade ("more than one relationship was found").
-    select: "*, cliente:clientes(id,nome), responsavel:profiles!processos_responsavel_id_fkey(id,nome)", eq: orgEq,
+    select: "*, cliente:clientes(id,nome,arquivado), responsavel:profiles!processos_responsavel_id_fkey(id,nome)", eq: orgEq,
   });
   const { data: clientes } = useSupabaseTable("clientes", { select: "id,nome", orderBy: "nome", ascending: true, eq: orgEq });
   // role vem junto só pra filtrar admin fora do dropdown de Responsável — "Dev - adm" é a
@@ -92,6 +93,7 @@ export default function ProcessosTab({ currentRole, orgId, profile, abrirProcess
   const [registrandoPrazo, setRegistrandoPrazo] = useState(null); // {processo_id, movimentacao_origem_id, data_inicio, tipo}
   const [sincronizando, setSincronizando] = useState(false);
   const [busca, setBusca] = useState("");
+  const [verArquivo, setVerArquivo] = useState(false);
 
   const podeSincronizar = currentRole === "admin" || currentRole === "socio";
 
@@ -182,7 +184,10 @@ export default function ProcessosTab({ currentRole, orgId, profile, abrirProcess
   // movimentação mais recente vem primeiro — `ultima_movimentacao_em` (trigger em
   // movimentacoes_processo, ver schema.sql) é null pra processo que nunca sincronizou nada
   // ainda, e cai pro final do grupo (created_at como critério de desempate, não "mais recente").
+  // Processo arquivado (sozinho ou porque o cliente foi arquivado) some da lista normal e só
+  // aparece no "Arquivo".
   const processosFiltrados = processos
+    .filter((p) => !!(p.arquivado || p.cliente?.arquivado) === verArquivo)
     .filter((p) => {
       const q = busca.trim().toLowerCase();
       if (!q) return true;
@@ -282,6 +287,7 @@ export default function ProcessosTab({ currentRole, orgId, profile, abrirProcess
           onExcluir={() => { remove(atual.id); setProcessoAberto(null); }}
           onRegistrarPrazo={abrirRegistrarPrazo(atual.id, atual.cliente_id)}
           onMudarStatus={(status) => update(atual.id, { status })}
+          onArquivar={(arquivado) => { update(atual.id, { arquivado }); if (arquivado) setProcessoAberto(null); }}
         />
         <RecordFormModal
           open={editing !== null}
@@ -315,11 +321,12 @@ export default function ProcessosTab({ currentRole, orgId, profile, abrirProcess
     <div>
       <SectionTitle
         icon={Briefcase}
-        title="Processos"
-        subtitle="Casos ativos do escritório"
+        title={verArquivo ? "Processos arquivados" : "Processos"}
+        subtitle={verArquivo ? "Processos de clientes arquivados" : "Casos ativos do escritório"}
         action={
           <div className="flex flex-wrap items-center gap-2">
             <SearchInput value={busca} onChange={setBusca} placeholder="Buscar processo ou cliente..." />
+            <BotaoArquivo ativo={verArquivo} onClick={() => setVerArquivo((v) => !v)} />
             {podeSincronizar && (
               <button onClick={sincronizarDatajud} disabled={sincronizando} className="flex items-center gap-1.5 px-3 py-2 rounded-md text-sm font-semibold" style={{ border: `1px solid ${COLORS.line}`, color: COLORS.ink, opacity: sincronizando ? 0.6 : 1 }}>
                 <RefreshCw size={14} className={sincronizando ? "animate-spin" : ""} /> {sincronizando ? "Sincronizando..." : "Sincronizar processos"}
@@ -337,7 +344,7 @@ export default function ProcessosTab({ currentRole, orgId, profile, abrirProcess
         </p>
       )}
       {!loading && !erroProcessos && processosFiltrados.length === 0 && (
-        <p className="text-sm" style={{ color: COLORS.slate }}>{busca ? "Nenhum processo encontrado." : "Nenhum processo cadastrado ainda."}</p>
+        <p className="text-sm" style={{ color: COLORS.slate }}>{busca ? "Nenhum processo encontrado." : verArquivo ? "Nenhum processo arquivado." : "Nenhum processo cadastrado ainda."}</p>
       )}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {processosFiltrados.map((p) => {

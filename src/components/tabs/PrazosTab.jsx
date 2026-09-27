@@ -133,9 +133,11 @@ function CalendarioPrazos({ prazos, onEdit, onDelete, onToggleFeito }) {
 
 export default function PrazosTab({ orgId } = {}) {
   const orgEq = orgId ? ["org_id", orgId] : undefined;
-  const { data: prazos, loading, insert, update, remove } = useSupabaseTable("prazos", {
-    select: "*, processo:processos(id,numero), cliente:clientes(id,nome), responsavel:profiles(id,nome)", eq: orgEq,
+  const { data: prazosTodos, loading, insert, update, remove } = useSupabaseTable("prazos", {
+    select: "*, processo:processos(id,numero,arquivado), cliente:clientes(id,nome,arquivado), responsavel:profiles(id,nome)", eq: orgEq,
   });
+  // Prazo de cliente/processo arquivado vai junto pro Arquivo (só arquiva sem prazo em aberto).
+  const prazos = useMemo(() => prazosTodos.filter((p) => !p.cliente?.arquivado && !p.processo?.arquivado), [prazosTodos]);
   const { data: clientes } = useSupabaseTable("clientes", { select: "id,nome", orderBy: "nome", ascending: true, eq: orgEq });
   const { data: processos } = useSupabaseTable("processos", { select: "id,numero", orderBy: "numero", ascending: true, eq: orgEq });
   const { data: equipeRaw } = useSupabaseTable("profiles", { select: "id,nome,role", orderBy: "nome", ascending: true, eq: orgEq });

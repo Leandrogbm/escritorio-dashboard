@@ -31,7 +31,7 @@ export default function HojeTab({ orgId, currentRole, profile, onAbrirProcesso }
   const vejaTudo = currentRole !== "advogado";
 
   const { data: prazosRaw, error: erroPrazos } = useSupabaseTable("prazos", {
-    select: "*, processo:processos(id,numero), cliente:clientes(id,nome)", eq: orgEq,
+    select: "*, processo:processos(id,numero,arquivado), cliente:clientes(id,nome,arquivado)", eq: orgEq,
   });
   const { data: notificacoesRaw, error: erroNotificacoes, refresh: refreshNotificacoes } = useSupabaseTable("notificacoes", {
     select: "*", orderBy: "created_at", ascending: false, eq: orgEq,
@@ -46,7 +46,8 @@ export default function HojeTab({ orgId, currentRole, profile, onAbrirProcesso }
   const meusProcessosIds = useMemo(() => new Set(meusProcessos.map((p) => p.id)), [meusProcessos]);
 
   const prazos = useMemo(() => {
-    const escopados = vejaTudo ? prazosRaw : prazosRaw.filter((p) => p.responsavel_id === meuId);
+    const ativos = prazosRaw.filter((p) => !p.cliente?.arquivado && !p.processo?.arquivado);
+    const escopados = vejaTudo ? ativos : ativos.filter((p) => p.responsavel_id === meuId);
     return escopados
       .filter((p) => { const d = diasAte(p.data); return d >= PISO_DIAS_VENCIDO && d <= JANELA_DIAS; })
       .sort((a, b) => diasAte(a.data) - diasAte(b.data));
