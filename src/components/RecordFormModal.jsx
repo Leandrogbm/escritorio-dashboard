@@ -116,6 +116,16 @@ export default function RecordFormModal({ open, title, fields, initialValues, on
                 <option value="" disabled>Selecione</option>
                 {f.options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
               </select>
+            ) : f.type === "textarea" ? (
+              <textarea
+                required={!f.optional}
+                rows={4}
+                value={values[f.key] ?? ""}
+                placeholder={f.placeholder}
+                onChange={(e) => setValues((v) => ({ ...v, [f.key]: e.target.value }))}
+                className="px-3 py-2 rounded-md text-sm resize-y"
+                style={{ border: `1px solid ${COLORS.line}`, color: COLORS.ink }}
+              />
             ) : (
               <>
                 <input

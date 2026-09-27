@@ -219,6 +219,7 @@ export default function ProcessosTab({ currentRole, orgId, profile, abrirProcess
     // só vê/edita o que estiver aqui (qualquer um da lista, não só "o principal"). Vazio =
     // sem responsável designado ainda.
     { key: "responsaveis", label: "Responsáveis", type: "multiselect", options: equipe.map((e) => ({ value: e.id, label: e.nome })) },
+    { key: "observacao", label: "Observação (aparece na página do processo)", type: "textarea", optional: true },
     // Sigilo. RLS (processos_sel/upd/del, processo_responsaveis_ins) restringe visão E
     // edição de verdade: "Confidencial" sozinho vale só pra quem tá em Responsáveis;
     // "Visível pra todos os sócios" abre pra qualquer sócio mesmo sem estar listado

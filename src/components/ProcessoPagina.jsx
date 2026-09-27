@@ -68,6 +68,12 @@ export default function ProcessoPagina({ processo: p, responsaveis, atrasos, equ
             <p className="mt-0.5" style={{ color: COLORS.ink, fontWeight: 600 }}>{p.ultima_verificacao_datajud ? new Date(p.ultima_verificacao_datajud).toLocaleDateString("pt-BR") : "—"}</p>
           </div>
         </div>
+        {p.observacao && (
+          <div className="mt-4 pt-4" style={{ borderTop: `1px solid ${COLORS.line}` }}>
+            <p className="text-xs uppercase tracking-wide" style={{ color: COLORS.slate }}>Observação</p>
+            <p className="mt-1 text-sm whitespace-pre-wrap" style={{ color: COLORS.ink }}>{p.observacao}</p>
+          </div>
+        )}
         <div className="flex items-center gap-2 mt-4 pt-4" style={{ borderTop: `1px solid ${COLORS.line}` }}>
           <button onClick={onEditar} className="flex items-center gap-1.5 px-3 py-2 rounded-md text-sm font-semibold" style={{ border: `1px solid ${COLORS.line}`, color: COLORS.ink }}>
             <Pencil size={14} /> Editar

@@ -134,6 +134,8 @@ create table processos (
   -- enxergava todo processo não-confidencial por não ser advogado (ver processos_sel); isso
   -- só importa quando confidencial=true, pra abrir pra QUALQUER sócio em vez de só 1 pessoa.
   responsavel_socios boolean not null default false,
+  -- Texto livre do escritório sobre o caso, mostrado na página do processo.
+  observacao text,
   unique (org_id, numero)
 );
 create index processos_org_id_idx on processos (org_id);
