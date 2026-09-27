@@ -94,6 +94,7 @@ export default function ProcessosTab({ currentRole, orgId, profile, abrirProcess
   const [sincronizando, setSincronizando] = useState(false);
   const [busca, setBusca] = useState("");
   const [verArquivo, setVerArquivo] = useState(false);
+  const [filtroStatus, setFiltroStatus] = useState(""); // "" = todas as situações
 
   const podeSincronizar = currentRole === "admin" || currentRole === "socio";
 
@@ -188,6 +189,7 @@ export default function ProcessosTab({ currentRole, orgId, profile, abrirProcess
   // aparece no "Arquivo".
   const processosFiltrados = processos
     .filter((p) => !!(p.arquivado || p.cliente?.arquivado) === verArquivo)
+    .filter((p) => !filtroStatus || p.status === filtroStatus)
     .filter((p) => {
       const q = busca.trim().toLowerCase();
       if (!q) return true;
@@ -326,6 +328,16 @@ export default function ProcessosTab({ currentRole, orgId, profile, abrirProcess
         action={
           <div className="flex flex-wrap items-center gap-2">
             <SearchInput value={busca} onChange={setBusca} placeholder="Buscar processo ou cliente..." />
+            <select
+              value={filtroStatus}
+              onChange={(e) => setFiltroStatus(e.target.value)}
+              aria-label="Filtrar por situação"
+              className="px-3 py-2 rounded-md text-sm"
+              style={{ border: `1px solid ${filtroStatus ? COLORS.brass : COLORS.line}`, color: COLORS.ink, background: "transparent" }}
+            >
+              <option value="">Todas as situações</option>
+              {STATUS_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </select>
             <BotaoArquivo ativo={verArquivo} onClick={() => setVerArquivo((v) => !v)} />
             {podeSincronizar && (
               <button onClick={sincronizarDatajud} disabled={sincronizando} className="flex items-center gap-1.5 px-3 py-2 rounded-md text-sm font-semibold" style={{ border: `1px solid ${COLORS.line}`, color: COLORS.ink, opacity: sincronizando ? 0.6 : 1 }}>
@@ -344,7 +356,7 @@ export default function ProcessosTab({ currentRole, orgId, profile, abrirProcess
         </p>
       )}
       {!loading && !erroProcessos && processosFiltrados.length === 0 && (
-        <p className="text-sm" style={{ color: COLORS.slate }}>{busca ? "Nenhum processo encontrado." : verArquivo ? "Nenhum processo arquivado." : "Nenhum processo cadastrado ainda."}</p>
+        <p className="text-sm" style={{ color: COLORS.slate }}>{busca || filtroStatus ? "Nenhum processo encontrado." : verArquivo ? "Nenhum processo arquivado." : "Nenhum processo cadastrado ainda."}</p>
       )}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {processosFiltrados.map((p) => {
