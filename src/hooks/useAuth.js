@@ -45,14 +45,18 @@ export function useAuth() {
   // Tempo de uso (Equipe → só admin vê): a cada 2min de aba realmente aberta e em foco,
   // soma 2min em profiles.minutos_uso_total via RPC (security definer, só mexe na própria
   // linha). document.visibilityState evita contar tempo com a aba minimizada/em outra guia.
+  // Achado real: o builder do supabase-js é preguiçoso — sem `.then()`/await a requisição
+  // nunca sai, e todo mundo ficava em "0min". E a dependência é o user id, não `session`
+  // (que troca a cada renovação de token e reiniciava o relógio de 2min).
+  const heartbeatUserId = session?.user?.id;
   useEffect(() => {
-    if (!session) return;
+    if (!heartbeatUserId) return;
     const HEARTBEAT_MIN = 2;
     const id = setInterval(() => {
-      if (document.visibilityState === "visible") supabase.rpc("registrar_uso_heartbeat", { minutos: HEARTBEAT_MIN });
+      if (document.visibilityState === "visible") supabase.rpc("registrar_uso_heartbeat", { minutos: HEARTBEAT_MIN }).then(() => {});
     }, HEARTBEAT_MIN * 60 * 1000);
     return () => clearInterval(id);
-  }, [session]);
+  }, [heartbeatUserId]);
 
   // Chave só no user id, não no objeto session inteiro — supabase-js renova o token
   // sozinho toda vez que a aba volta a ficar visível (alt+tab, trocar de app), o que troca
