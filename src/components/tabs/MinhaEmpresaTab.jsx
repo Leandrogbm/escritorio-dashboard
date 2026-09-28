@@ -18,7 +18,7 @@ const STATUS_COR = { pago: "success", pendente: "brass", atrasado: "wine" };
 // banco trava isso mesmo por fora da UI); a seção "Assinatura" abaixo só LÊ o plano atual e
 // aciona as Edge Functions de assinar/trocar/cancelar, nunca dá update direto na tabela.
 // CNPJ não é mais protegido, dá pra empresa preencher o próprio. Upload de logo tirado por pedido.
-export default function MinhaEmpresaTab({ profile, onAtualizado }) {
+export default function MinhaEmpresaTab({ profile, onAtualizado, suporte = false }) {
   const org = profile.organizations ?? {};
   const podeAssinar = profile.role === "admin" || profile.role === "socio";
   const plano = planoPorValue(org.plano);
@@ -86,7 +86,9 @@ export default function MinhaEmpresaTab({ profile, onAtualizado }) {
     <div>
       <SectionTitle icon={Building2} title="Minha Empresa" subtitle="Nome, endereço e assinatura do escritório" />
 
-      {podeAssinar && (
+      {/* Assinatura do Actum é da própria empresa — em modo suporte (platform admin dentro de
+          outra empresa) não faz sentido pagar/trocar plano em nome dela. */}
+      {podeAssinar && !suporte && (
         <Card className="max-w-xl mb-6">
           <div className="flex items-center gap-2 mb-3">
             <CreditCard size={16} color={COLORS.brass} />
@@ -256,4 +258,17 @@ export default function MinhaEmpresaTab({ profile, onAtualizado }) {
       )}
     </div>
   );
+}
+
+// Modo suporte: o platform admin não tem empresa própria no profile — carrega a empresa que
+// está sendo atendida e reaproveita a mesma tela (sem a parte de assinatura).
+const COLUNAS_ORG = "nome, suspenso, status_pagamento, mercado_pago_checkout_url, mercado_pago_subscription_id, assinatura_iniciada_em, cancelamento_agendado_para, assinatura_ciclo, acesso_pago_ate, cnpj, inscricao_municipal, aliquota_iss, cep, logradouro, numero, complemento, bairro, cidade, uf, termos_aceite, plano, valor_mensal, pix_chave, pix_nome_recebedor, pix_cidade";
+export function MinhaEmpresaSuporte({ orgId }) {
+  const [org, setOrg] = React.useState(null);
+  const carregar = React.useCallback(() => {
+    supabase.from("organizations").select(COLUNAS_ORG).eq("id", orgId).single().then(({ data }) => setOrg(data ?? {}));
+  }, [orgId]);
+  React.useEffect(() => { carregar(); }, [carregar]);
+  if (!org) return null;
+  return <MinhaEmpresaTab key={orgId} profile={{ org_id: orgId, role: "admin", organizations: org }} onAtualizado={carregar} suporte />;
 }

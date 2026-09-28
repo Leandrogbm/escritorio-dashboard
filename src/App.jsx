@@ -33,6 +33,7 @@ const ClientesTab = lazy(() => import("./components/tabs/ClientesTab.jsx"));
 const EquipeTab = lazy(() => import("./components/tabs/EquipeTab.jsx"));
 const ConfigTab = lazy(() => import("./components/tabs/ConfigTab.jsx"));
 const MinhaEmpresaTab = lazy(() => import("./components/tabs/MinhaEmpresaTab.jsx"));
+const MinhaEmpresaSuporte = lazy(() => import("./components/tabs/MinhaEmpresaTab.jsx").then((m) => ({ default: m.MinhaEmpresaSuporte })));
 const LeadsCaptacaoTab = lazy(() => import("./components/tabs/LeadsCaptacaoTab.jsx"));
 
 export default function App() {
@@ -251,7 +252,7 @@ export default function App() {
     // Minha Empresa fica de fora do modo suporte de propósito: ela lê/grava em
     // profile.organizations/profile.org_id, que continuam sendo os do PRÓPRIO platform
     // admin — misturar com orgOverride ali daria pra editar a empresa errada por engano.
-    if (activeTab === "empresa" && !emSuporte) return <MinhaEmpresaTab profile={profile} onAtualizado={refreshProfile} />;
+    if (activeTab === "empresa") return emSuporte ? <MinhaEmpresaSuporte orgId={orgOverride.org_id} /> : <MinhaEmpresaTab profile={profile} onAtualizado={refreshProfile} />;
     if (!activeTab) return <EmptyState />;
     switch (activeTab) {
       case "hoje": return <HojeTab orgId={orgId} currentRole={currentRole} profile={profile} onAbrirProcesso={abrirProcesso} />;

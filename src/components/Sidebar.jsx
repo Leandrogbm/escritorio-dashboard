@@ -98,12 +98,12 @@ export default function Sidebar({ allowedModules, activeTab, setActiveTab, curre
               );
             })}
 
-            {!emSuporte && (currentRole === "admin" || currentRole === "socio") && (
+            {(currentRole === "admin" || currentRole === "socio") && (
               <>
                 <div className="pt-3 mt-3" style={{ borderTop: "1px solid rgba(255,255,255,0.1)" }} />
                 <NavItem
                   icon={Home}
-                  label="Minha Empresa"
+                  label={emSuporte ? "Dados da empresa" : "Minha Empresa"}
                   active={activeTab === "empresa"}
                   recolhida={recolhida}
                   onClick={() => escolher("empresa")}
