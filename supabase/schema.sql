@@ -562,43 +562,45 @@ create or replace function is_platform_admin() returns boolean
 -- "Cache" do ExecutivoTab: materialized view em vez de Redis externo (evita depender de
 -- outro serviço/credencial nova pra ganho equivalente). O tab hoje baixa toda linha de
 -- processos/honorarios da empresa e soma no navegador a cada abertura de aba — as views
--- abaixo pré-somam no banco, o client busca só o resumo. Materialized view não tem RLS
--- própria (Postgres ignora RLS de dentro dela) — por isso cada uma tem uma view de fachada
--- com security_invoker, mesmo padrão que equipe_view já usa acima, filtrando org_id de
--- verdade na hora da consulta.
+-- abaixo pré-somam no banco, o client busca só o resumo.
+-- Processo confidencial restrito a advogado(s) (confidencial e não responsavel_socios) fica
+-- fora dos totais: o painel mostra só o que os sócios enxergam. Ninguém lê mv_* direto pela
+-- API (revoke abaixo) — materialized view não tem RLS, e já vazou dado de todas as empresas
+-- assim. As views de fachada rodam com permissão do dono e filtram pela empresa de quem chama.
 create materialized view mv_exec_processos as
 select org_id, area, status, count(*) as qtd, coalesce(sum(valor), 0) as valor_total
 from processos
+where not (confidencial and not responsavel_socios)
 group by org_id, area, status;
 create unique index mv_exec_processos_uidx on mv_exec_processos (org_id, area, status);
-
-create view exec_processos_view with (security_invoker = true) as
-  select * from mv_exec_processos where org_id = auth_org_id() or is_platform_admin();
 
 create materialized view mv_exec_honorarios as
 select h.org_id, to_char(h.vencimento, 'YYYY-MM') as ano_mes, p.area, h.status,
   coalesce(sum(h.valor), 0) as valor_total
 from honorarios h
 left join processos p on p.id = h.processo_id
+where p.id is null or not (p.confidencial and not p.responsavel_socios)
 group by h.org_id, to_char(h.vencimento, 'YYYY-MM'), p.area, h.status;
 create unique index mv_exec_honorarios_uidx on mv_exec_honorarios (org_id, ano_mes, area, status);
 
-create view exec_honorarios_view with (security_invoker = true) as
-  select * from mv_exec_honorarios where org_id = auth_org_id() or is_platform_admin();
-
--- Carga de trabalho por responsável — só processo ativo (mesmo critério que ExecutivoTab.jsx
--- já usava), nome já embutido pra não precisar de outro join no client.
 create materialized view mv_exec_carga_responsavel as
 select p.org_id, p.responsavel_id, pr.nome as responsavel_nome, count(*) as qtd
 from processos p
 left join profiles pr on pr.id = p.responsavel_id
-where p.status <> 'Encerrado'
+where p.status <> 'Encerrado' and not (p.confidencial and not p.responsavel_socios)
 group by p.org_id, p.responsavel_id, pr.nome;
 create unique index mv_exec_carga_responsavel_uidx on mv_exec_carga_responsavel (org_id, responsavel_id);
 
-create view exec_carga_responsavel_view with (security_invoker = true) as
+revoke all on mv_exec_processos, mv_exec_honorarios, mv_exec_carga_responsavel from anon, authenticated;
+
+create view exec_processos_view with (security_invoker = false) as
+  select * from mv_exec_processos where org_id = auth_org_id() or is_platform_admin();
+create view exec_honorarios_view with (security_invoker = false) as
+  select * from mv_exec_honorarios where org_id = auth_org_id() or is_platform_admin();
+create view exec_carga_responsavel_view with (security_invoker = false) as
   select * from mv_exec_carga_responsavel where org_id = auth_org_id() or is_platform_admin();
 
+revoke all on exec_processos_view, exec_honorarios_view, exec_carga_responsavel_view from anon;
 grant select on exec_processos_view, exec_honorarios_view, exec_carga_responsavel_view to authenticated;
 
 -- Refresh a cada 15min — dashboard não precisa de dado no segundo exato (mesmo motivo de
