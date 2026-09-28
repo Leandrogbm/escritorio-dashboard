@@ -75,6 +75,7 @@ create table organizations (
   pix_chave text,
   pix_nome_recebedor text,
   pix_cidade text,
+  email_cobranca text, -- reply-to dos lembretes de cobrança (resposta do cliente vai pro financeiro do escritório)
   -- Lembretes automáticos de cobrança por e-mail (3 dias antes/no dia/3 dias depois do
   -- vencimento do honorário) — opt-in por empresa, default false (não manda e-mail pra
   -- cliente real sem o escritório ligar). Ver cobranca_lembretes e cron cobranca-lembretes-diario.

@@ -32,14 +32,16 @@ function escapeHtml(s: string): string {
   return s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]!));
 }
 
-async function enviarEmail(to: string, subject: string, html: string, orgNome: string) {
+async function enviarEmail(to: string, subject: string, html: string, orgNome: string, replyTo: string | null) {
   const res = await fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: {
       Authorization: `Bearer ${Deno.env.get("RESEND_API_KEY")}`,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ from: `${orgNome} <nao-responda@actumjus.com.br>`, to, subject, html }),
+    // Sai pelo domínio do Actum (verificado no Resend) com o nome do escritório; a resposta do
+    // cliente vai pro e-mail do financeiro do escritório (organizations.email_cobranca).
+    body: JSON.stringify({ from: `${orgNome} <nao-responda@actumjus.com.br>`, to, subject, html, ...(replyTo ? { reply_to: replyTo } : {}) }),
   });
   if (!res.ok) throw new Error(`Falha ao enviar email: ${await res.text()}`);
 }
@@ -53,8 +55,9 @@ function montarEmail(opts: {
   pixCopiaCola: string | null;
   referente: string;
   recebedor: string;
+  temResposta: boolean;
 }) {
-  const { orgNome, clienteNome, valor, vencimento, tipo, pixCopiaCola, referente } = opts;
+  const { orgNome, clienteNome, valor, vencimento, tipo, pixCopiaCola, referente, temResposta } = opts;
   const org = escapeHtml(orgNome);
   const primeiroNome = escapeHtml((clienteNome || "").trim().split(/\s+/)[0] || "");
   const ref = escapeHtml(referente);
@@ -81,7 +84,7 @@ function montarEmail(opts: {
     <tr><td style="padding:4px 16px 4px 0;color:#5C6B60">Vencimento</td><td style="padding:4px 0"><strong>${fmtData(vencimento)}</strong></td></tr>
   </table>
   ${pixBloco}
-  <p style="margin-top:16px">Se já pagou, desconsidere. Dúvidas, fale com o escritório (este e-mail não recebe respostas).</p>
+  <p style="margin-top:16px">Se já pagou, desconsidere. ${temResposta ? "Dúvidas, é só responder este e-mail." : "Dúvidas, fale com o escritório (este e-mail não recebe respostas)."}</p>
 </div>`;
   return { assunto, html };
 }
@@ -99,7 +102,7 @@ Deno.serve(async (req) => {
   try {
     const { data: orgs, error: orgsErr } = await admin
       .from("organizations")
-      .select("id, nome, pix_chave, pix_nome_recebedor, pix_cidade")
+      .select("id, nome, pix_chave, pix_nome_recebedor, pix_cidade, email_cobranca")
       .eq("lembretes_cobranca", true);
     if (orgsErr) throw orgsErr;
 
@@ -167,10 +170,11 @@ Deno.serve(async (req) => {
           pixCopiaCola,
           referente,
           recebedor: org.pix_nome_recebedor || org.nome,
+          temResposta: !!org.email_cobranca,
         });
 
         try {
-          await enviarEmail(cliente.email, assunto, html, org.nome);
+          await enviarEmail(cliente.email, assunto, html, org.nome, org.email_cobranca || null);
           await admin.from("cobranca_lembretes").insert({ honorario_id: h.id, tipo });
           enviados++;
         } catch (emailErr) {

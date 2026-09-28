@@ -55,6 +55,7 @@ export default function MinhaEmpresaTab({ profile, onAtualizado, suporte = false
     pix_chave: org.pix_chave ?? "",
     pix_nome_recebedor: org.pix_nome_recebedor ?? "",
     pix_cidade: org.pix_cidade ?? "",
+    email_cobranca: org.email_cobranca ?? "",
   });
   const [salvando, setSalvando] = useState(false);
   const [msg, setMsg] = useState("");
@@ -236,6 +237,12 @@ export default function MinhaEmpresaTab({ profile, onAtualizado, suporte = false
                   <input value={form.pix_cidade} onChange={(e) => campo("pix_cidade", { pix_cidade: e.target.value })} className="px-3 py-2 rounded-md text-sm" style={inputStyle} />
                 </label>
               </div>
+
+              <label className="flex flex-col gap-1 text-xs mt-2" style={{ color: COLORS.slate }}>
+                E-mail do financeiro (recebe as respostas dos clientes aos lembretes de cobrança)
+                <input type="email" placeholder="ex.: financeiro@seuescritorio.com.br" value={form.email_cobranca} onChange={(e) => campo("email_cobranca", { email_cobranca: e.target.value.trim() })} className="px-3 py-2 rounded-md text-sm" style={inputStyle} />
+                <span>O lembrete sai com o nome do escritório; quando o cliente clicar em "Responder", a resposta vem para este e-mail.</span>
+              </label>
             </>
           )}
 
@@ -262,7 +269,7 @@ export default function MinhaEmpresaTab({ profile, onAtualizado, suporte = false
 
 // Modo suporte: o platform admin não tem empresa própria no profile — carrega a empresa que
 // está sendo atendida e reaproveita a mesma tela (sem a parte de assinatura).
-const COLUNAS_ORG = "nome, suspenso, status_pagamento, mercado_pago_checkout_url, mercado_pago_subscription_id, assinatura_iniciada_em, cancelamento_agendado_para, assinatura_ciclo, acesso_pago_ate, cnpj, inscricao_municipal, aliquota_iss, cep, logradouro, numero, complemento, bairro, cidade, uf, termos_aceite, plano, valor_mensal, pix_chave, pix_nome_recebedor, pix_cidade";
+const COLUNAS_ORG = "nome, suspenso, status_pagamento, mercado_pago_checkout_url, mercado_pago_subscription_id, assinatura_iniciada_em, cancelamento_agendado_para, assinatura_ciclo, acesso_pago_ate, cnpj, inscricao_municipal, aliquota_iss, cep, logradouro, numero, complemento, bairro, cidade, uf, termos_aceite, plano, valor_mensal, pix_chave, pix_nome_recebedor, pix_cidade, email_cobranca";
 export function MinhaEmpresaSuporte({ orgId }) {
   const [org, setOrg] = React.useState(null);
   const carregar = React.useCallback(() => {
