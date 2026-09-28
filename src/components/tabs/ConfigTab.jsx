@@ -15,13 +15,19 @@ function LembretesCobrancaSection({ orgId }) {
   const [ligado, setLigado] = useState(false);
   const [carregando, setCarregando] = useState(true);
   const [salvando, setSalvando] = useState(false);
+  const [caixaOrigem, setCaixaOrigem] = useState(undefined); // undefined = carregando, null = nenhuma, string = endereço
 
   useEffect(() => {
     if (!orgId) return;
     (async () => {
-      const { data } = await supabase.from("organizations").select("lembretes_cobranca").eq("id", orgId).single();
+      const { data } = await supabase.from("organizations").select("lembretes_cobranca, email_cobranca").eq("id", orgId).single();
       setLigado(!!data?.lembretes_cobranca);
       setCarregando(false);
+
+      if (!data?.email_cobranca) { setCaixaOrigem(null); return; }
+      const { data: caixas } = await supabase.from("email_contas").select("endereco").eq("org_id", orgId).eq("status", "ok");
+      const achada = (caixas || []).find((c) => (c.endereco || "").toLowerCase() === data.email_cobranca.toLowerCase());
+      setCaixaOrigem(achada?.endereco ?? null);
     })();
   }, [orgId]);
 
@@ -45,6 +51,13 @@ function LembretesCobrancaSection({ orgId }) {
             <span className="block text-xs" style={{ color: COLORS.slate }}>
               E-mail automático pro cliente 3 dias antes do vencimento, no dia e 3 dias depois de cada honorário em aberto, com Pix copia-e-cola se configurado em Minha Empresa.
             </span>
+            {caixaOrigem !== undefined && (
+              <span className="block text-xs mt-1" style={{ color: COLORS.slate }}>
+                {caixaOrigem
+                  ? `Os lembretes saem da caixa ${caixaOrigem}.`
+                  : "Conecte em Caixas de e-mail a mesma caixa do \"E-mail do financeiro\" (Minha Empresa) para os lembretes saírem por ela."}
+              </span>
+            )}
           </span>
         </span>
         <button

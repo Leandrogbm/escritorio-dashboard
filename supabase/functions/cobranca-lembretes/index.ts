@@ -10,6 +10,7 @@
 
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { gerarPixCopiaECola } from "../_shared/pix.ts";
+import { decifrarSenha, enviarSmtp, ehErroAuth, erroAmigavel } from "../_shared/emailSmtp.ts";
 
 type Tipo = "antes" | "dia" | "depois";
 
@@ -120,6 +121,21 @@ Deno.serve(async (req) => {
         continue;
       }
 
+      // Se o e-mail do financeiro (organizations.email_cobranca) bater com uma caixa conectada
+      // (Configurações → Caixas de e-mail), manda por ela via SMTP — o domínio genérico do
+      // Actum ainda não está verificado no Resend. Sem caixa: cai no Resend de sempre.
+      let caixaCobranca: any = null;
+      let senhaCaixa: string | null = null;
+      if (org.email_cobranca) {
+        const { data: caixas } = await admin.from("email_contas").select("*").eq("org_id", org.id).eq("status", "ok");
+        caixaCobranca = (caixas ?? []).find((c: any) => (c.endereco || "").toLowerCase() === org.email_cobranca.toLowerCase()) ?? null;
+        if (caixaCobranca) {
+          const { data: seg } = await admin.from("email_contas_segredo").select("segredo_cifrado").eq("conta_id", caixaCobranca.id).maybeSingle();
+          senhaCaixa = seg ? await decifrarSenha(seg.segredo_cifrado) : null;
+          if (!senhaCaixa) caixaCobranca = null; // sem senha salva, não dá pra usar essa caixa
+        }
+      }
+
       const hoje = new Date();
       hoje.setHours(0, 0, 0, 0);
 
@@ -170,14 +186,25 @@ Deno.serve(async (req) => {
           pixCopiaCola,
           referente,
           recebedor: org.pix_nome_recebedor || org.nome,
-          temResposta: !!org.email_cobranca,
+          temResposta: !!(caixaCobranca || org.email_cobranca),
         });
 
         try {
-          await enviarEmail(cliente.email, assunto, html, org.nome, org.email_cobranca || null);
+          if (caixaCobranca && senhaCaixa) {
+            const info = await enviarSmtp(caixaCobranca, senhaCaixa, { to: [cliente.email], subject: assunto, html });
+            await admin.from("email_enviados").insert({
+              org_id: org.id, conta_id: caixaCobranca.id, enviado_por: null,
+              destinatarios: [cliente.email], assunto, message_id: info.messageId,
+            });
+          } else {
+            await enviarEmail(cliente.email, assunto, html, org.nome, org.email_cobranca || null);
+          }
           await admin.from("cobranca_lembretes").insert({ honorario_id: h.id, tipo });
           enviados++;
         } catch (emailErr) {
+          if (caixaCobranca && senhaCaixa && ehErroAuth(emailErr)) {
+            await admin.from("email_contas").update({ status: "erro_auth", ultimo_erro: erroAmigavel(emailErr) }).eq("id", caixaCobranca.id);
+          }
           erros.push(`honorario ${h.id} (${tipo}): ${(emailErr as Error).message}`);
         }
       }

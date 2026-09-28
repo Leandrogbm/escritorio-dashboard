@@ -23,7 +23,7 @@
 
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { ImapFlow } from "npm:imapflow@1";
-import nodemailer from "npm:nodemailer@6";
+import { cifrarSenha, decifrarSenha, testarSmtp, enviarSmtp, erroAmigavel } from "../_shared/emailSmtp.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -39,31 +39,6 @@ function erroResposta(mensagem: string, status = 400) {
 
 function ok(dados: unknown) {
   return new Response(JSON.stringify(dados), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
-}
-
-// ── Cifra da senha (AES-GCM, chave só nesse processo) ───────────────────────
-
-async function chaveCifra() {
-  const b64 = Deno.env.get("EMAIL_CRED_KEY");
-  if (!b64) throw new Error("EMAIL_CRED_KEY não configurada no projeto.");
-  const raw = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
-  return crypto.subtle.importKey("raw", raw, "AES-GCM", false, ["encrypt", "decrypt"]);
-}
-
-async function cifrar(texto: string) {
-  const key = await chaveCifra();
-  const iv = crypto.getRandomValues(new Uint8Array(12));
-  const buf = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, new TextEncoder().encode(texto));
-  return `${btoa(String.fromCharCode(...iv))}.${btoa(String.fromCharCode(...new Uint8Array(buf)))}`;
-}
-
-async function decifrar(cifrado: string) {
-  const [ivB64, dataB64] = cifrado.split(".");
-  const key = await chaveCifra();
-  const iv = Uint8Array.from(atob(ivB64), (c) => c.charCodeAt(0));
-  const data = Uint8Array.from(atob(dataB64), (c) => c.charCodeAt(0));
-  const buf = await crypto.subtle.decrypt({ name: "AES-GCM", iv }, key, data);
-  return new TextDecoder().decode(buf);
 }
 
 // ── Helpers de bytes ─────────────────────────────────────────────────────
@@ -107,15 +82,6 @@ async function testarImap(conta: { imap_host: string; imap_port: number; usuario
   const client = novoClienteImap(conta, senha);
   await comTimeout(client.connect());
   await client.logout().catch(() => {});
-}
-
-async function testarSmtp(conta: { smtp_host: string; smtp_port: number; usuario: string }, senha: string) {
-  const transporte = nodemailer.createTransport({
-    host: conta.smtp_host, port: conta.smtp_port, secure: true,
-    auth: { user: conta.usuario, pass: senha },
-    connectionTimeout: TIMEOUT_MS, greetingTimeout: TIMEOUT_MS, socketTimeout: TIMEOUT_MS,
-  });
-  await comTimeout(transporte.verify());
 }
 
 function achatarPartes(node: any, acc: any[] = []) {
@@ -290,18 +256,6 @@ function ehAdminOuSocio(perfil: { role: string }) {
 
 // ── Handler ──────────────────────────────────────────────────────────────
 
-// Erro do provedor (imapflow/nodemailer) em pt-BR pro usuário — nunca o texto cru do servidor.
-function erroAmigavel(err: unknown): string {
-  const e = err as { message?: string; code?: string; authenticationFailed?: boolean; responseText?: string; responseCode?: number };
-  const bruto = `${e?.message ?? ""} ${e?.responseText ?? ""} ${e?.code ?? ""}`.toLowerCase();
-  if (e?.authenticationFailed || e?.code === "EAUTH" || /authenticationfailed|invalid credentials|auth|login|535|command failed/.test(bruto)) {
-    return "E-mail ou senha incorretos. Se a conta usa verificação em 2 etapas, crie uma senha de app no provedor e use ela aqui.";
-  }
-  if (/enotfound|getaddrinfo|dns/.test(bruto)) return "Servidor não encontrado. Confira o endereço de entrada/saída.";
-  if (/econnrefused|econnreset|timeout|timed out|etimedout|abort/.test(bruto)) return "O servidor de e-mail não respondeu. Confira servidor e porta, ou tente de novo em instantes.";
-  return "Falha ao falar com o servidor de e-mail. Tente de novo em instantes.";
-}
-
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
@@ -368,7 +322,7 @@ Deno.serve(async (req) => {
       }
 
       if (senha) {
-        const cifrado = await cifrar(senha);
+        const cifrado = await cifrarSenha(senha);
         const { error: segErr } = await admin.from("email_contas_segredo").upsert({ conta_id: contaId, segredo_cifrado: cifrado });
         if (segErr) return erroResposta("Caixa salva, mas não consegui guardar a senha. Tente reconectar.");
       }
@@ -396,7 +350,7 @@ Deno.serve(async (req) => {
       if (!ehAdminOuSocio(perfil) || conta.org_id !== perfil.org_id) return erroResposta("Sem permissão pra essa caixa.", 403);
       const { data: seg } = await admin.from("email_contas_segredo").select("segredo_cifrado").eq("conta_id", conta.id).maybeSingle();
       if (!seg) return erroResposta("Caixa sem senha salva.", 400);
-      const senha = await decifrar(seg.segredo_cifrado);
+      const senha = await decifrarSenha(seg.segredo_cifrado);
       let resultado: { ok: boolean; erro?: string };
       try {
         await testarImap(conta, senha);
@@ -416,7 +370,7 @@ Deno.serve(async (req) => {
 
     const { data: seg } = await admin.from("email_contas_segredo").select("segredo_cifrado").eq("conta_id", conta.id).maybeSingle();
     if (!seg) return erroResposta("Caixa sem senha salva. Reconecte em Configurações.", 400);
-    const senha = await decifrar(seg.segredo_cifrado);
+    const senha = await decifrarSenha(seg.segredo_cifrado);
 
     if (acao === "listar") {
       const { pasta, antesDeUid, limite } = body;
@@ -466,25 +420,18 @@ Deno.serve(async (req) => {
         .eq("conta_id", conta.id).gte("created_at", inicioHoje.toISOString());
       if ((count ?? 0) >= 200) return erroResposta("Essa caixa já atingiu o limite de 200 envios hoje.");
 
-      const transporte = nodemailer.createTransport({
-        host: conta.smtp_host, port: conta.smtp_port, secure: true,
-        auth: { user: conta.usuario, pass: senha },
-        connectionTimeout: TIMEOUT_MS, greetingTimeout: TIMEOUT_MS, socketTimeout: TIMEOUT_MS,
-      });
-
-      let info: any;
+      let info: { messageId: string | null };
       try {
-        info = await comTimeout(transporte.sendMail({
-          from: `"${conta.nome}" <${conta.endereco}>`,
-          to: para.join(", "),
-          cc: Array.isArray(cc) && cc.length ? cc.join(", ") : undefined,
+        info = await enviarSmtp(conta, senha, {
+          to: para,
+          cc: Array.isArray(cc) ? cc : undefined,
           subject: assunto,
           text: texto || undefined,
           html: html || undefined,
           attachments: listaAnexos.map((a: any) => ({ filename: a.nome, content: a.base64, encoding: "base64", contentType: a.mime })),
           inReplyTo: inReplyTo || undefined,
           references: references || undefined,
-        }), TIMEOUT_MS, "Tempo esgotado enviando o e-mail.");
+        });
       } catch (err) {
         return erroResposta(`Não consegui enviar. ${erroAmigavel(err)}`, 502);
       }
