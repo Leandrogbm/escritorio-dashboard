@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Calculator, Plus, Copy, Check, Upload, X, TrendingUp, Wallet, CheckCircle2, Clock3, AlertTriangle, Scale, ChevronLeft, ChevronRight, Receipt } from "lucide-react";
 import ExecutivoTab from "./ExecutivoTab.jsx";
+import CaixaErp from "./CaixaErp.jsx";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
 import Card from "../Card.jsx";
 import KpiCard from "../KpiCard.jsx";
@@ -57,7 +58,7 @@ export default function ErpTab({ orgId }) {
   // resultado do mês) e "visao" (painel executivo embutido).
   const [aba, setAba] = useState("pagar");
   const { data: despesas, loading, insert, update, remove } = useSupabaseTable("despesas", { eq: orgEq, orderBy: "vencimento", ascending: true });
-  const { data: honorarios } = useSupabaseTable("honorarios", { select: "id, cliente:clientes(id,nome), valor, status, vencimento", eq: orgEq });
+  const { data: honorarios } = useSupabaseTable("honorarios", { select: "id, cliente:clientes(id,nome), processo:processos(area), valor, status, vencimento, descricao_servico", eq: orgEq });
   const { data: notificacoesTodas, refresh: refreshNotificacoes } = useSupabaseTable("notificacoes", { select: "id, tipo, despesa_id, titulo, texto", eq: orgEq });
   const [editing, setEditing] = useState(null);
   const [selecionado, setSelecionado] = useState(null); // fornecedor (chave) aberto no painel de detalhe
@@ -275,6 +276,7 @@ export default function ErpTab({ orgId }) {
             </div>
           )}
         </Card>
+        <CaixaErp mes={mes} honorarios={honorarios} despesas={despesas} />
       </>}
 
       {aba === "pagar" && <>
