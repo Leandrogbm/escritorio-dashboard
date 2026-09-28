@@ -30,7 +30,6 @@ export default function ExecutivoTab({ orgId, embutido = false } = {}) {
   const { data: resumoProcessos, loading } = useSupabaseTable("exec_processos_view", { select: "area, status, qtd, valor_total", orderBy: "area", ascending: true, eq: orgEq });
   const { data: clientes } = useSupabaseTable("clientes", { select: "id", eq: orgEq });
   const { data: resumoHonorarios, loading: loadingFinanceiro } = useSupabaseTable("exec_honorarios_view", { select: "ano_mes, area, status, valor_total", orderBy: "ano_mes", ascending: true, eq: orgEq });
-  const { data: resumoCarga } = useSupabaseTable("exec_carga_responsavel_view", { select: "responsavel_id, responsavel_nome, qtd", orderBy: "qtd", ascending: false, eq: orgEq });
   const [periodo, setPeriodo] = useState("mes"); // "mes" | "ano" — agrupamento do gráfico financeiro (tendência, todos os períodos)
 
   // Filtro de período pros KPIs do topo (honorários/rentabilidade) — diferente do `periodo`
@@ -58,14 +57,6 @@ export default function ExecutivoTab({ orgId, embutido = false } = {}) {
     for (const p of resumoProcessos) porStatus[p.status] = (porStatus[p.status] ?? 0) + p.qtd;
     return Object.entries(porStatus).map(([status, total]) => ({ status, total }));
   }, [resumoProcessos]);
-
-  // Carga de trabalho por responsável — já vem pronta da view (só processo ativo, mesmo
-  // critério de antes), só falta rótulo pra quem não tem responsável e ordenar.
-  const processosPorResponsavel = useMemo(() => {
-    return [...resumoCarga]
-      .map((r) => ({ nome: r.responsavel_nome ?? "Sem responsável", total: r.qtd }))
-      .sort((a, b) => b.total - a.total);
-  }, [resumoCarga]);
 
   // Mesmo critério do FinanceiroTab: "Pago" é recebido, qualquer outra situação (em aberto
   // ou vencido) ainda está a receber. Escopado ao período selecionado (mês ou ano) no topo.
@@ -165,7 +156,7 @@ export default function ExecutivoTab({ orgId, embutido = false } = {}) {
         {!loadingFinanceiro && totalHonorarios === 0 ? (
           <p className="text-sm" style={{ color: COLORS.slate }}>Sem cobranças cadastradas ainda.</p>
         ) : (
-          <div style={{ width: "100%", height: 260 }}>
+          <div style={{ width: "100%", height: 240 }}>
             <ResponsiveContainer>
               <BarChart data={financeiroPorPeriodo} margin={{ top: 4, right: 8, left: 0, bottom: 4 }}>
                 <CartesianGrid stroke={COLORS.line} vertical={false} />
@@ -199,32 +190,13 @@ export default function ExecutivoTab({ orgId, embutido = false } = {}) {
             </div>
           )}
         </Card>
-        <Card>
-          <p className="text-sm font-semibold mb-4" style={{ color: COLORS.ink }}>Carga de trabalho — processos ativos por responsável</p>
-          {!loading && processosPorResponsavel.length === 0 ? (
-            <p className="text-sm" style={{ color: COLORS.slate }}>Sem processos ativos.</p>
-          ) : (
-            <div style={{ width: "100%", height: 240 }}>
-              <ResponsiveContainer>
-                <BarChart data={processosPorResponsavel} layout="vertical" margin={{ top: 4, right: 16, left: 8, bottom: 4 }}>
-                  <CartesianGrid stroke={COLORS.line} horizontal={false} />
-                  <XAxis type="number" allowDecimals={false} tick={{ fill: COLORS.slate, fontSize: 12 }} axisLine={false} tickLine={false} />
-                  <YAxis type="category" dataKey="nome" width={110} tick={{ fill: COLORS.slate, fontSize: 12 }} axisLine={false} tickLine={false} />
-                  <Tooltip contentStyle={{ borderRadius: 8, border: `1px solid ${COLORS.line}`, fontFamily: "Inter" }} />
-                  <Bar dataKey="total" radius={[0, 4, 4, 0]} fill={COLORS.brass} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          )}
-        </Card>
-      </div>
 
       <Card>
         <p className="text-sm font-semibold mb-4" style={{ color: COLORS.ink }}>Valor em causas por área do direito</p>
         {!loading && receitaPorArea.length === 0 ? (
           <p className="text-sm" style={{ color: COLORS.slate }}>Sem processos cadastrados ainda.</p>
         ) : (
-          <div style={{ width: "100%", height: 260 }}>
+          <div style={{ width: "100%", height: 240 }}>
             <ResponsiveContainer>
               <BarChart data={receitaPorArea} margin={{ top: 4, right: 8, left: 0, bottom: 4 }}>
                 <CartesianGrid stroke={COLORS.line} vertical={false} />
@@ -237,6 +209,7 @@ export default function ExecutivoTab({ orgId, embutido = false } = {}) {
           </div>
         )}
       </Card>
+      </div>
       {/* ponytail: gráfico construído e correto, mas em back log a pedido do usuário —
           depende do campo "Processo" que também está escondido no form de honorário
           (FinanceiroTab.jsx). Reativar os dois juntos quando decidir subir. */}
