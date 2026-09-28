@@ -23,12 +23,14 @@ const anoAtual = hojeStr.slice(0, 4);
 // todo o histórico, atualizadas a cada 15min por cron (não precisa ser exato ao segundo pra
 // um painel executivo). Reagrupar por período/área aqui ainda é JS, mas em cima de um
 // resumo pequeno, não da tabela inteira.
+// Views de resumo (exec_*_view) não têm created_at — o orderBy padrão do useSupabaseTable
+// dava erro 400 e a tela ficava vazia. Cada uma ordena por uma coluna que existe.
 export default function ExecutivoTab({ orgId, embutido = false } = {}) {
   const orgEq = orgId ? ["org_id", orgId] : undefined;
-  const { data: resumoProcessos, loading } = useSupabaseTable("exec_processos_view", { select: "area, status, qtd, valor_total", eq: orgEq });
+  const { data: resumoProcessos, loading } = useSupabaseTable("exec_processos_view", { select: "area, status, qtd, valor_total", orderBy: "area", ascending: true, eq: orgEq });
   const { data: clientes } = useSupabaseTable("clientes", { select: "id", eq: orgEq });
-  const { data: resumoHonorarios, loading: loadingFinanceiro } = useSupabaseTable("exec_honorarios_view", { select: "ano_mes, area, status, valor_total", eq: orgEq });
-  const { data: resumoCarga } = useSupabaseTable("exec_carga_responsavel_view", { select: "responsavel_id, responsavel_nome, qtd", eq: orgEq });
+  const { data: resumoHonorarios, loading: loadingFinanceiro } = useSupabaseTable("exec_honorarios_view", { select: "ano_mes, area, status, valor_total", orderBy: "ano_mes", ascending: true, eq: orgEq });
+  const { data: resumoCarga } = useSupabaseTable("exec_carga_responsavel_view", { select: "responsavel_id, responsavel_nome, qtd", orderBy: "qtd", ascending: false, eq: orgEq });
   const [periodo, setPeriodo] = useState("mes"); // "mes" | "ano" — agrupamento do gráfico financeiro (tendência, todos os períodos)
 
   // Filtro de período pros KPIs do topo (honorários/rentabilidade) — diferente do `periodo`
