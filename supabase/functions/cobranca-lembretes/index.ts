@@ -51,27 +51,48 @@ function montarEmail(opts: {
   vencimento: string;
   tipo: Tipo;
   pixCopiaCola: string | null;
+  referente: string;
+  recebedor: string;
 }) {
-  const { orgNome, clienteNome, valor, vencimento, tipo, pixCopiaCola } = opts;
-  const orgNomeHtml = escapeHtml(orgNome);
-  const clienteNomeHtml = escapeHtml(clienteNome);
+  const { orgNome, clienteNome, valor, vencimento, tipo, pixCopiaCola, referente, recebedor } = opts;
+  const org = escapeHtml(orgNome);
+  const primeiroNome = escapeHtml((clienteNome || "").trim().split(/\s+/)[0] || "");
+  const ref = escapeHtml(referente);
   const assunto =
     tipo === "antes"
-      ? `Lembrete: honorário vence em 3 dias — ${orgNome}`
+      ? `${orgNome}: seus honorários vencem em breve (${fmtData(vencimento)})`
       : tipo === "dia"
-      ? `Honorário vence hoje — ${orgNome}`
-      : `Honorário em atraso — ${orgNome}`;
-  const situacao =
+      ? `${orgNome}: seus honorários vencem hoje`
+      : `${orgNome}: lembrete amigável de honorários em aberto`;
+  // Tom de conversa: de onde vem, quanto, até quando — e, no atraso, sem cara de cobrança dura.
+  const abertura =
     tipo === "antes"
-      ? `Seu honorário no valor de <strong>${fmtValor(valor)}</strong> vence em <strong>${fmtData(vencimento)}</strong>.`
+      ? `Passando só para lembrar, com antecedência, da cobrança referente a <strong>${ref}</strong>, que vence em <strong>${fmtData(vencimento)}</strong>.`
       : tipo === "dia"
-      ? `Seu honorário no valor de <strong>${fmtValor(valor)}</strong> vence hoje, <strong>${fmtData(vencimento)}</strong>.`
-      : `Seu honorário no valor de <strong>${fmtValor(valor)}</strong>, com vencimento em <strong>${fmtData(vencimento)}</strong>, está em atraso.`;
+      ? `Hoje, <strong>${fmtData(vencimento)}</strong>, é o dia do vencimento da cobrança referente a <strong>${ref}</strong>.`
+      : `Notamos que a cobrança referente a <strong>${ref}</strong>, que venceu em <strong>${fmtData(vencimento)}</strong>, ainda consta em aberto por aqui. Pode ter sido só um descuido, acontece com todo mundo!`;
   const pixBloco = pixCopiaCola
-    ? `<p>Pague via Pix copiando o código abaixo no app do seu banco:</p>
-       <pre style="background:#f4f4f4;padding:12px;border-radius:6px;font-family:monospace;font-size:12px;word-break:break-all;white-space:pre-wrap;">${escapeHtml(pixCopiaCola)}</pre>`
+    ? `<p style="margin:20px 0 8px">Para facilitar, você pode pagar por <strong>Pix</strong>. O código abaixo é um <strong>Pix Copia e Cola</strong>:</p>
+       <ol style="margin:0 0 12px;padding-left:20px;line-height:1.6">
+         <li>Copie o código abaixo;</li>
+         <li>Abra o app do seu banco e entre em <strong>Pix → Pix Copia e Cola</strong>;</li>
+         <li>Cole o código e confira: o valor já vem preenchido e o pagamento vai direto para <strong>${escapeHtml(recebedor || orgNome)}</strong>.</li>
+       </ol>
+       <pre style="background:#F2F0E9;border:1px solid #DCD7C9;padding:12px;border-radius:6px;font-family:monospace;font-size:12px;word-break:break-all;white-space:pre-wrap;margin:0">${escapeHtml(pixCopiaCola)}</pre>`
     : "";
-  const html = `<p>Olá, ${clienteNomeHtml}!</p><p>${situacao}</p>${pixBloco}<p>Qualquer dúvida, responda este e-mail ou entre em contato com ${orgNomeHtml}.</p>`;
+  const html = `<div style="font-family:Arial,sans-serif;font-size:15px;color:#1B3328;max-width:560px">
+  <p>Olá${primeiroNome ? `, ${primeiroNome}` : ""}! Tudo bem?</p>
+  <p>Aqui é do <strong>${org}</strong>. ${abertura}</p>
+  <table style="border-collapse:collapse;margin:8px 0">
+    <tr><td style="padding:4px 16px 4px 0;color:#5C6B60">Referente a</td><td style="padding:4px 0"><strong>${ref}</strong></td></tr>
+    <tr><td style="padding:4px 16px 4px 0;color:#5C6B60">Valor</td><td style="padding:4px 0"><strong>${fmtValor(valor)}</strong></td></tr>
+    <tr><td style="padding:4px 16px 4px 0;color:#5C6B60">Vencimento</td><td style="padding:4px 0"><strong>${fmtData(vencimento)}</strong></td></tr>
+  </table>
+  ${pixBloco}
+  <p style="margin-top:20px">Se você já fez o pagamento, pode desconsiderar este e-mail, e obrigado!</p>
+  <p>Qualquer dúvida, é só falar com o escritório pelos canais de sempre (este endereço é automático e não recebe respostas).</p>
+  <p>Um abraço,<br><strong>${org}</strong></p>
+</div>`;
   return { assunto, html };
 }
 
@@ -98,7 +119,7 @@ Deno.serve(async (req) => {
     for (const org of orgs ?? []) {
       const { data: honorarios, error: honErr } = await admin
         .from("honorarios")
-        .select("id, valor, vencimento, status, cliente_id, clientes(nome, email, arquivado)")
+        .select("id, valor, vencimento, status, cliente_id, descricao_servico, clientes(nome, email, arquivado)")
         .eq("org_id", org.id)
         .in("status", ["Em aberto", "Vencido"]);
       if (honErr) {
@@ -141,8 +162,11 @@ Deno.serve(async (req) => {
                 nomeRecebedor: org.pix_nome_recebedor,
                 cidade: org.pix_cidade,
                 valor: Number(h.valor),
+                txid: h.id, // mesmo txid do "Cobrar via Pix" da tela — mesmo código nos dois
               })
             : null;
+        const mesRef = new Date(`${h.vencimento}T00:00:00`).toLocaleDateString("pt-BR", { month: "long", year: "numeric", timeZone: "UTC" });
+        const referente = (h.descricao_servico as string | null)?.trim() || `honorários advocatícios de ${mesRef}`;
 
         const { assunto, html } = montarEmail({
           orgNome: org.nome,
@@ -151,6 +175,8 @@ Deno.serve(async (req) => {
           vencimento: h.vencimento,
           tipo,
           pixCopiaCola,
+          referente,
+          recebedor: org.pix_nome_recebedor || org.nome,
         });
 
         try {

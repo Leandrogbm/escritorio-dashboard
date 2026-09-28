@@ -56,7 +56,35 @@ export default function CobrarPixModal({ honorario, org, cliente, onClose }) {
   };
 
   const vencimentoFmt = honorario.vencimento ? new Date(`${honorario.vencimento}T00:00:00`).toLocaleDateString("pt-BR") : "";
-  const mensagemWhats = `Olá! Segue a cobrança via Pix (R$${honorario.valor?.toFixed(2)}, vencimento ${vencimentoFmt}):\n\n${payload ?? ""}`;
+  const valorFmt = Number(honorario.valor ?? 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+  const escritorio = (org?.nome || "o escritório").trim();
+  const recebedor = (org?.pix_nome_recebedor || org?.nome || "").trim();
+  const primeiroNome = (cliente?.nome || "").trim().split(/\s+/)[0] || "";
+  const mesRef = honorario.vencimento
+    ? new Date(`${honorario.vencimento}T00:00:00`).toLocaleDateString("pt-BR", { month: "long", year: "numeric" })
+    : "";
+  const referente = honorario.descricao_servico?.trim() || `honorários advocatícios${mesRef ? ` de ${mesRef}` : ""}`;
+  // Tom de conversa, não de boleto: diz de onde vem, quanto, até quando, e ensina a usar o
+  // Pix Copia e Cola passo a passo. Código por último, sozinho, pra ser fácil de copiar.
+  const mensagemWhats = [
+    `Olá${primeiroNome ? `, ${primeiroNome}` : ""}! Tudo bem?`,
+    "",
+    `Aqui é do *${escritorio}*. Passando para enviar, com todo o cuidado, a cobrança referente a *${referente}*:`,
+    "",
+    `• Valor: *${valorFmt}*`,
+    `• Vencimento: *${vencimentoFmt}*`,
+    "",
+    "Para facilitar, você pode pagar por *Pix*. O código logo abaixo é um *Pix Copia e Cola*, e funciona assim:",
+    "1. Copie o código abaixo (só ele);",
+    "2. Abra o app do seu banco e entre em *Pix → Pix Copia e Cola*;",
+    `3. Cole o código e confira: o valor já vem preenchido e o pagamento vai direto para ${recebedor ? `*${recebedor}*` : "o escritório"}.`,
+    "",
+    "Se já tiver pago, pode desconsiderar esta mensagem. E qualquer dúvida, é só responder aqui, estamos à disposição!",
+    "",
+    `Um abraço,\n${escritorio}`,
+    "",
+    payload ?? "",
+  ].join("\n");
   const whats = payload ? linkWhatsApp(cliente?.celular, mensagemWhats) : null;
 
   return (
