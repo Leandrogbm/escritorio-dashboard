@@ -12,7 +12,9 @@ const hintStyle = { color: COLORS.slate, fontWeight: 400 };
 // Presets cobrem os provedores que os clientes reais usam (Zoho é o do escritório piloto);
 // "Outro" deixa os 4 campos manuais pra qualquer webmail com IMAP/SMTP padrão.
 const PRESETS = {
-  zoho: { label: "Zoho Mail", imap_host: "imap.zoho.com", imap_port: 993, smtp_host: "smtp.zoho.com", smtp_port: 465 },
+  // Conta de domínio próprio (organização) no Zoho usa os servidores "pro"; imap/smtp.zoho.com é só pra conta pessoal.
+  zoho: { label: "Zoho Mail (domínio próprio)", imap_host: "imappro.zoho.com", imap_port: 993, smtp_host: "smtppro.zoho.com", smtp_port: 465 },
+  zoho_pessoal: { label: "Zoho Mail (conta pessoal @zoho.com)", imap_host: "imap.zoho.com", imap_port: 993, smtp_host: "smtp.zoho.com", smtp_port: 465 },
   hostinger: { label: "Hostinger", imap_host: "imap.hostinger.com", imap_port: 993, smtp_host: "smtp.hostinger.com", smtp_port: 465 },
   locaweb: { label: "Locaweb", imap_host: "email-ssl.com.br", imap_port: 993, smtp_host: "email-ssl.com.br", smtp_port: 465 },
   outro: { label: "Outro (manual)", imap_host: "", imap_port: 993, smtp_host: "", smtp_port: 465 },
