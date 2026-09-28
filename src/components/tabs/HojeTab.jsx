@@ -28,8 +28,9 @@ export default function HojeTab({ orgId, currentRole, profile, onAbrirProcesso }
   const { data: notificacoesRaw, error: erroNotificacoes, refresh: refreshNotificacoes } = useSupabaseTable("notificacoes", {
     select: "*", orderBy: "created_at", ascending: false, eq: orgEq,
   });
+  // Tarefa não tem data própria — a data vem do prazo que a gerou (prazo_origem_id).
   const { data: tarefasRaw, error: erroTarefas } = useSupabaseTable("tarefas", {
-    select: "*, processo:processos(id,numero)", eq: orgEq,
+    select: "*, processo:processos(id,numero), prazo:prazo_origem_id(data)", eq: orgEq,
   });
   // Só pra dar a advogado o "equivalente" de responsavel_id em notificacoes (que não tem essa
   // coluna): RLS de `processos` já restringe essa lista aos processos dele, então basta
@@ -55,12 +56,16 @@ export default function HojeTab({ orgId, currentRole, profile, onAbrirProcesso }
   }, [notificacoesRaw, vejaTudo, meusProcessosIds]);
 
   const tarefas = useMemo(() => {
-    const pendentes = tarefasRaw.filter((t) => t.status !== "Concluída");
+    // Só tarefa com data (de prazo) vencendo hoje ou atrasada — sem data fica no Quadro.
+    const pendentes = tarefasRaw
+      .filter((t) => t.status !== "Concluída" && t.prazo?.data && diasAte(t.prazo.data) <= 0)
+      .map((t) => ({ ...t, dias: diasAte(t.prazo.data) }));
     return vejaTudo ? pendentes : pendentes.filter((t) => t.responsavel_id === meuId);
   }, [tarefasRaw, vejaTudo, meuId]);
 
   const [verNotificacoes, setVerNotificacoes] = useState(false);
   const [verVencidos, setVerVencidos] = useState(false); // lista de vencidos começa fechada
+  const [verAtrasadas, setVerAtrasadas] = useState(false);
   const [marcandoTudo, setMarcandoTudo] = useState(false);
 
   const marcarLida = async (n) => {
@@ -106,6 +111,23 @@ export default function HojeTab({ orgId, currentRole, profile, onAbrirProcesso }
         </div>
       </div>
       <Stamp tone="urgent">{p.dias === 0 ? "Vence hoje" : `Venceu · ${-p.dias}d`}</Stamp>
+    </button>
+  );
+
+  const tarefasHoje = tarefas.filter((t) => t.dias === 0);
+  const tarefasAtrasadas = tarefas.filter((t) => t.dias < 0).sort((a, b) => b.dias - a.dias);
+  const linhaTarefa = (t) => (
+    <button
+      key={t.id}
+      onClick={() => onAbrirProcesso?.(t.processo?.id)}
+      className="w-full text-left flex items-center justify-between gap-3 px-4 py-3 hover:bg-black/[0.02]"
+      style={{ borderTop: `1px solid ${COLORS.line}` }}
+    >
+      <div className="min-w-0">
+        <p className="text-sm truncate" style={{ color: COLORS.ink, fontWeight: 600 }}>{t.titulo}</p>
+        <p className="text-xs mt-0.5" style={{ color: COLORS.slate }}>{t.processo?.numero ?? "—"} · {t.status}</p>
+      </div>
+      <Stamp tone="urgent">{t.dias === 0 ? "Hoje" : `Atrasada · ${-t.dias}d`}</Stamp>
     </button>
   );
 
@@ -213,24 +235,28 @@ export default function HojeTab({ orgId, currentRole, profile, onAbrirProcesso }
         </Card>
 
         <Card className="!p-0 overflow-hidden">
-          <CardHeader icon={ListChecks} label="Tarefas" count={tarefas.length} />
+          <CardHeader icon={ListChecks} label="Tarefas de hoje" count={tarefasHoje.length} />
           {erroTarefas && <ErroMsg>{erroTarefas}</ErroMsg>}
-          {!erroTarefas && tarefas.length === 0 && (
-            <EmptyCard icon={CheckCircle2} tone="success" title="Fila zerada" subtitle="Nenhuma tarefa pendente." />
+          {!erroTarefas && tarefasHoje.length === 0 && (
+            <EmptyCard icon={CheckCircle2} tone="success" title="Nenhuma tarefa pra hoje" subtitle="As demais estão no Quadro de tarefas." />
           )}
-          {tarefas.map((t) => (
-            <button
-              key={t.id}
-              onClick={() => onAbrirProcesso?.(t.processo?.id)}
-              className="w-full text-left flex items-center justify-between gap-3 px-4 py-3 hover:bg-black/[0.02]"
-              style={{ borderTop: `1px solid ${COLORS.line}` }}
-            >
-              <div className="min-w-0">
-                <p className="text-sm truncate" style={{ color: COLORS.ink, fontWeight: 600 }}>{t.titulo}</p>
-                <p className="text-xs mt-0.5" style={{ color: COLORS.slate }}>{t.processo?.numero ?? "—"} · {t.status}</p>
-              </div>
-            </button>
-          ))}
+          {tarefasHoje.map(linhaTarefa)}
+          {tarefasAtrasadas.length > 0 && (
+            <>
+              <button
+                onClick={() => setVerAtrasadas((v) => !v)}
+                aria-expanded={verAtrasadas}
+                className="w-full flex items-center justify-between px-4 py-2.5"
+                style={{ borderTop: `1px solid ${COLORS.line}`, background: "rgba(193,39,45,0.05)" }}
+              >
+                <span className="flex items-center gap-1.5 text-xs font-bold tracking-widest" style={{ color: COLORS.wine }}>
+                  {verAtrasadas ? <ChevronDown size={14} /> : <ChevronRight size={14} />} EM ATRASO
+                </span>
+                <span className="text-xs font-semibold" style={{ color: COLORS.wine }}>{tarefasAtrasadas.length}</span>
+              </button>
+              {verAtrasadas && tarefasAtrasadas.map(linhaTarefa)}
+            </>
+          )}
         </Card>
       </div>
     </div>
