@@ -84,6 +84,9 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ error: updErr.message }), { status: 400, headers: corsHeaders });
     }
 
+    // Senha nova definida pelo admin também libera o bloqueio por tentativas (login_tentativas).
+    await admin.from("login_tentativas").delete().eq("email", authUser.user.email.toLowerCase());
+
     let warning: string | undefined;
     try {
       await enviarSenhaPorEmail(authUser.user.email, targetProfile.nome, senhaTemp, targetProfile.organizations?.nome ?? "seu escritório");

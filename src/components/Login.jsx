@@ -88,9 +88,17 @@ export default function Login({ initialSignup = false, onVoltar }) {
     e.preventDefault();
     setError("");
     setLoading(true);
-    const { error: authError } = await supabase.auth.signInWithPassword({ email, password });
+    // Via Edge Function `login` (limite de tentativas no servidor), não signInWithPassword
+    // direto — ver supabase/functions/login.
+    const { data, error: fnError } = await supabase.functions.invoke("login", { body: { email, password } });
+    if (fnError) {
+      const corpo = await fnError.context?.json?.().catch(() => null);
+      setLoading(false);
+      return setError(corpo?.error ?? "Não foi possível entrar. Tente de novo.");
+    }
+    const { error: sessError } = await supabase.auth.setSession(data.session);
     setLoading(false);
-    if (authError) setError("E-mail ou senha inválidos.");
+    if (sessError) setError("Não foi possível entrar. Tente de novo.");
   };
 
   const handleForgot = async (e) => {

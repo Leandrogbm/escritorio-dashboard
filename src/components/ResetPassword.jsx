@@ -21,6 +21,9 @@ export default function ResetPassword({ onDone }) {
     const { error: updateError } = await supabase.auth.updateUser({ password });
     setLoading(false);
     if (updateError) return setError(updateError.message);
+    // Redefinir pelo link do e-mail prova que é o dono — libera o bloqueio por tentativas.
+    // Falha aqui não impede nada: a senha já foi trocada.
+    await supabase.functions.invoke("login", { body: { acao: "desbloquear" } }).catch(() => {});
     onDone();
   };
 
