@@ -7,10 +7,11 @@ import SectionTitle from "../SectionTitle.jsx";
 import { COLORS } from "../../lib/theme.js";
 import { BRL } from "../../lib/format.js";
 import { useSupabaseTable } from "../../hooks/useSupabaseTable.js";
+import MetricasGestao from "./MetricasGestao.jsx";
 
 const MES_LABEL = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
 const STATUS_CORES = { "Em andamento": COLORS.success, "Aguardando decisão": COLORS.brass, "Suspenso": COLORS.slate, "Encerrado": COLORS.line };
-const hojeStr = new Date().toISOString().slice(0, 10);
+const hojeStr = new Date().toLocaleDateString("sv");
 const mesAtual = hojeStr.slice(0, 7);
 const anoAtual = hojeStr.slice(0, 4);
 
@@ -153,7 +154,7 @@ export default function ExecutivoTab({ orgId, embutido = false } = {}) {
             ))}
           </div>
         </div>
-        {!loadingFinanceiro && totalHonorarios === 0 ? (
+        {!loadingFinanceiro && financeiroPorPeriodo.length === 0 ? (
           <p className="text-sm" style={{ color: COLORS.slate }}>Sem cobranças cadastradas ainda.</p>
         ) : (
           <div style={{ width: "100%", height: 240 }}>
@@ -210,6 +211,7 @@ export default function ExecutivoTab({ orgId, embutido = false } = {}) {
         )}
       </Card>
       </div>
+      <MetricasGestao orgId={orgId} />
       {/* ponytail: gráfico construído e correto, mas em back log a pedido do usuário —
           depende do campo "Processo" que também está escondido no form de honorário
           (FinanceiroTab.jsx). Reativar os dois juntos quando decidir subir. */}
