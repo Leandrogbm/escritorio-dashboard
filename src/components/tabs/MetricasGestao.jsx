@@ -180,7 +180,7 @@ function ListaValores({ itens, cor }) {
         <div key={i.nome}>
           <div className="flex justify-between gap-3 text-sm mb-1">
             <span className="truncate" style={{ color: COLORS.ink }}>{i.nome}</span>
-            <span className="font-semibold shrink-0" style={{ color: cor }}>{BRL(i.valor)}</span>
+            <span className="font-semibold shrink-0 tabular-nums" style={{ color: cor, fontFamily: "'IBM Plex Mono', monospace" }}>{BRL(i.valor)}</span>
           </div>
           <div className="h-1.5 rounded-full overflow-hidden" style={{ background: COLORS.line }}>
             <div className="h-full rounded-full" style={{ width: `${(i.valor / max) * 100}%`, background: cor }} />

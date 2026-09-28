@@ -102,10 +102,25 @@ ${pagasMes.map((d) => linha([dataBR(d.vencimento), d.fornecedor, d.descricao, d.
 
   const tooltipStyle = { borderRadius: 8, border: `1px solid ${COLORS.line}`, fontFamily: "Inter" };
   const linhaDre = (label, valor, forte = false) => (
-    <div className="flex justify-between gap-3 py-1.5 text-sm" style={{ borderTop: forte ? `1px solid ${COLORS.ink}` : undefined, fontWeight: forte ? 700 : 400 }}>
+    <div
+      className={`flex justify-between gap-3 text-sm ${forte ? "py-2 px-2 -mx-2 rounded" : "py-1.5"}`}
+      style={{
+        borderTop: forte ? `1px solid ${COLORS.ink}` : undefined,
+        background: forte ? "rgba(27,51,40,0.05)" : undefined,
+        fontWeight: forte ? 700 : 400,
+      }}
+    >
       <span style={{ color: COLORS.ink }}>{label}</span>
-      <span style={{ color: valor < 0 ? COLORS.wine : COLORS.ink, fontFamily: "'IBM Plex Mono', monospace" }}>{BRL(valor)}</span>
+      <span
+        className="tabular-nums"
+        style={{ color: valor < 0 ? COLORS.wine : COLORS.ink, fontFamily: "'IBM Plex Mono', monospace" }}
+      >
+        {BRL(valor)}
+      </span>
     </div>
+  );
+  const eyebrow = (label) => (
+    <p className="text-[11px] font-semibold tracking-widest uppercase mt-4 mb-1 first:mt-0" style={{ color: COLORS.brassText }}>{label}</p>
   );
 
   return (
@@ -122,18 +137,23 @@ ${pagasMes.map((d) => linha([dataBR(d.vencimento), d.fornecedor, d.descricao, d.
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
         <Card>
-          <p className="text-sm font-semibold mb-3" style={{ color: COLORS.ink }}>DRE do mês</p>
+          <p className="text-sm font-semibold mb-1" style={{ color: COLORS.ink }}>DRE do mês</p>
+          <p className="text-xs mb-3" style={{ color: COLORS.slate }}>Regime de caixa — só o que foi pago dentro do mês.</p>
+
+          {eyebrow("Receitas por área")}
           {linhaDre("Receita bruta (honorários recebidos)", dre.receitaBruta)}
           {dre.areas.map(([area, v]) => (
-            <div key={area} className="flex justify-between gap-3 pl-4 text-xs py-0.5" style={{ color: COLORS.slate }}>
-              <span>{area}</span><span>{BRL(v)}</span>
+            <div key={area} className="flex justify-between gap-3 pl-4 text-xs py-1" style={{ color: COLORS.slate, borderTop: `1px dashed ${COLORS.line}` }}>
+              <span className="truncate">{area}</span>
+              <span className="tabular-nums shrink-0" style={{ fontFamily: "'IBM Plex Mono', monospace" }}>{BRL(v)}</span>
             </div>
           ))}
           {linhaDre("(−) Impostos e taxas", -dre.impostos)}
           {linhaDre("= Receita líquida", dre.receitaLiquida, true)}
+
+          {eyebrow("Despesas por categoria")}
           {dre.operacionais.map((g) => <React.Fragment key={g.key}>{linhaDre(`(−) ${g.label}`, -g.valor)}</React.Fragment>)}
           {linhaDre("= Resultado do mês", dre.resultado, true)}
-          <p className="text-xs mt-2" style={{ color: COLORS.slate }}>Receita separada por área do direito (centro de custo); despesa agrupada pela categoria de cada conta.</p>
         </Card>
 
         <Card>
@@ -154,14 +174,22 @@ ${pagasMes.map((d) => linha([dataBR(d.vencimento), d.fornecedor, d.descricao, d.
             </ResponsiveContainer>
           </div>
           <div className="overflow-x-auto mt-3">
-            <table className="w-full text-xs">
+            <table className="w-full text-xs" style={{ minWidth: 360 }}>
+              <thead>
+                <tr>
+                  <th className="text-left font-semibold pb-1.5" style={{ color: COLORS.slate }}>Mês</th>
+                  <th className="text-right font-semibold pb-1.5" style={{ color: COLORS.slate }}>Entrou</th>
+                  <th className="text-right font-semibold pb-1.5" style={{ color: COLORS.slate }}>Saiu</th>
+                  <th className="text-right font-semibold pb-1.5" style={{ color: COLORS.slate }}>Saldo acum.</th>
+                </tr>
+              </thead>
               <tbody>
-                {projecao.map((l) => (
-                  <tr key={l.mes} style={{ borderTop: `1px solid ${COLORS.line}` }}>
-                    <td className="py-1.5" style={{ color: COLORS.ink }}>{l.nome}</td>
-                    <td className="py-1.5 text-right" style={{ color: COLORS.success }}>{BRL(l.entrada)}</td>
-                    <td className="py-1.5 text-right" style={{ color: COLORS.wine }}>−{BRL(l.saida)}</td>
-                    <td className="py-1.5 text-right font-semibold" style={{ color: l.acumulado < 0 ? COLORS.wine : COLORS.ink }}>{BRL(l.acumulado)}</td>
+                {projecao.map((l, i) => (
+                  <tr key={l.mes} style={{ borderTop: `1px solid ${COLORS.line}`, background: i === 0 ? "rgba(165,121,59,0.07)" : undefined }}>
+                    <td className="py-1.5 font-semibold" style={{ color: COLORS.ink }}>{l.nome}</td>
+                    <td className="py-1.5 text-right tabular-nums" style={{ color: COLORS.success, fontFamily: "'IBM Plex Mono', monospace" }}>{BRL(l.entrada)}</td>
+                    <td className="py-1.5 text-right tabular-nums" style={{ color: COLORS.wine, fontFamily: "'IBM Plex Mono', monospace" }}>−{BRL(l.saida)}</td>
+                    <td className="py-1.5 text-right font-semibold tabular-nums" style={{ color: l.acumulado < 0 ? COLORS.wine : COLORS.ink, fontFamily: "'IBM Plex Mono', monospace" }}>{BRL(l.acumulado)}</td>
                   </tr>
                 ))}
               </tbody>
