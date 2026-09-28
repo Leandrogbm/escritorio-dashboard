@@ -65,9 +65,9 @@ function montarEmail(opts: {
       ? `${orgNome}: seus honorários vencem hoje`
       : `${orgNome}: honorários em aberto`;
   const abertura =
-    tipo === "antes" ? "Lembrete da cobrança abaixo, que vence em breve."
-      : tipo === "dia" ? "A cobrança abaixo vence hoje."
-      : "A cobrança abaixo ainda consta em aberto.";
+    tipo === "antes" ? "Lembrete da sua mensalidade, que vence em breve."
+      : tipo === "dia" ? "Sua mensalidade vence hoje."
+      : "Sua mensalidade ainda consta em aberto.";
   const pixBloco = pixCopiaCola
     ? `<p style="margin:16px 0 8px">Para pagar, copie o código abaixo e cole no app do seu banco em <strong>Pix → Pix Copia e Cola</strong>:</p>
        <pre style="background:#F2F0E9;border:1px solid #DCD7C9;padding:12px;border-radius:6px;font-family:monospace;font-size:12px;word-break:break-all;white-space:pre-wrap;margin:0">${escapeHtml(pixCopiaCola)}</pre>`

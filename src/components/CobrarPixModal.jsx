@@ -66,7 +66,7 @@ export default function CobrarPixModal({ honorario, org, cliente, onClose }) {
   // Curta e direta: de onde vem, quanto, até quando, como pagar. Código por último, sozinho.
   const mensagemWhats = [
     `Olá${primeiroNome ? `, ${primeiroNome}` : ""}! Tudo bem?`,
-    `Segue a cobrança do *${escritorio}*:`,
+    `Segue a sua mensalidade com o *${escritorio}*:`,
     "",
     `*Referente a:* ${referente}`,
     `*Valor:* ${valorFmt}`,
