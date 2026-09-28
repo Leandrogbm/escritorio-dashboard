@@ -149,9 +149,11 @@ export default function PrazosTab({ orgId } = {}) {
   const [busca, setBusca] = useState("");
   // Filtro por data, pedido do usuário: HOJE (só vencimento de hoje), TODOS (sem filtro) ou
   // DATA (escolhe um dia específico no seletor que aparece do lado).
-  const [filtroData, setFiltroData] = useState("todos"); // "hoje" | "todos" | "data"
-  const [dataEscolhida, setDataEscolhida] = useState(() => new Date().toISOString().slice(0, 10));
-  const hojeStr = new Date().toISOString().slice(0, 10);
+  const [filtroData, setFiltroData] = useState("hoje"); // "hoje" | "todos" | "data" — abre sempre em Hoje
+  // Data local ("sv" = AAAA-MM-DD), não toISOString (UTC): depois das 21h de Brasília o UTC já
+  // é o dia seguinte e "Hoje" mostraria os prazos de amanhã.
+  const hojeStr = new Date().toLocaleDateString("sv");
+  const [dataEscolhida, setDataEscolhida] = useState(hojeStr);
   const onToggleFeito = (p) => update(p.id, { feito: !p.feito });
   // Subabas: prazo marcado como feito sai de "Em aberto" e vai pra "Concluídos".
   const [aba, setAba] = useState("abertos"); // "abertos" | "concluidos"
