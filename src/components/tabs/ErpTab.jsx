@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Calculator, Plus, Copy, Check, Upload, Filter, X, TrendingUp, Wallet, CheckCircle2, Clock3, AlertTriangle, Scale } from "lucide-react";
+import { Calculator, Plus, Copy, Check, Upload, X, TrendingUp, Wallet, CheckCircle2, Clock3, AlertTriangle, Scale, ChevronLeft, ChevronRight, Receipt } from "lucide-react";
 import ExecutivoTab from "./ExecutivoTab.jsx";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
 import Card from "../Card.jsx";
@@ -32,12 +32,16 @@ const STATUS_OPTIONS = [
   { value: "Pago", label: "Pago" },
 ];
 const MES_LABEL = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
-const hojeStr = new Date().toISOString().slice(0, 10);
+// Data local ("sv" = AAAA-MM-DD), não UTC — depois das 21h o UTC já é o dia seguinte.
+const hojeStr = new Date().toLocaleDateString("sv");
 const mesAtual = hojeStr.slice(0, 7);
 const estaAtrasado = (d) => d.status === "Vencido" || (d.status === "Em aberto" && d.vencimento < hojeStr);
 const chaveFornecedor = (d) => (d.fornecedor || "").trim() || "Sem fornecedor";
 // Mesma lógica do "pior caso vira lombada da linha" do Financeiro — atrasado > a pagar >
 // pago > neutro, resumido pro fornecedor inteiro em vez de uma despesa só.
+const NOMES_MES = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"];
+const nomeMes = (m) => `${NOMES_MES[Number(m.slice(5, 7)) - 1]} de ${m.slice(0, 4)}`;
+const somaMes = (m, n) => new Date(Number(m.slice(0, 4)), Number(m.slice(5, 7)) - 1 + n, 1).toLocaleDateString("sv").slice(0, 7);
 const toneDoFornecedor = (f) => (f.atrasado > 0 ? "urgent" : f.aPagar > 0 ? "warn" : f.pago > 0 ? "ok" : "neutral");
 
 // Contas a pagar do escritório (aluguel, salário, fornecedor...) — junto com honorarios
@@ -49,15 +53,16 @@ export default function ErpTab({ orgId }) {
   // Visão Executiva vira sub-aba daqui — pedido do usuário ("visão executiva tem que ser um
   // adereço dentro do ERP"). "despesas" continua a aba principal (é o que o ERP faz no dia a
   // dia); "visao" mostra o painel executivo (ExecutivoTab.jsx embutido).
-  const [aba, setAba] = useState("despesas");
+  // Três abas com um papel cada: "pagar" (contas do dia a dia), "caixa" (entrou x saiu e
+  // resultado do mês) e "visao" (painel executivo embutido).
+  const [aba, setAba] = useState("pagar");
   const { data: despesas, loading, insert, update, remove } = useSupabaseTable("despesas", { eq: orgEq, orderBy: "vencimento", ascending: true });
   const { data: honorarios } = useSupabaseTable("honorarios", { select: "id, cliente:clientes(id,nome), valor, status, vencimento", eq: orgEq });
   const { data: notificacoesTodas, refresh: refreshNotificacoes } = useSupabaseTable("notificacoes", { select: "id, tipo, despesa_id, titulo, texto", eq: orgEq });
   const [editing, setEditing] = useState(null);
   const [selecionado, setSelecionado] = useState(null); // fornecedor (chave) aberto no painel de detalhe
   const [busca, setBusca] = useState("");
-  const [filtroAberto, setFiltroAberto] = useState(false);
-  const [filtro, setFiltro] = useState({ mes: mesAtual, fornecedor: "", dataInicio: "", dataFim: "" });
+  const [mes, setMes] = useState(mesAtual); // mês de referência das abas Contas a pagar e Caixa
   const [arquivoExtrato, setArquivoExtrato] = useState(null);
   const fileInputRef = useRef(null);
   const [copiado, setCopiado] = useState(null); // id da despesa cujo código acabou de ser copiado
@@ -95,16 +100,7 @@ export default function ErpTab({ orgId }) {
     return map;
   }, [notificacoesTodas, despesas]);
 
-  // Dentro do mês selecionado no filtro, ou dentro do período (data início/fim) se
-  // preenchido — período manual tem prioridade sobre o seletor de mês.
-  const dentroDoPeriodo = (d) => {
-    if (filtro.dataInicio || filtro.dataFim) {
-      if (filtro.dataInicio && d.vencimento < filtro.dataInicio) return false;
-      if (filtro.dataFim && d.vencimento > filtro.dataFim) return false;
-      return true;
-    }
-    return d.vencimento?.slice(0, 7) === filtro.mes;
-  };
+  const dentroDoPeriodo = (d) => d.vencimento?.slice(0, 7) === mes;
 
   // Resumo por fornecedor — igual ao "por cliente" do Financeiro: Total/Pago/A pagar só do
   // período selecionado (senão uma conta recorrente gerada com meses futuros infla o
@@ -126,23 +122,17 @@ export default function ErpTab({ orgId }) {
       }
     }
     return [...map.values()].sort((a, b) => a.nome.localeCompare(b.nome));
-  }, [despesas, filtro]);
-
-  const fornecedoresUnicos = useMemo(() => [...new Set(despesas.map(chaveFornecedor))].sort(), [despesas]);
+  }, [despesas, mes]);
 
   const fornecedorAberto = porFornecedor.find((f) => f.nome === selecionado) ?? null;
-  const porFornecedorFiltrado = porFornecedor.filter((f) => {
-    if (filtro.fornecedor && f.nome !== filtro.fornecedor) return false;
-    return f.nome.toLowerCase().includes(busca.trim().toLowerCase());
-  });
-  const filtrosAtivos = filtro.fornecedor || filtro.dataInicio || filtro.dataFim || filtro.mes !== mesAtual;
+  // Só fornecedor com algo no mês ou em atraso — conta de outro mês sem pendência é ruído.
+  const porFornecedorFiltrado = porFornecedor
+    .filter((f) => f.total > 0 || f.atrasado > 0)
+    .filter((f) => f.nome.toLowerCase().includes(busca.trim().toLowerCase()));
 
   // Painel do fornecedor: por padrão só o que vence no período selecionado + o que está
   // atrasado (visão "contas a pagar" de ERP), não o histórico de todos os meses.
-  const dataBR = (iso) => iso ? new Date(`${iso}T00:00:00`).toLocaleDateString("pt-BR") : "";
-  const periodoLabel = (filtro.dataInicio || filtro.dataFim)
-    ? `${dataBR(filtro.dataInicio) || "início"} a ${dataBR(filtro.dataFim) || "hoje"}`
-    : filtro.mes ? `${MES_LABEL[Number(filtro.mes.slice(5, 7)) - 1]}/${filtro.mes.slice(0, 4)}` : "todo o período";
+  const periodoLabel = nomeMes(mes);
   const itensDoFornecedor = (fornecedorAberto?.itens ?? [])
     .filter((d) => verTudoItens || dentroDoPeriodo(d) || estaAtrasado(d))
     .sort((a, b) => a.vencimento.localeCompare(b.vencimento));
@@ -213,13 +203,10 @@ export default function ErpTab({ orgId }) {
       <SectionTitle
         icon={Calculator}
         title="ERP"
-        subtitle="Contas a pagar, fluxo de caixa e resultado do escritório"
-        action={aba === "despesas" && (
+        subtitle="Contas a pagar e caixa do escritório"
+        action={aba === "pagar" && (
           <div className="flex flex-wrap items-center gap-2">
             <SearchInput value={busca} onChange={setBusca} placeholder="Buscar fornecedor..." />
-            <button onClick={() => setFiltroAberto((v) => !v)} className="flex items-center gap-1.5 px-3 py-2 rounded-md text-sm font-semibold" style={{ border: `1px solid ${filtrosAtivos ? COLORS.brass : COLORS.line}`, color: filtrosAtivos ? COLORS.brass : COLORS.ink }}>
-              <Filter size={14} /> Filtros
-            </button>
             <button onClick={escolherArquivoExtrato} className="flex items-center gap-1.5 px-3 py-2 rounded-md text-sm font-semibold" style={{ border: `1px solid ${COLORS.line}`, color: COLORS.ink }}>
               <Upload size={14} /> Importar extrato
             </button>
@@ -231,99 +218,79 @@ export default function ErpTab({ orgId }) {
         )}
       />
 
-      <div className="flex gap-2 mb-6">
-        {[{ key: "despesas", label: "Despesas", icon: Wallet }, { key: "visao", label: "Visão geral", icon: TrendingUp }].map((t) => (
-          <button
-            key={t.key}
-            onClick={() => setAba(t.key)}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-md text-sm font-semibold"
-            style={{ background: aba === t.key ? COLORS.ink : "transparent", color: aba === t.key ? "#fff" : COLORS.ink, border: `1px solid ${aba === t.key ? COLORS.ink : COLORS.line}` }}
-          >
-            <t.icon size={14} /> {t.label}
-          </button>
-        ))}
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
+        <div className="flex flex-wrap gap-2">
+          {[
+            { key: "pagar", label: "Contas a pagar", icon: Receipt },
+            { key: "caixa", label: "Caixa do mês", icon: Wallet },
+            { key: "visao", label: "Visão geral", icon: TrendingUp },
+          ].map((t) => (
+            <button
+              key={t.key}
+              onClick={() => setAba(t.key)}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-md text-sm font-semibold"
+              style={{ background: aba === t.key ? COLORS.ink : "transparent", color: aba === t.key ? "#fff" : COLORS.ink, border: `1px solid ${aba === t.key ? COLORS.ink : COLORS.line}` }}
+            >
+              <t.icon size={14} /> {t.label}
+            </button>
+          ))}
+        </div>
+        {aba !== "visao" && (
+          <div className="flex items-center gap-1 rounded-md" style={{ border: `1px solid ${COLORS.line}` }}>
+            <button onClick={() => setMes((m) => somaMes(m, -1))} aria-label="Mês anterior" className="p-2 hover:opacity-70" style={{ color: COLORS.slate }}><ChevronLeft size={16} /></button>
+            <span className="text-sm font-semibold px-1 min-w-[130px] text-center" style={{ color: COLORS.ink }}>{nomeMes(mes)}</span>
+            <button onClick={() => setMes((m) => somaMes(m, 1))} aria-label="Próximo mês" className="p-2 hover:opacity-70" style={{ color: COLORS.slate }}><ChevronRight size={16} /></button>
+            {mes !== mesAtual && (
+              <button onClick={() => setMes(mesAtual)} className="text-xs font-semibold px-2" style={{ color: COLORS.brassText }}>Mês atual</button>
+            )}
+          </div>
+        )}
       </div>
 
       {aba === "visao" && <ExecutivoTab orgId={orgId} embutido />}
 
-      {aba === "despesas" && filtroAberto && (
-        <Card className="mb-5">
-          <div className="flex items-center justify-between mb-3">
-            <p className="text-sm font-semibold" style={{ color: COLORS.ink }}>Filtros</p>
-            {filtrosAtivos && (
-              <button onClick={() => setFiltro({ mes: mesAtual, fornecedor: "", dataInicio: "", dataFim: "" })} className="text-xs underline" style={{ color: COLORS.slate }}>
-                Limpar
-              </button>
-            )}
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
-            <label className="flex flex-col gap-1 text-xs" style={{ color: COLORS.slate }}>
-              Mês
-              <input type="month" value={filtro.mes} onChange={(e) => setFiltro((f) => ({ ...f, mes: e.target.value }))} disabled={!!(filtro.dataInicio || filtro.dataFim)} className="px-3 py-2 rounded-md text-sm" style={{ border: `1px solid ${COLORS.line}`, color: COLORS.ink, opacity: filtro.dataInicio || filtro.dataFim ? 0.5 : 1 }} />
-            </label>
-            <label className="flex flex-col gap-1 text-xs" style={{ color: COLORS.slate }}>
-              Fornecedor
-              <select value={filtro.fornecedor} onChange={(e) => setFiltro((f) => ({ ...f, fornecedor: e.target.value }))} className="px-3 py-2 rounded-md text-sm" style={{ border: `1px solid ${COLORS.line}`, color: COLORS.ink }}>
-                <option value="">Todos</option>
-                {fornecedoresUnicos.map((f) => <option key={f} value={f}>{f}</option>)}
-              </select>
-            </label>
-            <label className="flex flex-col gap-1 text-xs" style={{ color: COLORS.slate }}>
-              Vencimento de
-              <input type="date" value={filtro.dataInicio} onChange={(e) => setFiltro((f) => ({ ...f, dataInicio: e.target.value }))} className="px-3 py-2 rounded-md text-sm" style={{ border: `1px solid ${COLORS.line}`, color: COLORS.ink }} />
-            </label>
-            <label className="flex flex-col gap-1 text-xs" style={{ color: COLORS.slate }}>
-              Vencimento até
-              <input type="date" value={filtro.dataFim} onChange={(e) => setFiltro((f) => ({ ...f, dataFim: e.target.value }))} className="px-3 py-2 rounded-md text-sm" style={{ border: `1px solid ${COLORS.line}`, color: COLORS.ink }} />
-            </label>
-          </div>
-          {(filtro.dataInicio || filtro.dataFim) && (
-            <p className="text-xs mt-2" style={{ color: COLORS.slate }}>Período manual preenchido — o seletor de mês fica desativado até limpar.</p>
+      {aba === "caixa" && <>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+          <KpiCard icon={CheckCircle2} tone="success" label="Entrou (honorários recebidos)" value={BRL(receitaMes)} valueColor={receitaMes ? COLORS.success : COLORS.slate} />
+          <KpiCard icon={Wallet} tone="wine" label="Saiu (despesas pagas)" value={BRL(despesaMes)} valueColor={despesaMes ? COLORS.wine : COLORS.slate} />
+          <KpiCard icon={Scale} tone={resultadoMes >= 0 ? "success" : "wine"} label="Sobrou no mês" value={BRL(resultadoMes)} valueColor={resultadoMes >= 0 ? COLORS.success : COLORS.wine} caption="Só o que já foi recebido e pago de verdade" />
+        </div>
+        <Card>
+          <p className="text-sm font-semibold mb-4" style={{ color: COLORS.ink }}>Entrou x saiu, mês a mês</p>
+          {fluxoPorMes.length === 0 ? (
+            <p className="text-sm" style={{ color: COLORS.slate }}>Sem honorário recebido ou despesa paga ainda.</p>
+          ) : (
+            <div style={{ width: "100%", height: 260 }}>
+              <ResponsiveContainer>
+                <BarChart data={fluxoPorMes} margin={{ top: 4, right: 8, left: 0, bottom: 4 }}>
+                  <CartesianGrid stroke={COLORS.line} vertical={false} />
+                  <XAxis dataKey="nome" tick={{ fill: COLORS.slate, fontSize: 12 }} axisLine={{ stroke: COLORS.line }} tickLine={false} />
+                  <YAxis tick={{ fill: COLORS.slate, fontSize: 12 }} axisLine={false} tickLine={false} tickFormatter={(v) => `${v / 1000}k`} />
+                  <Tooltip formatter={(v) => BRL(v)} contentStyle={{ borderRadius: 8, border: `1px solid ${COLORS.line}`, fontFamily: "Inter" }} />
+                  <Legend wrapperStyle={{ fontSize: 12 }} formatter={(v) => (v === "entrada" ? "Entrou" : "Saiu")} />
+                  <Bar dataKey="entrada" fill={COLORS.success} radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="saida" fill={COLORS.wine} radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
           )}
         </Card>
-      )}
+      </>}
 
-      {aba === "despesas" && <>
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
-        <KpiCard icon={CheckCircle2} tone={totalPago ? "success" : "slate"} label="Despesas pagas (período)" value={BRL(totalPago)} valueColor={totalPago ? COLORS.success : COLORS.slate} />
-        <KpiCard icon={Clock3} tone={totalAberto ? "brass" : "slate"} label="A pagar (período)" value={BRL(totalAberto)} valueColor={totalAberto ? COLORS.brass : COLORS.slate} />
-        <KpiCard icon={AlertTriangle} tone={totalAtrasado ? "wine" : "slate"} label="Em atraso (total)" value={BRL(totalAtrasado)} valueColor={totalAtrasado ? COLORS.wine : COLORS.slate} caption={`${atrasadas.length} despesa(s) atrasada(s) no total`} />
+      {aba === "pagar" && <>
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+        <KpiCard icon={Clock3} tone={totalAberto ? "brass" : "slate"} label="A pagar no mês" value={BRL(totalAberto)} valueColor={totalAberto ? COLORS.brass : COLORS.slate} />
+        <KpiCard icon={AlertTriangle} tone={totalAtrasado ? "wine" : "slate"} label="Em atraso" value={BRL(totalAtrasado)} valueColor={totalAtrasado ? COLORS.wine : COLORS.slate} caption={atrasadas.length ? `${atrasadas.length} conta(s) atrasada(s)` : "Nenhuma conta atrasada"} />
+        <KpiCard icon={CheckCircle2} tone={totalPago ? "success" : "slate"} label="Já pago no mês" value={BRL(totalPago)} valueColor={totalPago ? COLORS.success : COLORS.slate} />
       </div>
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
-        <KpiCard icon={Wallet} tone="ink" label="Receita recebida (período)" value={BRL(receitaMes)} valueColor={receitaMes ? COLORS.ink : COLORS.slate} />
-        <KpiCard icon={Wallet} tone="slate" label="Despesa paga (período)" value={BRL(despesaMes)} valueColor={despesaMes ? COLORS.ink : COLORS.slate} />
-        <KpiCard icon={Scale} tone={resultadoMes >= 0 ? "success" : "wine"} label="Resultado do período (DRE simplificado)" value={BRL(resultadoMes)} valueColor={resultadoMes >= 0 ? COLORS.success : COLORS.wine} />
-      </div>
-
-      <Card className="mb-6">
-        <p className="text-sm font-semibold mb-4" style={{ color: COLORS.ink }}>Fluxo de caixa — entrada x saída por mês</p>
-        {fluxoPorMes.length === 0 ? (
-          <p className="text-sm" style={{ color: COLORS.slate }}>Sem honorário recebido ou despesa paga ainda.</p>
-        ) : (
-          <div style={{ width: "100%", height: 260 }}>
-            <ResponsiveContainer>
-              <BarChart data={fluxoPorMes} margin={{ top: 4, right: 8, left: 0, bottom: 4 }}>
-                <CartesianGrid stroke={COLORS.line} vertical={false} />
-                <XAxis dataKey="nome" tick={{ fill: COLORS.slate, fontSize: 12 }} axisLine={{ stroke: COLORS.line }} tickLine={false} />
-                <YAxis tick={{ fill: COLORS.slate, fontSize: 12 }} axisLine={false} tickLine={false} tickFormatter={(v) => `${v / 1000}k`} />
-                <Tooltip formatter={(v) => BRL(v)} contentStyle={{ borderRadius: 8, border: `1px solid ${COLORS.line}`, fontFamily: "Inter" }} />
-                <Legend wrapperStyle={{ fontSize: 12 }} formatter={(v) => (v === "entrada" ? "Entrada" : "Saída")} />
-                <Bar dataKey="entrada" fill={COLORS.success} radius={[4, 4, 0, 0]} />
-                <Bar dataKey="saida" fill={COLORS.wine} radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        )}
-      </Card>
 
       <Card className="overflow-hidden !p-0">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
-            <TableHead columns={["Fornecedor", "Total (período)", "Pago (período)", "A pagar (período)", "Atrasado"]} />
+            <TableHead columns={["Fornecedor", "A pagar no mês", "Em atraso", "Pago no mês"]} />
             <tbody>
               {!loading && porFornecedorFiltrado.length === 0 && (
-                <tr><td colSpan={5} className="px-4 py-6 text-center text-sm" style={{ color: COLORS.slate }}>{busca ? "Nenhum fornecedor encontrado." : "Nenhuma despesa cadastrada ainda."}</td></tr>
+                <tr><td colSpan={4} className="px-4 py-6 text-center text-sm" style={{ color: COLORS.slate }}>{busca ? "Nenhum fornecedor encontrado." : despesas.length ? `Nenhuma conta em ${periodoLabel}.` : "Nenhuma despesa cadastrada ainda."}</td></tr>
               )}
               {porFornecedorFiltrado.map((f) => (
                 <Tr key={f.nome} onClick={() => setSelecionado(f.nome)} tone={toneDoFornecedor(f)}>
@@ -333,10 +300,9 @@ export default function ErpTab({ orgId }) {
                       <FornecedorBell notificacoes={notificacoesPorFornecedor.get(f.nome) ?? []} onMudou={() => { refreshNotificacoes(); }} />
                     </div>
                   </td>
-                  <td className="px-4 py-3.5" style={{ color: COLORS.ink }}>{BRL(f.total)}</td>
-                  <td className="px-4 py-3.5" style={{ color: f.pago ? COLORS.success : COLORS.slate }}>{BRL(f.pago)}</td>
                   <td className="px-4 py-3.5" style={{ color: f.aPagar ? COLORS.brass : COLORS.slate }}>{BRL(f.aPagar)}</td>
                   <td className="px-4 py-3.5" style={{ color: f.atrasado ? COLORS.wine : COLORS.slate }}>{BRL(f.atrasado)}</td>
+                  <td className="px-4 py-3.5" style={{ color: f.pago ? COLORS.success : COLORS.slate }}>{BRL(f.pago)}</td>
                 </Tr>
               ))}
             </tbody>
