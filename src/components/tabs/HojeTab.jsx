@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from "react";
-import { Sunrise, Clock, Bell, ListChecks, AlertTriangle, CheckCircle2, BellOff, ChevronDown, ChevronUp, CheckCheck } from "lucide-react";
+import { Sunrise, Clock, Bell, ListChecks, AlertTriangle, CheckCircle2, BellOff, ChevronDown, ChevronUp, ChevronRight, CheckCheck } from "lucide-react";
 import Card from "../Card.jsx";
 import SectionTitle from "../SectionTitle.jsx";
 import Stamp, { urgencia, diasAte } from "../Stamp.jsx";
@@ -60,6 +60,7 @@ export default function HojeTab({ orgId, currentRole, profile, onAbrirProcesso }
   }, [tarefasRaw, vejaTudo, meuId]);
 
   const [verNotificacoes, setVerNotificacoes] = useState(false);
+  const [verVencidos, setVerVencidos] = useState(false); // lista de vencidos começa fechada
   const [marcandoTudo, setMarcandoTudo] = useState(false);
 
   const marcarLida = async (n) => {
@@ -117,11 +118,18 @@ export default function HojeTab({ orgId, currentRole, profile, onAbrirProcesso }
       {prazosHoje.map(linhaPrazo)}
       {vencidos.length > 0 && (
         <>
-          <div className="flex items-center justify-between px-4 py-2" style={{ borderTop: `1px solid ${COLORS.line}`, background: "rgba(193,39,45,0.05)" }}>
-            <p className="text-xs font-bold tracking-widest" style={{ color: COLORS.wine }}>VENCIDOS</p>
+          <button
+            onClick={() => setVerVencidos((v) => !v)}
+            aria-expanded={verVencidos}
+            className="w-full flex items-center justify-between px-4 py-2.5"
+            style={{ borderTop: `1px solid ${COLORS.line}`, background: "rgba(193,39,45,0.05)" }}
+          >
+            <span className="flex items-center gap-1.5 text-xs font-bold tracking-widest" style={{ color: COLORS.wine }}>
+              {verVencidos ? <ChevronDown size={14} /> : <ChevronRight size={14} />} VENCIDOS
+            </span>
             <span className="text-xs font-semibold" style={{ color: COLORS.wine }}>{vencidos.length}</span>
-          </div>
-          {vencidos.map(linhaPrazo)}
+          </button>
+          {verVencidos && vencidos.map(linhaPrazo)}
         </>
       )}
     </>
