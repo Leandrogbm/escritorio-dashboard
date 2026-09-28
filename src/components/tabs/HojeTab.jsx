@@ -7,14 +7,6 @@ import { COLORS } from "../../lib/theme.js";
 import { useSupabaseTable } from "../../hooks/useSupabaseTable.js";
 import { supabase } from "../../lib/supabaseClient.js";
 
-const JANELA_DIAS = 10; // "vencendo" = já vencido ou vence nos próximos 10 dias — mesma janela de urgência de Stamp.jsx (>10 dias = "Em dia", não precisa aparecer aqui)
-// Piso pro lado "já vencido": prazos.status não existe (só sai da tabela por exclusão manual
-// — ver schema.sql), então sem um piso um prazo esquecido há 1 ano ficaria "Urgente · -365d"
-// pra sempre, nunca sumindo do topo da tela. ponytail: fix honesto seria um status de
-// resolvido em `prazos`; até lá, esconde daqui o que já passou de 30 dias — ainda aparece
-// na aba Prazos (essa tela é só o "que precisa de atenção AGORA", não o histórico).
-const PISO_DIAS_VENCIDO = -30;
-
 // Painel "Hoje": agrega prazos vencendo + notificações não lidas + tarefas pendentes numa
 // tela só, pra não precisar abrir 3 abas pra saber "o que preciso fazer agora". Só leitura +
 // ações rápidas (marcar notificação como lida) — edição de verdade continua nas abas de
@@ -48,9 +40,10 @@ export default function HojeTab({ orgId, currentRole, profile, onAbrirProcesso }
   const prazos = useMemo(() => {
     const ativos = prazosRaw.filter((p) => !p.cliente?.arquivado && !p.processo?.arquivado);
     const escopados = vejaTudo ? ativos : ativos.filter((p) => p.responsavel_id === meuId);
+    // Só o que ainda não foi feito e vence hoje ou já venceu — prazo futuro fica na aba Prazos.
     return escopados
-      .filter((p) => { const d = diasAte(p.data); return d >= PISO_DIAS_VENCIDO && d <= JANELA_DIAS; })
-      .sort((a, b) => diasAte(a.data) - diasAte(b.data));
+      .filter((p) => !p.feito && diasAte(p.data) <= 0)
+      .map((p) => { const dias = diasAte(p.data); return { ...p, dias, u: urgencia(dias) }; });
   }, [prazosRaw, vejaTudo, meuId]);
 
   const notificacoes = useMemo(() => {
@@ -89,42 +82,48 @@ export default function HojeTab({ orgId, currentRole, profile, onAbrirProcesso }
     refreshNotificacoes();
   };
 
-  // Prazo "urgente" (tone === "urgent", <=3 dias) é o único jeito real de perder um caso —
-  // quando existe algum, o card de Prazos sai da grade de 3 colunas de peso igual e vira uma
-  // faixa cheia acima das outras duas: a tela se rearranja em volta do que pode doer, em vez
-  // de um badge a mais que qualquer um aprende a ignorar.
-  const prazosComUrgencia = useMemo(
-    () => prazos.map((p) => { const dias = diasAte(p.data); return { ...p, dias, u: urgencia(dias) }; }),
-    [prazos]
+  // Tela mostra só os prazos de hoje; os já vencidos ficam agrupados embaixo, do mais
+  // recente pro mais antigo. Havendo qualquer um dos dois, o card vira faixa cheia no topo.
+  const prazosHoje = prazos.filter((p) => p.dias === 0);
+  const vencidos = prazos.filter((p) => p.dias < 0).sort((a, b) => b.dias - a.dias);
+  const emAlerta = prazos.length > 0;
+
+  const linhaPrazo = (p) => (
+    <button
+      key={p.id}
+      // Prazo sem processo (ainda não cadastrado) não tem pra onde navegar — só os com
+      // processo abrem a página dele; o resto é informativo mesmo.
+      onClick={p.processo?.id ? () => onAbrirProcesso?.(p.processo.id) : undefined}
+      className="w-full text-left flex items-center justify-between gap-3 px-4 py-3.5 hover:bg-black/[0.02]"
+      style={{ borderTop: `1px solid ${COLORS.line}`, cursor: p.processo?.id ? "pointer" : "default" }}
+    >
+      <div className="flex items-center gap-3 min-w-0">
+        <DataBadge data={p.data} urgente />
+        <div className="min-w-0">
+          <p className="text-sm truncate" style={{ color: COLORS.ink, fontWeight: 600 }}>{p.tipo}</p>
+          <p className="text-xs" style={{ color: COLORS.slate }}>{p.processo?.numero ?? "sem processo"} · {p.cliente?.nome ?? "—"}</p>
+        </div>
+      </div>
+      <Stamp tone="urgent">{p.dias === 0 ? "Vence hoje" : `Venceu · ${-p.dias}d`}</Stamp>
+    </button>
   );
-  const qtdUrgente = prazosComUrgencia.filter((p) => p.u.tone === "urgent").length;
-  const emAlerta = qtdUrgente > 0;
 
   const listaPrazos = (
     <>
       {erroPrazos && <ErroMsg>{erroPrazos}</ErroMsg>}
-      {!erroPrazos && prazos.length === 0 && (
-        <EmptyCard icon={CheckCircle2} tone="success" title="Nenhum prazo apertando" subtitle={`Nada vencendo nos próximos ${JANELA_DIAS} dias.`} />
+      {!erroPrazos && prazosHoje.length === 0 && (
+        <EmptyCard icon={CheckCircle2} tone="success" title="Nenhum prazo pra hoje" subtitle="Os próximos estão na aba Prazos." />
       )}
-      {prazosComUrgencia.map((p) => (
-        <button
-          key={p.id}
-          // Prazo sem processo (ainda não cadastrado) não tem pra onde navegar — só os com
-          // processo abrem a página dele; o resto é informativo mesmo.
-          onClick={p.processo?.id ? () => onAbrirProcesso?.(p.processo.id) : undefined}
-          className="w-full text-left flex items-center justify-between gap-3 px-4 py-3.5 hover:bg-black/[0.02]"
-          style={{ borderTop: `1px solid ${COLORS.line}`, cursor: p.processo?.id ? "pointer" : "default" }}
-        >
-          <div className="flex items-center gap-3 min-w-0">
-            <DataBadge data={p.data} urgente={p.u.tone === "urgent"} />
-            <div className="min-w-0">
-              <p className="text-sm truncate" style={{ color: COLORS.ink, fontWeight: 600 }}>{p.tipo}</p>
-              <p className="text-xs" style={{ color: COLORS.slate }}>{p.processo?.numero ?? "sem processo"} · {p.cliente?.nome ?? "—"}</p>
-            </div>
+      {prazosHoje.map(linhaPrazo)}
+      {vencidos.length > 0 && (
+        <>
+          <div className="flex items-center justify-between px-4 py-2" style={{ borderTop: `1px solid ${COLORS.line}`, background: "rgba(193,39,45,0.05)" }}>
+            <p className="text-xs font-bold tracking-widest" style={{ color: COLORS.wine }}>VENCIDOS</p>
+            <span className="text-xs font-semibold" style={{ color: COLORS.wine }}>{vencidos.length}</span>
           </div>
-          <Stamp tone={p.u.tone}>{p.dias < 0 ? `Venceu · ${-p.dias}d` : p.dias === 0 ? "Vence hoje" : `${p.u.label} · ${p.dias}d`}</Stamp>
-        </button>
-      ))}
+          {vencidos.map(linhaPrazo)}
+        </>
+      )}
     </>
   );
 
@@ -140,9 +139,9 @@ export default function HojeTab({ orgId, currentRole, profile, onAbrirProcesso }
         <Card className="!p-0 overflow-hidden mb-4" style={{ borderColor: COLORS.wine }}>
           <div className="flex items-center justify-between gap-3 px-4 py-3" style={{ borderBottom: "1px solid #F1D7D8", background: "rgba(193,39,45,0.05)" }}>
             <p className="flex items-center gap-2 text-sm font-bold" style={{ color: COLORS.wine }}>
-              <Clock size={16} color={COLORS.wine} /> Prazos vencendo
+              <Clock size={16} color={COLORS.wine} /> Prazos de hoje
             </p>
-            <Stamp tone="urgent">{qtdUrgente} {qtdUrgente === 1 ? "urgente" : "urgentes"}</Stamp>
+            <Stamp tone="urgent">{prazosHoje.length} hoje{vencidos.length ? ` · ${vencidos.length} vencido${vencidos.length > 1 ? "s" : ""}` : ""}</Stamp>
           </div>
           {listaPrazos}
         </Card>
@@ -151,7 +150,7 @@ export default function HojeTab({ orgId, currentRole, profile, onAbrirProcesso }
       <div className={`grid grid-cols-1 gap-4 ${emAlerta ? "lg:grid-cols-2" : "lg:grid-cols-3"}`}>
         {!emAlerta && (
           <Card className="!p-0 overflow-hidden">
-            <CardHeader icon={Clock} label="Prazos vencendo" count={prazos.length} />
+            <CardHeader icon={Clock} label="Prazos de hoje" count={prazosHoje.length} />
             {listaPrazos}
           </Card>
         )}
