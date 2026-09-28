@@ -109,7 +109,7 @@ create table role_permissions (
   -- ⚠️ mantém em sincronia com as `key` de MODULES (src/config/permissions.js) — módulo
   -- novo lá também precisa entrar aqui, senão o toggle em Configurações falha silenciosamente
   -- pra qualquer role que não seja admin (admin ignora essa tabela, só quem não é admin sente).
-  module text not null check (module in ('hoje','prazos','processos','financeiro','clientes','equipe','executivo','quadro','erp','leads','leads_captacao')),
+  module text not null check (module in ('hoje','prazos','processos','financeiro','clientes','equipe','executivo','quadro','erp','leads','leads_captacao','emails')),
   primary key (org_id, role, module)
 );
 
@@ -415,6 +415,77 @@ create policy integracoes_upd on integracoes for update
   with check ((org_id = auth_org_id() and auth_role() in ('admin','socio')) or is_platform_admin());
 create policy integracoes_ins on integracoes for insert
   with check ((org_id = auth_org_id() and auth_role() in ('admin','socio')) or is_platform_admin());
+
+-- Feature "E-mails": até 2 caixas (IMAP/SMTP, ex. Zoho) conectadas por organização. Só o
+-- email-proxy (service role) lê/escreve email_contas/email_contas_segredo — nenhuma policy
+-- de insert/update/delete pra authenticated, mesmo espírito de integracoes/trello: a senha
+-- nunca passa pelo client depois de salva.
+create table email_contas (
+  id uuid primary key default gen_random_uuid(),
+  -- Sem FK pra profiles nesta tabela (só organizations) — evita o bug PGRST201 de
+  -- 2026-09-28 (repasse_socios: FK pra profiles E organizations vira "ponte" ambígua pro
+  -- PostgREST e derruba todo embed profiles->organizations, inclusive o login).
+  org_id uuid not null references organizations(id) on delete cascade,
+  slot smallint not null check (slot in (1, 2)),
+  nome text not null,
+  endereco text not null,
+  transporte text not null default 'imap' check (transporte in ('imap')),
+  imap_host text not null,
+  imap_port int not null default 993,
+  smtp_host text not null,
+  smtp_port int not null default 465,
+  usuario text not null,
+  cargos text[] not null default '{admin,socio}',
+  status text not null default 'ok' check (status in ('ok', 'erro_auth', 'erro')),
+  ultimo_erro text,
+  created_at timestamptz not null default now(),
+  unique (org_id, slot)
+);
+alter table email_contas enable row level security;
+create trigger trg_set_org_id before insert on email_contas for each row execute function set_org_id();
+create trigger trg_guard_org_id before update on email_contas for each row execute function guard_org_id_immutable();
+create policy email_contas_sel on email_contas for select using (
+  is_platform_admin()
+  or (org_id = auth_org_id() and has_module('emails') and (auth_role() = 'admin' or auth_role() = any(cargos)))
+);
+
+-- Senha cifrada (AES-GCM, chave EMAIL_CRED_KEY só no email-proxy) — RLS ligada, ZERO
+-- policies: nem select authenticated, só service role enxerga essa tabela.
+create table email_contas_segredo (
+  conta_id uuid primary key references email_contas(id) on delete cascade,
+  segredo_cifrado text not null
+);
+alter table email_contas_segredo enable row level security;
+
+-- Auditoria de envio — conta_id/enviado_por podem ficar null se a conta/usuário for
+-- removido depois (on delete set null), a linha de auditoria não é apagada.
+create table email_enviados (
+  id uuid primary key default gen_random_uuid(),
+  org_id uuid not null references organizations(id) on delete cascade,
+  conta_id uuid references email_contas(id) on delete set null,
+  -- auth.users, não profiles — mesmo motivo do comentário acima em email_contas.
+  enviado_por uuid references auth.users(id) on delete set null,
+  destinatarios text[] not null,
+  assunto text,
+  message_id text,
+  anexos text[],
+  created_at timestamptz not null default now()
+);
+alter table email_enviados enable row level security;
+create trigger trg_set_org_id before insert on email_enviados for each row execute function set_org_id();
+create trigger trg_guard_org_id before update on email_enviados for each row execute function guard_org_id_immutable();
+create policy email_enviados_sel on email_enviados for select using (
+  is_platform_admin()
+  or (
+    org_id = auth_org_id() and (
+      auth_role() = 'admin'
+      or exists (
+        select 1 from email_contas c
+        where c.id = email_enviados.conta_id and auth_role() = any(c.cargos)
+      )
+    )
+  )
+);
 
 -- asaas_customer_id/celular2 continuam em clientes — não são segredo (id público do lado da
 -- Asaas, e telefone é dado do cliente, não credencial de API).

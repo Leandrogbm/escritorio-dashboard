@@ -35,6 +35,7 @@ const ConfigTab = lazy(() => import("./components/tabs/ConfigTab.jsx"));
 const MinhaEmpresaTab = lazy(() => import("./components/tabs/MinhaEmpresaTab.jsx"));
 const MinhaEmpresaSuporte = lazy(() => import("./components/tabs/MinhaEmpresaTab.jsx").then((m) => ({ default: m.MinhaEmpresaSuporte })));
 const LeadsCaptacaoTab = lazy(() => import("./components/tabs/LeadsCaptacaoTab.jsx"));
+const EmailsTab = lazy(() => import("./components/tabs/EmailsTab.jsx"));
 
 export default function App() {
   // ponytail: Captação de Leads em back log de novo (ver CLAUDE.md/ROADMAP-comparativo.md) —
@@ -265,6 +266,7 @@ export default function App() {
       case "leads_captacao": return <LeadsCaptacaoTab orgId={orgId} currentRole={currentRole} />;
       case "clientes": return <ClientesTab currentRole={currentRole} orgId={orgId} profile={profile} onAbrirProcesso={abrirProcesso} onAbrirFinanceiro={abrirFinanceiroDoCliente} />;
       case "equipe": return <EquipeTab currentRole={currentRole} orgId={orgId} />;
+      case "emails": return <EmailsTab orgId={orgId} currentRole={currentRole} profile={profile} />;
       default: return <EmptyState />;
     }
   };

@@ -1,11 +1,12 @@
 import React, { useEffect, useState } from "react";
-import { Settings, ShieldCheck, Plug, ChevronDown, Bell } from "lucide-react";
+import { Settings, ShieldCheck, Plug, ChevronDown, Bell, Mail } from "lucide-react";
 import Card from "../Card.jsx";
 import SectionTitle from "../SectionTitle.jsx";
 import { COLORS } from "../../lib/theme.js";
 import { ROLES, MODULES } from "../../config/permissions.js";
 import ApiKeysSection from "../ApiKeysSection.jsx";
 import IntegracoesSection from "../IntegracoesSection.jsx";
+import EmailContasSection from "../EmailContasSection.jsx";
 import { supabase } from "../../lib/supabaseClient.js";
 
 // Toggle de opt-in dos lembretes automáticos de cobrança por e-mail (ver Edge Function
@@ -137,6 +138,10 @@ export default function ConfigTab({ permissions, togglePermission, orgId }) {
       {false && <ApiKeysSection orgId={orgId} />}
 
       <LembretesCobrancaSection orgId={orgId} />
+
+      <SecaoRecolhivel icon={Mail} titulo="Caixas de e-mail" subtitulo="Conecte até 2 caixas (IMAP/SMTP) pra ler e enviar e-mail direto da aba Emails">
+        <EmailContasSection orgId={orgId} />
+      </SecaoRecolhivel>
 
       <SecaoRecolhivel icon={Plug} titulo="Integrações" subtitulo="D4Sign, Escavador, Trello — clique no nome pra ver os campos">
         <IntegracoesSection orgId={orgId} />

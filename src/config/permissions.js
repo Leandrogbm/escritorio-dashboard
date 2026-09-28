@@ -1,4 +1,4 @@
-import { Clock, Briefcase, DollarSign, Users, Building2, Trello, Calculator, Sunrise } from "lucide-react";
+import { Clock, Briefcase, DollarSign, Users, Building2, Trello, Calculator, Sunrise, Mail } from "lucide-react";
 
 export const ROLES = [
   { key: "socio", label: "Sócio(a)" },
@@ -26,6 +26,7 @@ export const MODULES = [
   // ERP já vê as duas; ExecutivoTab.jsx continua existindo como componente, só não tem
   // mais rota/permissão separada (ver ErpTab.jsx e App.jsx).
   { key: "erp", label: "ERP", icon: Calculator },
+  { key: "emails", label: "E-mails", icon: Mail },
   { key: "equipe", label: "Equipe", icon: Building2 },
 ];
 
