@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { DollarSign, Plus, X, Upload, Wallet, CheckCircle2, Clock3, AlertTriangle, Trash2 } from "lucide-react";
+import { DollarSign, Plus, X, Upload, Wallet, CheckCircle2, Clock3, AlertTriangle, Trash2, QrCode } from "lucide-react";
 import Card from "../Card.jsx";
 import KpiCard from "../KpiCard.jsx";
 import SectionTitle from "../SectionTitle.jsx";
@@ -10,6 +10,7 @@ import RecordFormModal from "../RecordFormModal.jsx";
 import SearchInput from "../SearchInput.jsx";
 import ImportarExtratoModal from "./ImportarExtratoModal.jsx";
 import ClienteBell from "../ClienteBell.jsx";
+import CobrarPixModal from "../CobrarPixModal.jsx";
 import { COLORS } from "../../lib/theme.js";
 import { BRL } from "../../lib/format.js";
 import { useSupabaseTable } from "../../hooks/useSupabaseTable.js";
@@ -47,11 +48,14 @@ export default function FinanceiroTab({ orgId, abrirClienteId, onAbriuCliente } 
   });
   // Cliente arquivado leva o financeiro junto pro Arquivo (só chega lá com tudo pago).
   const honorarios = useMemo(() => honorariosTodos.filter((h) => !h.cliente?.arquivado), [honorariosTodos]);
-  const { data: clientes } = useSupabaseTable("clientes", { select: "id,nome,tipo", orderBy: "nome", ascending: true, eq: orgEq });
+  const { data: clientes } = useSupabaseTable("clientes", { select: "id,nome,tipo,celular", orderBy: "nome", ascending: true, eq: orgEq });
   // Só pro Importar extrato casar saída (débito) com despesa a pagar, na mesma leitura que já
   // casa entrada com honorário — funciona igual daqui ou do ERP (ver ImportarExtratoModal.jsx).
   const { data: despesas } = useSupabaseTable("despesas", { select: "id, fornecedor, descricao, valor, vencimento, status", eq: orgEq });
   const { data: processos } = useSupabaseTable("processos", { select: "id,numero,area,cliente_id", orderBy: "numero", ascending: true, eq: orgEq });
+  const { data: orgsPix } = useSupabaseTable("organizations", { select: "nome,pix_chave,pix_nome_recebedor,pix_cidade", eq: ["id", orgId] });
+  const orgPix = orgsPix[0];
+  const [cobrancaPix, setCobrancaPix] = useState(null); // honorário sendo cobrado via Pix
   // ponytail: Asaas construído e testado, mas segurado em back log a pedido do usuário —
   // não subir pro cliente ainda (ver ROADMAP-comparativo.md). Sempre false enquanto isso —
   // por segurança, nem o token é buscado aqui (ele mora em `integracoes`, RLS admin/sócio;
@@ -306,6 +310,11 @@ export default function FinanceiroTab({ orgId, abrirClienteId, onAbriuCliente } 
                             </button>
                           )
                         )}
+                        {h.status !== "Pago" && (
+                          <button onClick={() => setCobrancaPix(h)} className="flex items-center gap-1 text-xs underline mt-1" style={{ color: COLORS.brassText }}>
+                            <QrCode size={11} /> Cobrar via Pix
+                          </button>
+                        )}
                       </td>
                       <td className="px-2 py-3">
                         <RowActions
@@ -334,6 +343,15 @@ export default function FinanceiroTab({ orgId, abrirClienteId, onAbriuCliente } 
 
       {arquivoExtrato && (
         <ImportarExtratoModal arquivo={arquivoExtrato} honorarios={honorarios} despesas={despesas} orgId={orgId} onClose={() => setArquivoExtrato(null)} />
+      )}
+
+      {cobrancaPix && (
+        <CobrarPixModal
+          honorario={cobrancaPix}
+          org={orgPix}
+          cliente={clientes.find((c) => c.id === cobrancaPix.cliente?.id)}
+          onClose={() => setCobrancaPix(null)}
+        />
       )}
     </div>
   );

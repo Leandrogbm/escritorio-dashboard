@@ -67,7 +67,18 @@ create table organizations (
   uf text,
   -- dados fiscais pra emissão de nota (aba Minha Empresa + Financeiro → gerar nota).
   inscricao_municipal text,
-  aliquota_iss numeric(5,2)
+  aliquota_iss numeric(5,2),
+  -- Cobrança via Pix gerado pelo próprio escritório (sem plataforma de pagamento no meio).
+  -- Chave Pix é pra ser mostrada ao pagador, então NÃO é credencial secreta — mora aqui mesmo
+  -- (diferente de token de API, ver regra em CLAUDE.md). Editável por admin/sócio (aba Minha
+  -- Empresa); guard_organizations_protected_cols não lista essas colunas de propósito.
+  pix_chave text,
+  pix_nome_recebedor text,
+  pix_cidade text,
+  -- Lembretes automáticos de cobrança por e-mail (3 dias antes/no dia/3 dias depois do
+  -- vencimento do honorário) — opt-in por empresa, default false (não manda e-mail pra
+  -- cliente real sem o escritório ligar). Ver cobranca_lembretes e cron cobranca-lembretes-diario.
+  lembretes_cobranca boolean not null default false
 );
 
 -- Migração segura para bancos que já tinham a tabela antes do checkout individual.
@@ -218,6 +229,16 @@ create table notas_fiscais (
   unique (honorario_id) -- 1 nota por cobrança, evita gerar duplicada clicando 2x
 );
 create index notas_fiscais_org_id_idx on notas_fiscais (org_id);
+
+-- Dedup de lembrete de cobrança: cada (honorario_id, tipo) só é enviado uma vez, mesmo se o
+-- cron rodar mais de uma vez no mesmo dia ou reprocessar. Sem org_id direto (deriva de
+-- honorarios) — só service role lê/escreve, UI não lista isso ainda.
+create table cobranca_lembretes (
+  honorario_id uuid not null references honorarios(id) on delete cascade,
+  tipo text not null check (tipo in ('antes', 'dia', 'depois')),
+  enviado_em timestamptz not null default now(),
+  primary key (honorario_id, tipo)
+);
 
 -- Funil de captação (Kanban de leads) — gente que ainda não é cliente, procurando o
 -- escritório (WhatsApp, indicação, anúncio). Não é a mesma coisa que "captação de processo
@@ -992,6 +1013,41 @@ create policy despesas_upd on despesas for update
 create policy despesas_del on despesas for delete using ((org_id = auth_org_id() and has_module('erp')) or is_platform_admin());
 create trigger trg_audit_despesas after insert or update or delete on despesas for each row execute function log_platform_admin_write();
 
+alter table cobranca_lembretes enable row level security;
+-- ponytail: sem policy de SELECT pra org — nenhuma tela lista os lembretes enviados ainda.
+-- Se/quando a UI precisar mostrar histórico, adicionar policy via join em honorarios
+-- (honorario_id in (select id from honorarios where org_id = auth_org_id())).
+
+-- Repasse de honorários aos sócios: percentual de rateio por sócio (role = 'socio'),
+-- só admin/sócio configura ou vê.
+create table repasse_socios (
+  org_id uuid not null references organizations(id) on delete cascade,
+  profile_id uuid not null references profiles(id) on delete cascade,
+  percentual numeric(5,2) not null check (percentual >= 0 and percentual <= 100),
+  primary key (org_id, profile_id)
+);
+alter table repasse_socios enable row level security;
+create trigger trg_set_org_id before insert on repasse_socios for each row execute function set_org_id();
+create trigger trg_guard_org_id before update on repasse_socios for each row execute function guard_org_id_immutable();
+create policy repasse_socios_sel on repasse_socios for select using (
+  (org_id = auth_org_id() and auth_role() in ('admin', 'socio')) or is_platform_admin()
+);
+create policy repasse_socios_ins on repasse_socios for insert with check (
+  (org_id = auth_org_id() and auth_role() in ('admin', 'socio')
+    and exists (select 1 from profiles p where p.id = repasse_socios.profile_id and p.org_id = repasse_socios.org_id))
+  or is_platform_admin()
+);
+create policy repasse_socios_upd on repasse_socios for update
+  using ((org_id = auth_org_id() and auth_role() in ('admin', 'socio')) or is_platform_admin())
+  with check (
+    (org_id = auth_org_id() and auth_role() in ('admin', 'socio')
+      and exists (select 1 from profiles p where p.id = repasse_socios.profile_id and p.org_id = repasse_socios.org_id))
+    or is_platform_admin()
+  );
+create policy repasse_socios_del on repasse_socios for delete using (
+  (org_id = auth_org_id() and auth_role() in ('admin', 'socio')) or is_platform_admin()
+);
+
 -- security definer: ignora RLS de propósito, é o único jeito de agregar contagem
 -- cross-tenant. Só devolve algo se quem chama for platform admin; senão, vazio.
 create or replace function platform_org_metrics()
@@ -1560,6 +1616,20 @@ select cron.schedule('datajud-sync-horario', '0 * * * *', $$
   );
 $$);
 select cron.schedule('prazos-alertas-diario', '0 8 * * *', $$ select gerar_alertas_prazos(); $$);
+
+-- Lembretes de cobrança (e-mail): precisa do segredo salvo no Vault antes de rodar este
+-- bloco (mesmo valor da Edge Function cobranca-lembretes, secret COBRANCA_CRON_SECRET):
+-- select vault.create_secret('<valor-aleatorio-seu>', 'cobranca_cron_secret');
+select cron.schedule('cobranca-lembretes-diario', '0 12 * * *', $$
+  select net.http_post(
+    url := 'https://vclylstjbpsxikmnpguk.supabase.co/functions/v1/cobranca-lembretes',
+    headers := jsonb_build_object(
+      'Content-Type', 'application/json',
+      'x-cron-secret', (select decrypted_secret from vault.decrypted_secrets where name = 'cobranca_cron_secret')
+    ),
+    body := '{}'::jsonb
+  );
+$$);
 
 -- Cancelamento de assinatura (fidelidade de 3 meses cumprida) nunca desfaz o ciclo já pago:
 -- mercado-pago-cancelar-assinatura já para de cobrar no Mercado Pago na hora, mas só marca

@@ -259,7 +259,7 @@ export default function App() {
       case "processos": return <ProcessosTab currentRole={currentRole} orgId={orgId} profile={profile} abrirProcessoId={abrirProcessoId} onAbriuProcesso={() => setAbrirProcessoId(null)} />;
       case "quadro": return <QuadroTab orgId={orgId} currentRole={currentRole} profile={profile} />;
       case "financeiro": return <FinanceiroTab orgId={orgId} abrirClienteId={abrirClienteFinanceiroId} onAbriuCliente={() => setAbrirClienteFinanceiroId(null)} />;
-      case "erp": return <ErpTab orgId={orgId} />; // Visão Executiva vira sub-aba aqui dentro (ErpTab.jsx)
+      case "erp": return <ErpTab orgId={orgId} currentRole={currentRole} />; // Visão Executiva vira sub-aba aqui dentro (ErpTab.jsx)
       case "leads": return <LeadsTab orgId={orgId} />;
       case "leads_captacao": return <LeadsCaptacaoTab orgId={orgId} currentRole={currentRole} />;
       case "clientes": return <ClientesTab currentRole={currentRole} orgId={orgId} profile={profile} onAbrirProcesso={abrirProcesso} onAbrirFinanceiro={abrirFinanceiroDoCliente} />;

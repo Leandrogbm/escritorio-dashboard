@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Building2, CreditCard } from "lucide-react";
+import { Building2, CreditCard, QrCode } from "lucide-react";
 import Card from "../Card.jsx";
 import SectionTitle from "../SectionTitle.jsx";
 import AssinaturaModal from "../AssinaturaModal.jsx";
@@ -52,6 +52,9 @@ export default function MinhaEmpresaTab({ profile, onAtualizado }) {
     bairro: org.bairro ?? "",
     cidade: org.cidade ?? "",
     uf: org.uf ?? "",
+    pix_chave: org.pix_chave ?? "",
+    pix_nome_recebedor: org.pix_nome_recebedor ?? "",
+    pix_cidade: org.pix_cidade ?? "",
   });
   const [salvando, setSalvando] = useState(false);
   const [msg, setMsg] = useState("");
@@ -205,6 +208,34 @@ export default function MinhaEmpresaTab({ profile, onAtualizado }) {
               <input value={form.cidade} onChange={(e) => campo("cidade", { cidade: e.target.value })} className="px-3 py-2 rounded-md text-sm" style={inputStyle} />
             </label>
           </div>
+
+          {podeAssinar && (
+            <>
+              <div className="flex items-center gap-2 mt-3 mb-1">
+                <QrCode size={16} color={COLORS.brass} />
+                <p style={{ fontFamily: "'Source Serif 4', serif", fontWeight: 700, fontSize: 15, color: COLORS.ink }}>Chave Pix</p>
+              </div>
+              <p className="text-xs -mt-2" style={{ color: COLORS.slate }}>
+                Pra gerar cobrança via Pix no Financeiro (QR code + copia-e-cola), sem plataforma de pagamento no meio. A confirmação do pagamento continua manual, pelo extrato importado ou marcando "Pago" direto.
+              </p>
+
+              <label className="flex flex-col gap-1 text-xs" style={{ color: COLORS.slate }}>
+                Chave Pix (CPF, CNPJ, e-mail, celular ou aleatória)
+                <input value={form.pix_chave} onChange={(e) => campo("pix_chave", { pix_chave: e.target.value })} className="px-3 py-2 rounded-md text-sm" style={inputStyle} />
+              </label>
+
+              <div className="grid grid-cols-2 gap-3">
+                <label className="flex flex-col gap-1 text-xs" style={{ color: COLORS.slate }}>
+                  Nome do recebedor (como aparece no Pix)
+                  <input value={form.pix_nome_recebedor} onChange={(e) => campo("pix_nome_recebedor", { pix_nome_recebedor: e.target.value })} className="px-3 py-2 rounded-md text-sm" style={inputStyle} />
+                </label>
+                <label className="flex flex-col gap-1 text-xs" style={{ color: COLORS.slate }}>
+                  Cidade do recebedor
+                  <input value={form.pix_cidade} onChange={(e) => campo("pix_cidade", { pix_cidade: e.target.value })} className="px-3 py-2 rounded-md text-sm" style={inputStyle} />
+                </label>
+              </div>
+            </>
+          )}
 
           {msg && <p className="text-xs" style={{ color: msg === "Salvo." ? COLORS.success : COLORS.wine }}>{msg}</p>}
 

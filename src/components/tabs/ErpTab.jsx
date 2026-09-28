@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Calculator, Plus, Copy, Check, Upload, X, TrendingUp, Wallet, CheckCircle2, Clock3, AlertTriangle, Scale, ChevronLeft, ChevronRight, Receipt } from "lucide-react";
+import { Calculator, Plus, Copy, Check, Upload, X, TrendingUp, Wallet, CheckCircle2, Clock3, AlertTriangle, Scale, ChevronLeft, ChevronRight, Receipt, HandCoins } from "lucide-react";
 import ExecutivoTab from "./ExecutivoTab.jsx";
 import CaixaErp from "./CaixaErp.jsx";
+import RepasseSocios from "./RepasseSocios.jsx";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
 import Card from "../Card.jsx";
 import KpiCard from "../KpiCard.jsx";
@@ -49,7 +50,8 @@ const toneDoFornecedor = (f) => (f.atrasado > 0 ? "urgent" : f.aPagar > 0 ? "war
 // (contas a receber, já existente em Financeiro) dá fluxo de caixa e DRE simplificado.
 // Não é ERP de verdade (sem folha de pagamento, ativo fixo, orçamento) — só o essencial
 // pra saber quanto entra, quanto sai, e se sobra.
-export default function ErpTab({ orgId }) {
+export default function ErpTab({ orgId, currentRole }) {
+  const vejaRepasse = currentRole === "admin" || currentRole === "socio";
   const orgEq = orgId ? ["org_id", orgId] : undefined;
   // Visão Executiva vira sub-aba daqui — pedido do usuário ("visão executiva tem que ser um
   // adereço dentro do ERP"). "despesas" continua a aba principal (é o que o ERP faz no dia a
@@ -225,6 +227,7 @@ export default function ErpTab({ orgId }) {
             { key: "pagar", label: "Contas a pagar", icon: Receipt },
             { key: "caixa", label: "Caixa do mês", icon: Wallet },
             { key: "visao", label: "Visão geral", icon: TrendingUp },
+            ...(vejaRepasse ? [{ key: "repasse", label: "Repasse sócios", icon: HandCoins }] : []),
           ].map((t) => (
             <button
               key={t.key}
@@ -249,6 +252,8 @@ export default function ErpTab({ orgId }) {
       </div>
 
       {aba === "visao" && <ExecutivoTab orgId={orgId} embutido />}
+
+      {aba === "repasse" && vejaRepasse && <RepasseSocios orgId={orgId} mes={mes} honorarios={honorarios} />}
 
       {aba === "caixa" && <>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
