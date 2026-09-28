@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useState } from "react";
 import {
-  Mail, Paperclip, RefreshCw, ArrowLeft, Reply, Forward, Pencil, X, Send,
-  Download, ImageOff, AlertTriangle, Settings,
+  Archive, ArrowLeft, Download, FileText, Flag, Forward, ImageOff, Inbox,
+  AlertTriangle, Mail, MailOpen, Paperclip, Pencil, RefreshCw, Reply, Search, Send,
+  Settings, Trash2, X,
 } from "lucide-react";
 import DOMPurify from "dompurify";
 import Card from "../Card.jsx";
@@ -43,6 +44,52 @@ function formatTamanho(bytes) {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+function chavePasta(pasta) {
+  return `${pasta?.specialUse || ""} ${(pasta?.flags || []).join(" ")} ${pasta?.path || ""} ${pasta?.name || ""}`.toLowerCase();
+}
+
+function tipoPasta(pasta) {
+  const chave = chavePasta(pasta);
+  const partes = new Set(chave.split(/[\\/\s.]+/).filter(Boolean));
+  if (partes.has("inbox") || pasta.path?.toUpperCase() === "INBOX") return "inbox";
+  if (partes.has("outbox") || chave.includes("caixa de saída")) return "outbox";
+  if (partes.has("sent") || chave.includes("enviad")) return "sent";
+  if (partes.has("draft") || partes.has("drafts") || chave.includes("rascunh")) return "drafts";
+  if (partes.has("trash") || partes.has("deleted") || chave.includes("lixeira") || chave.includes("itens exclu")) return "trash";
+  if (partes.has("junk") || partes.has("spam") || chave.includes("lixo eletrônico")) return "junk";
+  if (partes.has("archive") || chave.includes("arquivo")) return "archive";
+  if (partes.has("all") || chave.includes("todos os e-mails")) return "all";
+  return "other";
+}
+
+function nomePasta(pasta) {
+  const nomes = {
+    inbox: "Caixa de entrada",
+    outbox: "Caixa de saída",
+    sent: "Enviados",
+    drafts: "Rascunhos",
+    trash: "Itens excluídos",
+    junk: "Lixo eletrônico",
+    archive: "Arquivo",
+    all: "Todos os e-mails",
+  };
+  return nomes[tipoPasta(pasta)] || pasta.name || pasta.path;
+}
+
+function iconePasta(pasta) {
+  const icones = {
+    inbox: Inbox,
+    outbox: Send,
+    sent: Send,
+    drafts: FileText,
+    trash: Trash2,
+    junk: Flag,
+    archive: Archive,
+    all: Mail,
+  };
+  return icones[tipoPasta(pasta)] || Mail;
+}
+
 function fileParaBase64(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -51,6 +98,11 @@ function fileParaBase64(file) {
     reader.readAsDataURL(file);
   });
 }
+
+// Cache em memória: voltar pra uma pasta ou reabrir uma mensagem aparece na hora (e a lista
+// ainda é atualizada por trás). Cada ida ao servidor abre uma conexão nova com o provedor.
+const cacheListas = new Map();
+const cacheMensagens = new Map();
 
 function base64ParaBlob(base64, mime) {
   const bin = atob(base64);
@@ -192,22 +244,61 @@ function ComposeModal({ conta, prefill, onClose, onEnviado }) {
   );
 }
 
-function ItemMensagem({ msg, ativo, onClick }) {
+function AcaoIcone({ icone: Icone, titulo, onClick, ativa = false, disabled = false }) {
   return (
-    <button onClick={onClick} className="w-full text-left px-4 py-3 flex items-start gap-2" style={{ borderTop: `1px solid ${COLORS.line}`, background: ativo ? "rgba(165,121,59,0.08)" : "transparent" }}>
-      <div className="min-w-0 flex-1">
-        <p className="text-sm truncate flex items-center gap-1.5" style={{ color: COLORS.ink, fontWeight: msg.lido ? 400 : 700 }}>
-          {msg.de?.nome || msg.de?.email || "(sem remetente)"}
-          {msg.tem_anexo && <Paperclip size={12} color={COLORS.slate} />}
-        </p>
-        <p className="text-xs truncate" style={{ color: COLORS.ink, fontWeight: msg.lido ? 400 : 600 }}>{msg.assunto || "(sem assunto)"}</p>
-      </div>
-      <span className="text-xs shrink-0" style={{ color: COLORS.slate }}>{formatData(msg.data)}</span>
+    <button
+      type="button"
+      title={titulo}
+      aria-label={titulo}
+      onClick={onClick}
+      disabled={disabled}
+      className="inline-flex items-center justify-center h-9 w-9 rounded-md transition-colors disabled:opacity-40"
+      style={{ color: ativa ? COLORS.brassText : COLORS.inkSoft, background: ativa ? "rgba(165,121,59,0.12)" : "transparent" }}
+    >
+      <Icone size={16} />
     </button>
   );
 }
 
-function PainelLeitura({ conta, uid, onVoltarMobile, onResponder, onEncaminhar }) {
+function ItemMensagem({ msg, ativo, onClick }) {
+  const data = msg.data ? new Date(msg.data) : null;
+  const hoje = data && new Date().toDateString() === data.toDateString();
+  const dataCurta = data
+    ? hoje
+      ? data.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })
+      : data.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" })
+    : "";
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="w-full min-h-[78px] text-left px-3.5 py-3 flex gap-2.5 border-b transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-inset"
+      style={{ borderColor: COLORS.line, background: ativo ? "rgba(165,121,59,0.13)" : "transparent", outlineColor: COLORS.brass }}
+    >
+      <span className="w-2 shrink-0 pt-1.5">
+        {!msg.lido && <span className="block h-2 w-2 rounded-full" style={{ background: COLORS.brass }} />}
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="flex items-center justify-between gap-2">
+          <span className="truncate text-[13px]" style={{ color: COLORS.ink, fontWeight: msg.lido ? 400 : 700 }}>
+            {msg.de?.nome || msg.de?.email || "(sem remetente)"}
+          </span>
+          <span className="text-[11px] shrink-0" style={{ color: COLORS.slate }}>{dataCurta}</span>
+        </span>
+        <span className="mt-1 block truncate text-[13px]" style={{ color: COLORS.ink, fontWeight: msg.lido ? 400 : 600 }}>
+          {msg.assunto || "(sem assunto)"}
+        </span>
+        <span className="mt-1 flex h-4 items-center gap-2">
+          {msg.tem_anexo && <Paperclip size={12} style={{ color: COLORS.slate }} />}
+          {msg.sinalizado && <Flag size={12} fill={COLORS.brass} style={{ color: COLORS.brassText }} />}
+        </span>
+      </span>
+    </button>
+  );
+}
+
+function PainelLeitura({ conta, pasta, uid, resumo, atualizarItens, onVoltarMobile, onResponder, onEncaminhar, onAcao, pastas, acaoEmAndamento }) {
   const [msg, setMsg] = useState(null);
   const [erro, setErro] = useState("");
   const [mostrarImagens, setMostrarImagens] = useState(false);
@@ -215,26 +306,37 @@ function PainelLeitura({ conta, uid, onVoltarMobile, onResponder, onEncaminhar }
 
   useEffect(() => {
     let cancelado = false;
-    setMsg(null);
     setErro("");
     setMostrarImagens(false);
-    chamarProxy({ acao: "ler", conta_id: conta.id, uid })
-      .then((d) => { if (!cancelado) setMsg(d); })
+    const chave = `${conta.id}|${pasta}|${uid}`;
+    const emCache = cacheMensagens.get(chave);
+    setMsg(emCache ?? null);
+    if (emCache) return () => { cancelado = true; };
+    chamarProxy({ acao: "ler", conta_id: conta.id, uid, pasta })
+      .then((d) => {
+        cacheMensagens.set(chave, d);
+        if (!cancelado) {
+          setMsg(d);
+          atualizarItens((atuais) => atuais.map((item) => item.uid === uid ? { ...item, lido: true } : item));
+        }
+      })
       .catch((err) => { if (!cancelado) setErro(err.message); });
     return () => { cancelado = true; };
-  }, [conta.id, uid]);
+  }, [conta.id, pasta, uid, atualizarItens]);
 
   const baixarAnexo = async (a) => {
     setBaixando(a.partId);
     try {
-      const dados = await chamarProxy({ acao: "anexo", conta_id: conta.id, uid, partId: a.partId });
-      const blob = base64ParaBlob(dados.base64, dados.mime);
+      const dados = await chamarProxy({ acao: "anexo", conta_id: conta.id, uid, pasta, partId: a.partId });
+      const blob = base64ParaBlob(dados.base64, a.mime || dados.mime);
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
-      link.download = dados.nome;
+      link.download = a.nome || dados.nome;
+      document.body.appendChild(link);
       link.click();
-      URL.revokeObjectURL(url);
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
     } catch (err) {
       alert(`Não consegui baixar: ${err.message}`);
     } finally {
@@ -242,32 +344,41 @@ function PainelLeitura({ conta, uid, onVoltarMobile, onResponder, onEncaminhar }
     }
   };
 
+  const temPasta = (...termos) => pastas.some((p) => {
+    const chave = chavePasta(p);
+    return termos.some((termo) => chave.includes(termo));
+  });
+
   if (erro) return <div className="p-6 text-sm" style={{ color: COLORS.wine }}>{erro}</div>;
-  if (!msg) return <div className="p-6 text-sm" style={{ color: COLORS.slate }}>Carregando...</div>;
+  if (!msg) return <div className="p-6 text-sm" style={{ color: COLORS.slate }}>Carregando mensagem...</div>;
 
   return (
-    <div className="flex flex-col h-full">
-      <div className="px-5 py-4 flex items-start justify-between gap-3" style={{ borderBottom: `1px solid ${COLORS.line}` }}>
-        <div className="min-w-0">
-          {onVoltarMobile && (
-            <button onClick={onVoltarMobile} className="lg:hidden flex items-center gap-1 text-xs mb-2" style={{ color: COLORS.slate }}>
-              <ArrowLeft size={14} /> Voltar
-            </button>
-          )}
-          <p className="text-lg" style={{ fontFamily: "'Source Serif 4', serif", fontWeight: 600, color: COLORS.ink }}>{msg.assunto || "(sem assunto)"}</p>
-          <p className="text-xs mt-1" style={{ color: COLORS.slate }}>
-            De: {msg.de?.nome ? `${msg.de.nome} <${msg.de.email}>` : msg.de?.email} · {formatData(msg.data)}
-          </p>
-          <p className="text-xs" style={{ color: COLORS.slate }}>Para: {(msg.para ?? []).map((p) => p.email ?? p).join(", ")}</p>
-          {msg.cc?.length > 0 && <p className="text-xs" style={{ color: COLORS.slate }}>Cc: {msg.cc.map((p) => p.email ?? p).join(", ")}</p>}
-        </div>
-        <div className="flex items-center gap-1.5 shrink-0">
-          <button onClick={() => onResponder(msg)} title="Responder" className="p-1.5 rounded hover:opacity-70" style={{ color: COLORS.brassText }}><Reply size={16} /></button>
-          <button onClick={() => onEncaminhar(msg)} title="Encaminhar" className="p-1.5 rounded hover:opacity-70" style={{ color: COLORS.brassText }}><Forward size={16} /></button>
+    <div className="flex h-full min-h-0 flex-col">
+      <div className="flex items-center gap-1 border-b px-3 py-2" style={{ borderColor: COLORS.line }}>
+        {onVoltarMobile && <AcaoIcone icone={ArrowLeft} titulo="Voltar para mensagens" onClick={onVoltarMobile} />}
+        <AcaoIcone icone={Archive} titulo="Arquivar" disabled={acaoEmAndamento} onClick={() => onAcao("archive")} />
+        {temPasta("\\junk", "\\spam", "junk", "spam", "lixo eletrônico") && <AcaoIcone icone={Flag} titulo="Mover para lixo eletrônico" disabled={acaoEmAndamento} onClick={() => onAcao("junk")} />}
+        <AcaoIcone icone={Trash2} titulo="Excluir" disabled={acaoEmAndamento} onClick={() => onAcao("delete")} />
+        <AcaoIcone icone={Flag} titulo={resumo?.sinalizado ? "Remover sinalizador" : "Sinalizar"} ativa={resumo?.sinalizado} disabled={acaoEmAndamento} onClick={() => onAcao("flag")} />
+        <AcaoIcone icone={MailOpen} titulo={resumo?.lido ? "Marcar como não lido" : "Marcar como lido"} disabled={acaoEmAndamento} onClick={() => onAcao("read")} />
+        <span className="flex-1" />
+        <AcaoIcone icone={Reply} titulo="Responder" onClick={() => onResponder(msg)} />
+        <AcaoIcone icone={Forward} titulo="Encaminhar" onClick={() => onEncaminhar(msg)} />
+      </div>
+
+      <div className="border-b px-5 py-4" style={{ borderColor: COLORS.line }}>
+        <h2 className="break-words text-lg font-semibold" style={{ color: COLORS.ink }}>{msg.assunto || "(sem assunto)"}</h2>
+        <div className="mt-3 flex items-start justify-between gap-3">
+          <div className="min-w-0 text-xs" style={{ color: COLORS.slate }}>
+            <p className="truncate"><strong style={{ color: COLORS.ink }}>{msg.de?.nome || msg.de?.email || "(sem remetente)"}</strong>{msg.de?.nome && msg.de?.email ? ` <${msg.de.email}>` : ""}</p>
+            <p className="mt-1 truncate">Para: {(msg.para ?? []).map((p) => p.email ?? p).join(", ") || conta.endereco}</p>
+            {msg.cc?.length > 0 && <p className="mt-1 truncate">Cc: {msg.cc.map((p) => p.email ?? p).join(", ")}</p>}
+          </div>
+          <time className="shrink-0 text-[11px]" style={{ color: COLORS.slate }}>{formatData(msg.data)}</time>
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto">
+      <div className="min-h-0 flex-1 overflow-y-auto">
         {msg.html ? (
           <>
             <div className="px-5 pt-3 flex items-center justify-end">
@@ -280,7 +391,7 @@ function PainelLeitura({ conta, uid, onVoltarMobile, onResponder, onEncaminhar }
             </div>
           </>
         ) : (
-          <pre className="px-5 py-4 text-sm whitespace-pre-wrap" style={{ color: COLORS.ink, fontFamily: "inherit" }}>{msg.texto || "(sem conteúdo)"}</pre>
+          <pre className="px-5 py-5 text-sm whitespace-pre-wrap" style={{ color: COLORS.ink, fontFamily: "inherit" }}>{msg.texto || "Esta mensagem não tem texto no corpo."}</pre>
         )}
         {msg.truncado && <p className="px-5 pb-3 text-xs" style={{ color: COLORS.slate }}>Mensagem longa — conteúdo cortado.</p>}
 
@@ -305,11 +416,17 @@ export default function EmailsTab({ orgId }) {
     ascending: true,
   });
   const [contaId, setContaId] = useState(null);
+  const [pastas, setPastas] = useState([]);
+  const [pasta, setPasta] = useState("INBOX");
+  const [busca, setBusca] = useState("");
   const [itens, setItens] = useState([]);
   const [cursor, setCursor] = useState(null);
   const [carregando, setCarregando] = useState(false);
+  const [carregandoPastas, setCarregandoPastas] = useState(false);
+  const [acaoEmAndamento, setAcaoEmAndamento] = useState(false);
   const [erro, setErro] = useState("");
   const [uidSelecionado, setUidSelecionado] = useState(null);
+  const [painelMobile, setPainelMobile] = useState("lista");
   const [compose, setCompose] = useState(null); // null | { mode, prefill }
 
   useEffect(() => {
@@ -318,13 +435,61 @@ export default function EmailsTab({ orgId }) {
 
   const conta = contas.find((c) => c.id === contaId);
 
+  useEffect(() => {
+    if (!conta) return;
+    let cancelado = false;
+    setCarregandoPastas(true);
+    chamarProxy({ acao: "pastas", conta_id: conta.id })
+      .then((res) => {
+        if (cancelado) return;
+        const disponiveis = (res.pastas || []).filter((p) => !p.noSelect);
+        setPastas(disponiveis);
+        const entrada = disponiveis.find((p) => chavePasta(p).includes("\\inbox"))
+          || disponiveis.find((p) => p.path?.toUpperCase() === "INBOX");
+        setPasta((atual) => disponiveis.some((p) => p.path === atual) ? atual : entrada?.path || "INBOX");
+      })
+      .catch((err) => { if (!cancelado) setErro(err.message); })
+      .finally(() => { if (!cancelado) setCarregandoPastas(false); });
+    return () => { cancelado = true; };
+  }, [conta?.id]);
+
+  useEffect(() => {
+    if (!conta) return;
+    let cancelado = false;
+    const chaveLista = `${conta.id}|${pasta}`;
+    const emCache = !busca && cacheListas.get(chaveLista);
+    setCarregando(!emCache);
+    setErro("");
+    setItens(emCache ? emCache.itens : []);
+    setCursor(emCache ? emCache.cursor : null);
+    setUidSelecionado(null);
+    const timer = window.setTimeout(async () => {
+      try {
+        const res = await chamarProxy({ acao: "listar", conta_id: conta.id, pasta, busca });
+        if (!busca) cacheListas.set(chaveLista, { itens: res.itens || [], cursor: res.proximoCursor ?? null });
+        if (!cancelado) {
+          setItens(res.itens || []);
+          setCursor(res.proximoCursor ?? null);
+        }
+      } catch (err) {
+        if (!cancelado) setErro(err.message);
+      } finally {
+        if (!cancelado) setCarregando(false);
+      }
+    }, busca ? 350 : 0);
+    return () => { cancelado = true; window.clearTimeout(timer); };
+  }, [conta?.id, pasta, busca]);
+
   const carregarLista = async (append = false) => {
     if (!conta) return;
     setCarregando(true);
     setErro("");
     try {
-      const res = await chamarProxy({ acao: "listar", conta_id: conta.id, antesDeUid: append ? cursor : undefined });
-      setItens((v) => append ? [...v, ...res.itens] : res.itens);
+      const res = await chamarProxy({
+        acao: "listar", conta_id: conta.id, pasta, busca,
+        antesDeUid: append ? cursor : undefined,
+      });
+      setItens((atuais) => append ? [...atuais, ...(res.itens || [])] : res.itens || []);
       setCursor(res.proximoCursor ?? null);
     } catch (err) {
       setErro(err.message);
@@ -333,13 +498,46 @@ export default function EmailsTab({ orgId }) {
     }
   };
 
-  useEffect(() => {
-    setUidSelecionado(null);
-    setItens([]);
-    setCursor(null);
-    if (conta) carregarLista(false);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [conta?.id]);
+  const pastaEspecial = (...termos) => pastas.find((p) => {
+    const chave = chavePasta(p);
+    return termos.some((termo) => chave.includes(termo));
+  });
+
+  const executarAcaoMensagem = async (tipo) => {
+    const resumo = itens.find((item) => item.uid === uidSelecionado);
+    if (!conta || !resumo) return;
+    setAcaoEmAndamento(true);
+    setErro("");
+    try {
+      if (tipo === "archive" || tipo === "delete" || tipo === "junk") {
+        if (tipo === "junk") {
+          const destino = pastaEspecial("\\junk", "\\spam", "junk", "spam", "lixo eletrônico");
+          if (!destino) throw new Error("Esta conta não disponibiliza a pasta de spam.");
+          await chamarProxy({ acao: "mover", conta_id: conta.id, uid: resumo.uid, pasta, destino: destino.path });
+        } else {
+          const naLixeira = !!pastas.find((p) => p.path === pasta && /\\trash|trash|lixeira|exclu/.test(chavePasta(p)));
+          if (tipo === "delete" && naLixeira && !confirm("Excluir esta mensagem para sempre? Não dá para desfazer.")) return;
+          await chamarProxy({ acao: tipo === "archive" ? "arquivar" : "excluir", conta_id: conta.id, uid: resumo.uid, pasta });
+        }
+        cacheListas.delete(`${conta.id}|${pasta}`);
+        setItens((atuais) => atuais.filter((item) => item.uid !== resumo.uid));
+        setUidSelecionado(null);
+        setPainelMobile("lista");
+      } else {
+        const estado = tipo === "read"
+          ? resumo.lido ? "nao_lido" : "lido"
+          : resumo.sinalizado ? "nao_sinalizado" : "sinalizado";
+        await chamarProxy({ acao: "marcar", conta_id: conta.id, uid: resumo.uid, pasta, estado });
+        setItens((atuais) => atuais.map((item) => item.uid === resumo.uid
+          ? { ...item, ...(tipo === "read" ? { lido: !item.lido } : { sinalizado: !item.sinalizado }) }
+          : item));
+      }
+    } catch (err) {
+      setErro(err.message);
+    } finally {
+      setAcaoEmAndamento(false);
+    }
+  };
 
   if (carregandoContas) return <div className="p-6 text-sm" style={{ color: COLORS.slate }}>Carregando...</div>;
 
@@ -363,7 +561,7 @@ export default function EmailsTab({ orgId }) {
       <SectionTitle
         icon={Mail}
         title="Emails"
-        subtitle="Leia e envie e-mail do escritório sem sair da Actum"
+        subtitle={conta?.nome || "Caixa de e-mail"}
         action={
           <button onClick={() => setCompose({ mode: "novo" })} className="flex items-center gap-1.5 px-3.5 py-2 rounded-md text-sm font-semibold" style={{ background: COLORS.ink, color: "#fff" }}>
             <Pencil size={14} /> Novo e-mail
@@ -371,81 +569,132 @@ export default function EmailsTab({ orgId }) {
         }
       />
 
-      {contas.length > 1 && (
-        <div className="flex gap-2 mb-4">
-          {contas.map((c) => (
-            <button
-              key={c.id}
-              onClick={() => setContaId(c.id)}
-              className="px-3 py-1.5 rounded-full text-xs font-semibold"
-              style={{
-                background: c.id === contaId ? COLORS.ink : "transparent",
-                color: c.id === contaId ? "#fff" : COLORS.ink,
-                border: `1px solid ${c.id === contaId ? COLORS.ink : COLORS.line}`,
-              }}
-            >
-              {c.nome}
-            </button>
-          ))}
-        </div>
-      )}
-
       {conta?.status === "erro_auth" && (
         <div className="mb-4 px-4 py-3 rounded-md text-xs flex items-center gap-2" style={{ background: "rgba(155,34,38,0.08)", color: COLORS.wine }}>
           <AlertTriangle size={14} /> Senha mudou? Reconecte essa caixa em Configurações → Caixas de e-mail.
         </div>
       )}
 
-      <Card className="!p-0 overflow-hidden" style={{ height: "70vh" }}>
-        <div className="grid lg:grid-cols-[320px_1fr] h-full">
-          <div className={`overflow-y-auto ${uidSelecionado ? "hidden lg:block" : ""}`} style={{ borderRight: `1px solid ${COLORS.line}` }}>
-            <div className="flex items-center justify-between px-4 py-2" style={{ borderBottom: `1px solid ${COLORS.line}` }}>
-              <span className="text-xs" style={{ color: COLORS.slate }}>Caixa de entrada</span>
-              <button onClick={() => carregarLista(false)} disabled={carregando} style={{ color: COLORS.slate }}>
-                <RefreshCw size={14} className={carregando ? "animate-spin" : ""} />
-              </button>
+      <Card className="!p-0 overflow-hidden" style={{ height: "72vh", minHeight: 480 }}>
+        <div className="flex h-full min-h-0 flex-col">
+          <div className="flex items-center gap-2 border-b px-3 py-2.5" style={{ borderColor: COLORS.line, background: COLORS.paperRaised }}>
+            <AcaoIcone icone={Mail} titulo="Pastas e contas" onClick={() => setPainelMobile("pastas")} />
+            <div className="min-w-0 flex-1">
+              <label className="sr-only" htmlFor="email-account">Conta de e-mail</label>
+              <select
+                id="email-account"
+                value={contaId || ""}
+                onChange={(e) => { setContaId(e.target.value); setPainelMobile("lista"); }}
+                className="max-w-full bg-transparent text-sm font-semibold outline-none"
+                style={{ color: COLORS.ink }}
+              >
+                {contas.map((c) => <option key={c.id} value={c.id}>{c.nome} · {c.endereco}</option>)}
+              </select>
             </div>
-            {erro && <p className="px-4 py-3 text-xs" style={{ color: COLORS.wine }}>{erro}</p>}
-            {!erro && itens.length === 0 && !carregando && <p className="px-4 py-6 text-xs text-center" style={{ color: COLORS.slate }}>Nenhum e-mail aqui.</p>}
-            {itens.map((msg) => (
-              <ItemMensagem key={msg.uid} msg={msg} ativo={msg.uid === uidSelecionado} onClick={() => setUidSelecionado(msg.uid)} />
-            ))}
-            {cursor && (
-              <div className="px-4 py-3 text-center">
-                <button onClick={() => carregarLista(true)} disabled={carregando} className="text-xs font-semibold" style={{ color: COLORS.brassText }}>
-                  {carregando ? "Carregando..." : "Carregar mais"}
-                </button>
-              </div>
-            )}
+            <label className="sr-only" htmlFor="email-folder">Pasta de e-mail</label>
+            <select
+              id="email-folder"
+              value={pasta}
+              onChange={(e) => { setPasta(e.target.value); setPainelMobile("lista"); }}
+              className="h-9 max-w-[145px] rounded-md border bg-white px-2 text-xs font-semibold outline-none lg:hidden"
+              style={{ borderColor: COLORS.line, color: COLORS.ink }}
+            >
+              {(pastas.length ? pastas : [{ path: "INBOX", name: "INBOX", specialUse: "\\Inbox" }]).map((p) => (
+                <option key={p.path} value={p.path}>{nomePasta(p)}</option>
+              ))}
+            </select>
+            <div className="relative hidden sm:block sm:w-56 md:w-72">
+              <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: COLORS.slate }} />
+              <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar nesta pasta" aria-label="Buscar nesta pasta" className="h-9 w-full rounded-md border bg-white pl-9 pr-3 text-sm outline-none focus:ring-2" style={{ borderColor: COLORS.line, color: COLORS.ink, "--tw-ring-color": COLORS.brass }} />
+            </div>
+            <AcaoIcone icone={RefreshCw} titulo="Atualizar mensagens" disabled={carregando} onClick={() => carregarLista(false)} />
           </div>
 
-          <div className={uidSelecionado ? "" : "hidden lg:flex lg:items-center lg:justify-center"}>
-            {uidSelecionado ? (
-              <PainelLeitura
-                conta={conta}
-                uid={uidSelecionado}
-                onVoltarMobile={() => setUidSelecionado(null)}
-                onResponder={(msg) => setCompose({
-                  mode: "responder",
-                  prefill: {
+          <div className="relative flex min-h-0 flex-1">
+            {erro && <div className="absolute inset-x-0 top-0 z-10 px-3 py-2 text-xs" style={{ background: "#fff2ef", color: COLORS.wine }}>{erro}</div>}
+
+            <aside className={`w-full shrink-0 overflow-y-auto border-r lg:block lg:w-[190px] xl:w-[220px] ${painelMobile === "pastas" ? "block" : "hidden"}`} style={{ borderColor: COLORS.line, background: COLORS.paper }}>
+              <div className="border-b px-4 py-3 lg:hidden" style={{ borderColor: COLORS.line }}>
+                <button onClick={() => setPainelMobile("lista")} className="flex items-center gap-2 text-sm font-semibold" style={{ color: COLORS.ink }}><ArrowLeft size={15} /> Voltar para mensagens</button>
+              </div>
+              <div className="px-3 pb-3 pt-4">
+                <p className="px-2 pb-2 text-[10px] font-bold uppercase tracking-wide" style={{ color: COLORS.slate }}>Pastas</p>
+                {carregandoPastas && <p className="px-2 py-2 text-xs" style={{ color: COLORS.slate }}>Carregando pastas...</p>}
+                {(pastas.length ? pastas : [{ path: "INBOX", name: "INBOX", specialUse: "\\Inbox" }])
+                  .slice()
+                  .sort((a, b) => {
+                    const ordem = ["inbox", "sent", "outbox", "drafts", "archive", "junk", "trash", "all"];
+                    const indice = (p) => ordem.indexOf(tipoPasta(p));
+                    const ia = indice(a), ib = indice(b);
+                    return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib) || nomePasta(a).localeCompare(nomePasta(b), "pt-BR");
+                  })
+                  .map((p) => {
+                    const Icone = iconePasta(p);
+                    const selecionada = pasta === p.path;
+                    return (
+                      <button key={p.path} onClick={() => { setPasta(p.path); setPainelMobile("lista"); }} className="mb-0.5 flex h-9 w-full items-center gap-2.5 rounded-md px-2.5 text-left text-[13px] transition-colors" style={{ background: selecionada ? "rgba(27,51,40,0.09)" : "transparent", color: selecionada ? COLORS.ink : COLORS.inkSoft, fontWeight: selecionada ? 700 : 400 }}>
+                        <Icone size={15} /> <span className="truncate">{nomePasta(p)}</span>
+                      </button>
+                    );
+                  })}
+              </div>
+            </aside>
+
+            <section className={`w-full min-w-0 shrink-0 overflow-hidden border-r lg:flex lg:w-[300px] xl:w-[350px] lg:flex-col ${painelMobile === "lista" ? "flex flex-col" : "hidden"}`} style={{ borderColor: COLORS.line, background: COLORS.paperRaised }} aria-label="Lista de mensagens">
+              <div className="flex items-center justify-between border-b px-4 py-3" style={{ borderColor: COLORS.line }}>
+                <div className="min-w-0">
+                  <h2 className="truncate text-sm font-semibold" style={{ color: COLORS.ink }}>{nomePasta(pastas.find((p) => p.path === pasta) || { path: pasta, name: pasta })}</h2>
+                  <p className="text-[11px]" style={{ color: COLORS.slate }}>{itens.length}{cursor ? "+" : ""} mensagens</p>
+                </div>
+                <button onClick={() => setPainelMobile("pastas")} className="rounded p-2 lg:hidden" title="Abrir pastas" style={{ color: COLORS.slate }}><Inbox size={16} /></button>
+              </div>
+              <div className="border-b px-3 py-2 sm:hidden" style={{ borderColor: COLORS.line }}>
+                <div className="relative">
+                  <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: COLORS.slate }} />
+                  <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar nesta pasta" aria-label="Buscar nesta pasta" className="h-9 w-full rounded-md border bg-white pl-9 pr-3 text-sm" style={{ borderColor: COLORS.line, color: COLORS.ink }} />
+                </div>
+              </div>
+              <div className="min-h-0 flex-1 overflow-y-auto">
+                {!erro && itens.length === 0 && !carregando && <p className="px-4 py-8 text-center text-xs" style={{ color: COLORS.slate }}>{busca ? "Nenhuma mensagem encontrada." : "Esta pasta está vazia."}</p>}
+                {itens.map((msg) => (
+                  <ItemMensagem key={msg.uid} msg={msg} ativo={msg.uid === uidSelecionado} onClick={() => {
+                    setUidSelecionado(msg.uid);
+                    setPainelMobile("leitura");
+                    setItens((atuais) => atuais.map((item) => item.uid === msg.uid ? { ...item, lido: true } : item));
+                  }} />
+                ))}
+                {carregando && <p className="px-4 py-3 text-center text-xs" style={{ color: COLORS.slate }}>Carregando mensagens...</p>}
+                {cursor && !carregando && <button onClick={() => carregarLista(true)} className="w-full px-4 py-3 text-xs font-semibold" style={{ color: COLORS.brassText }}>Carregar mais</button>}
+              </div>
+            </section>
+
+            <section className={`min-w-0 flex-1 lg:flex lg:flex-col ${painelMobile === "leitura" ? "flex flex-col" : "hidden"}`} aria-label="Leitura da mensagem">
+              {uidSelecionado ? (
+                <PainelLeitura
+                  key={`${conta?.id}-${pasta}-${uidSelecionado}`}
+                  conta={conta}
+                  pasta={pasta}
+                  uid={uidSelecionado}
+                  atualizarItens={setItens}
+                  resumo={itens.find((item) => item.uid === uidSelecionado)}
+                  pastas={pastas}
+                  acaoEmAndamento={acaoEmAndamento}
+                  onAcao={executarAcaoMensagem}
+                  onVoltarMobile={() => setPainelMobile("lista")}
+                  onResponder={(msg) => setCompose({ mode: "responder", prefill: {
                     para: msg.de?.email ?? "",
                     assunto: msg.assunto?.startsWith("Re:") ? msg.assunto : `Re: ${msg.assunto ?? ""}`,
                     texto: `\n\nEm ${formatData(msg.data)}, ${msg.de?.nome || msg.de?.email} escreveu:\n${(msg.texto || "").split("\n").map((l) => `> ${l}`).join("\n")}`,
                     inReplyTo: msg.message_id,
                     references: msg.message_id,
-                  },
-                })}
-                onEncaminhar={(msg) => setCompose({
-                  mode: "encaminhar",
-                  prefill: {
+                  }})}
+                  onEncaminhar={(msg) => setCompose({ mode: "encaminhar", prefill: {
                     assunto: msg.assunto?.startsWith("Fwd:") ? msg.assunto : `Fwd: ${msg.assunto ?? ""}`,
                     texto: `\n\n---------- Mensagem encaminhada ----------\nDe: ${msg.de?.nome || msg.de?.email}\nAssunto: ${msg.assunto ?? ""}\nData: ${formatData(msg.data)}\n\n${msg.texto ?? ""}`,
-                  },
-                })}
-              />
-            ) : (
-              <p className="text-sm" style={{ color: COLORS.slate }}>Selecione um e-mail pra ler.</p>
-            )}
+                  }})}
+                />
+              ) : <div className="hidden h-full items-center justify-center text-sm lg:flex" style={{ color: COLORS.slate }}>Selecione uma mensagem para ler.</div>}
+            </section>
           </div>
         </div>
       </Card>

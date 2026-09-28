@@ -3,7 +3,8 @@
 // de salva — fica cifrada em email_contas_segredo, só esse endpoint (service role) decifra
 // e fala com o provedor. org_id vem SEMPRE do perfil autenticado, nunca do body.
 //
-// Ações: salvar_conta, remover_conta, testar, listar, ler, anexo, enviar.
+// Ações: salvar_conta, remover_conta, testar, pastas, listar, ler, anexo, mover, marcar,
+// excluir, arquivar, enviar.
 //
 // ponytail: sem "modo suporte" de platform admin aqui (diferente de admin-create-user) —
 // trello-proxy, a referência pedida pra esse proxy, também não tem; org_id fixo no perfil
@@ -24,6 +25,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { ImapFlow } from "npm:imapflow@1";
 import { cifrarSenha, decifrarSenha, testarSmtp, enviarSmtp, erroAmigavel } from "../_shared/emailSmtp.ts";
+import { baixarAnexoBruto } from "../_shared/imapBruto.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -94,12 +96,22 @@ function achatarPartes(node: any, acc: any[] = []) {
   return acc;
 }
 
+function tipoMime(parte: any) {
+  const tipo = String(parte.type || "").toLowerCase();
+  return tipo.includes("/") ? tipo : `${tipo}/${String(parte.subtype || "").toLowerCase()}`;
+}
+
 function ehAnexo(parte: any) {
   const disp = (parte.disposition || "").toLowerCase();
   if (disp === "attachment") return true;
   if (parte.dispositionParameters?.filename || parte.parameters?.name) return true;
-  const tipo = `${parte.type}/${parte.subtype}`.toLowerCase();
+  const tipo = tipoMime(parte);
   return tipo !== "text/plain" && tipo !== "text/html";
+}
+
+function ehTextoSemDisposicaoDeAnexo(parte: any) {
+  return tipoMime(parte).startsWith("text/")
+    && (parte.disposition || "").toLowerCase() !== "attachment";
 }
 
 function nomeAnexo(parte: any) {
@@ -137,17 +149,50 @@ async function baixarParteTexto(client: ImapFlow, uid: number, part: string, lim
   return { texto, truncado };
 }
 
-async function acaoListar(conta: any, senha: string, pasta: string, antesDeUid: number | undefined, limite: number) {
+async function acaoListarPastas(conta: any, senha: string) {
+  const client = novoClienteImap(conta, senha);
+  await comTimeout(client.connect());
+  try {
+    const pastas = await comTimeout(client.list()) as any[];
+    return pastas.map((p) => ({
+      path: p.path,
+      name: p.name,
+      specialUse: p.specialUse ?? null,
+      flags: Array.from(p.flags || []),
+      delimiter: p.delimiter ?? "/",
+      noSelect: p.flags?.has("\\Noselect") ?? false,
+    }));
+  } finally {
+    await client.logout().catch(() => {});
+  }
+}
+
+async function acaoListar(conta: any, senha: string, pasta: string, antesDeUid: number | undefined, limite: number, busca: string) {
   const client = novoClienteImap(conta, senha);
   await comTimeout(client.connect());
   try {
     const lock = await client.getMailboxLock(pasta || "INBOX");
     try {
-      let uids: number[] = await comTimeout(client.search({ all: true }, { uid: true })) as number[];
-      uids = (uids || []).slice().sort((a, b) => b - a);
-      if (antesDeUid) uids = uids.filter((u) => u < antesDeUid);
+      const uidNext = Number(client.mailbox?.uidNext ?? 1);
+      let teto = Math.min(uidNext - 1, antesDeUid ? antesDeUid - 1 : Number.MAX_SAFE_INTEGER);
+      const uids: number[] = [];
+      let blocosBuscados = 0;
+      while (teto >= 1 && uids.length <= limite && blocosBuscados < 5) {
+        const inicio = Math.max(1, teto - 1999);
+        const criterio: any = { uid: `${inicio}:${teto}` };
+        if (busca) criterio.text = busca;
+        const encontrados = await comTimeout(client.search(criterio, { uid: true })) as number[];
+        encontrados.sort((a, b) => b - a);
+        uids.push(...encontrados.slice(0, limite + 1 - uids.length));
+        teto = inicio - 1;
+        blocosBuscados++;
+      }
       const pagina = uids.slice(0, limite);
-      const proximoCursor = uids.length > pagina.length ? pagina[pagina.length - 1] : null;
+      const proximoCursor = uids.length > limite
+        ? pagina[pagina.length - 1]
+        : teto >= 1
+          ? pagina.length ? pagina[pagina.length - 1] : teto + 1
+          : null;
 
       const itens: any[] = [];
       if (pagina.length) {
@@ -160,12 +205,57 @@ async function acaoListar(conta: any, senha: string, pasta: string, antesDeUid: 
             assunto: msg.envelope?.subject ?? "",
             data: msg.envelope?.date ? new Date(msg.envelope.date).toISOString() : null,
             lido: msg.flags?.has("\\Seen") ?? false,
+            sinalizado: msg.flags?.has("\\Flagged") ?? false,
             tem_anexo: temAnexoStructure(msg.bodyStructure),
           });
         }
       }
       itens.sort((a, b) => b.uid - a.uid);
       return { itens, proximoCursor };
+    } finally {
+      lock.release();
+    }
+  } finally {
+    await client.logout().catch(() => {});
+  }
+}
+
+async function acaoMover(conta: any, senha: string, uid: number, pasta: string, destino: string) {
+  const client = novoClienteImap(conta, senha);
+  await comTimeout(client.connect());
+  try {
+    const lock = await client.getMailboxLock(pasta || "INBOX");
+    try {
+      const pastas = await comTimeout(client.list()) as any[];
+      if (!pastas.some((p) => p.path === destino && !p.flags?.has("\\Noselect"))) {
+        throw new Error("Pasta de destino não encontrada.");
+      }
+      await comTimeout(client.messageMove(String(uid), destino, { uid: true }));
+      return { ok: true };
+    } finally {
+      lock.release();
+    }
+  } finally {
+    await client.logout().catch(() => {});
+  }
+}
+
+async function acaoMarcar(conta: any, senha: string, uid: number, pasta: string, estado: string) {
+  const client = novoClienteImap(conta, senha);
+  await comTimeout(client.connect());
+  try {
+    const lock = await client.getMailboxLock(pasta || "INBOX");
+    try {
+      const operacoes: Record<string, () => Promise<unknown>> = {
+        lido: () => client.messageFlagsAdd(String(uid), ["\\Seen"], { uid: true }),
+        nao_lido: () => client.messageFlagsRemove(String(uid), ["\\Seen"], { uid: true }),
+        sinalizado: () => client.messageFlagsAdd(String(uid), ["\\Flagged"], { uid: true }),
+        nao_sinalizado: () => client.messageFlagsRemove(String(uid), ["\\Flagged"], { uid: true }),
+      };
+      const operar = operacoes[estado];
+      if (!operar) throw new Error("Ação de mensagem inválida.");
+      await comTimeout(operar());
+      return { ok: true };
     } finally {
       lock.release();
     }
@@ -184,19 +274,26 @@ async function acaoLer(conta: any, senha: string, uid: number, pasta: string) {
       const msg: any = await comTimeout(client.fetchOne(String(uid), { envelope: true, bodyStructure: true }, { uid: true }));
       if (!msg) throw new Error("Mensagem não encontrada.");
       const partes = achatarPartes(msg.bodyStructure);
-      const htmlPart = partes.find((p) => `${p.type}/${p.subtype}`.toLowerCase() === "text/html" && !ehAnexo(p));
-      const textPart = partes.find((p) => `${p.type}/${p.subtype}`.toLowerCase() === "text/plain" && !ehAnexo(p));
+      const tipoParte = tipoMime;
+      const htmlPart = partes.find((p) => tipoParte(p) === "text/html" && !ehAnexo(p))
+        || partes.find((p) => tipoParte(p) === "text/html" && ehTextoSemDisposicaoDeAnexo(p));
+      const textPart = partes.find((p) => tipoParte(p) === "text/plain" && !ehAnexo(p))
+        || partes.find((p) => tipoParte(p) === "text/plain" && ehTextoSemDisposicaoDeAnexo(p))
+        || partes.find(ehTextoSemDisposicaoDeAnexo);
       const anexos = partes.filter(ehAnexo).map((p) => ({
-        partId: p.part, nome: nomeAnexo(p) || `anexo-${p.part}`, tamanho: p.size ?? 0, mime: `${p.type}/${p.subtype}`.toLowerCase(),
+        partId: p.part || (!msg.bodyStructure?.childNodes?.length ? "1" : undefined),
+        nome: nomeAnexo(p) || `anexo-${p.part || "1"}`, tamanho: p.size ?? 0, mime: tipoMime(p),
       }));
 
       let html: string | null = null, texto: string | null = null, truncado = false;
       if (htmlPart) {
-        const r = await baixarParteTexto(client, uid, htmlPart.part, LIMITE);
+        const parteId = htmlPart.part || (!msg.bodyStructure?.childNodes?.length ? "1" : undefined);
+        const r = await baixarParteTexto(client, uid, parteId, LIMITE);
         html = r.texto; truncado = truncado || r.truncado;
       }
-      if (textPart) {
-        const r = await baixarParteTexto(client, uid, textPart.part, LIMITE);
+      if (textPart && !html) {
+        const parteId = textPart.part || (!msg.bodyStructure?.childNodes?.length ? "1" : undefined);
+        const r = await baixarParteTexto(client, uid, parteId, LIMITE);
         texto = r.texto; truncado = truncado || r.truncado;
       }
 
@@ -220,22 +317,70 @@ async function acaoLer(conta: any, senha: string, uid: number, pasta: string) {
 }
 
 async function acaoAnexo(conta: any, senha: string, uid: number, partId: string, pasta: string) {
-  const LIMITE = 15 * 1024 * 1024;
+  const r = await comTimeout(
+    baixarAnexoBruto(conta, senha, pasta || "INBOX", uid, partId, 15 * 1024 * 1024),
+    90000, "O anexo demorou demais pra baixar. Tente de novo.",
+  );
+  return { nome: r.nome || `anexo-${partId}`, mime: r.mime || "application/octet-stream", base64: r.base64 };
+}
+
+// Pasta especial (Lixeira/Arquivo) pelo flag IMAP oficial; sem flag, pelos nomes mais comuns.
+const NOMES_ESPECIAIS: Record<string, string[]> = {
+  "\\Trash": ["trash", "lixeira", "deleted items", "deleted messages", "itens excluídos", "itens excluidos"],
+  "\\Archive": ["archive", "arquivo", "arquivos", "archives"],
+};
+function acharPastaEspecial(pastas: any[], flag: string) {
+  const validas = pastas.filter((p) => !p.flags?.has("\\Noselect"));
+  return validas.find((p) => p.specialUse === flag)
+    || validas.find((p) => (NOMES_ESPECIAIS[flag] || []).includes(String(p.name || p.path).toLowerCase()));
+}
+
+function uidsDoBody(body: any): string {
+  const lista = Array.isArray(body.uids) ? body.uids : body.uid ? [body.uid] : [];
+  const validos = lista.map(Number).filter((n: number) => Number.isInteger(n) && n > 0).slice(0, 200);
+  if (!validos.length) throw new Error("Nenhuma mensagem selecionada.");
+  return validos.join(",");
+}
+
+// Excluir: fora da Lixeira, move pra ela; dentro da Lixeira, apaga de vez.
+async function acaoExcluir(conta: any, senha: string, uids: string, pasta: string) {
   const client = novoClienteImap(conta, senha);
   await comTimeout(client.connect());
   try {
+    const pastas = await comTimeout(client.list()) as any[];
+    const lixeira = acharPastaEspecial(pastas, "\\Trash");
     const lock = await client.getMailboxLock(pasta || "INBOX");
     try {
-      const { content, meta } = await comTimeout(client.download(String(uid), partId, { uid: true }));
-      const chunks: Uint8Array[] = [];
-      let total = 0;
-      for await (const chunk of content as AsyncIterable<Uint8Array>) {
-        total += chunk.length;
-        if (total > LIMITE) { (content as any).destroy?.(); throw new Error("Anexo maior que 15 MB."); }
-        chunks.push(chunk);
+      if (!lixeira || lixeira.path === pasta) {
+        await comTimeout(client.messageDelete(uids, { uid: true }));
+        return { ok: true, permanente: true };
       }
-      const buf = concatUint8(chunks);
-      return { nome: meta?.filename || `anexo-${partId}`, mime: meta?.contentType || "application/octet-stream", base64: uint8ToBase64(buf) };
+      await comTimeout(client.messageMove(uids, lixeira.path, { uid: true }));
+      return { ok: true, permanente: false };
+    } finally {
+      lock.release();
+    }
+  } finally {
+    await client.logout().catch(() => {});
+  }
+}
+
+// Arquivar: move pra pasta de arquivo; se o provedor não tiver uma, cria "Arquivo".
+async function acaoArquivar(conta: any, senha: string, uids: string, pasta: string) {
+  const client = novoClienteImap(conta, senha);
+  await comTimeout(client.connect());
+  try {
+    const pastas = await comTimeout(client.list()) as any[];
+    let destino = acharPastaEspecial(pastas, "\\Archive")?.path;
+    if (!destino) {
+      await comTimeout(client.mailboxCreate("Arquivo")).catch(() => {});
+      destino = "Arquivo";
+    }
+    if (destino === pasta) return { ok: true };
+    const lock = await client.getMailboxLock(pasta || "INBOX");
+    try {
+      await comTimeout(client.messageMove(uids, destino, { uid: true }));
+      return { ok: true, destino };
     } finally {
       lock.release();
     }
@@ -366,16 +511,30 @@ Deno.serve(async (req) => {
     }
 
     // Demais ações exigem acesso de uso normal (org + cargo liberado pra essa caixa).
+    if (perfil.role !== "admin") {
+      const { data: permissaoEmails } = await admin.from("role_permissions").select("module")
+        .eq("org_id", perfil.org_id).eq("role", perfil.role).eq("module", "emails").maybeSingle();
+      if (!permissaoEmails) return erroResposta("Seu perfil não tem acesso ao módulo de e-mails.", 403);
+    }
     if (!podeUsarConta(conta, perfil)) return erroResposta("Sem permissão pra essa caixa.", 403);
 
     const { data: seg } = await admin.from("email_contas_segredo").select("segredo_cifrado").eq("conta_id", conta.id).maybeSingle();
     if (!seg) return erroResposta("Caixa sem senha salva. Reconecte em Configurações.", 400);
     const senha = await decifrarSenha(seg.segredo_cifrado);
 
-    if (acao === "listar") {
-      const { pasta, antesDeUid, limite } = body;
+    if (acao === "pastas") {
       try {
-        const resultado = await acaoListar(conta, senha, pasta || "INBOX", antesDeUid, Math.min(Number(limite) || 25, 100));
+        return ok({ pastas: await acaoListarPastas(conta, senha) });
+      } catch (err) {
+        return erroResposta(`Não consegui carregar as pastas. ${erroAmigavel(err)}`, 502);
+      }
+    }
+
+    if (acao === "listar") {
+      const { pasta, antesDeUid, limite, busca } = body;
+      try {
+        const limiteSeguro = Math.max(1, Math.min(Math.floor(Number(limite) || 25), 100));
+        const resultado = await acaoListar(conta, senha, pasta || "INBOX", antesDeUid, limiteSeguro, String(busca || "").trim());
         return ok(resultado);
       } catch (err) {
         await admin.from("email_contas").update({ status: "erro_auth", ultimo_erro: erroAmigavel(err) }).eq("id", conta.id);
@@ -402,6 +561,37 @@ Deno.serve(async (req) => {
         return ok(resultado);
       } catch (err) {
         return erroResposta(`Não consegui baixar o anexo. ${erroAmigavel(err)}`, 502);
+      }
+    }
+
+    if (acao === "mover") {
+      const { uid, pasta, destino } = body;
+      if (!uid || !destino) return erroResposta("uid e destino são obrigatórios.");
+      try {
+        return ok(await acaoMover(conta, senha, Number(uid), pasta || "INBOX", String(destino)));
+      } catch (err) {
+        return erroResposta(`Não consegui mover essa mensagem. ${erroAmigavel(err)}`, 502);
+      }
+    }
+
+    if (acao === "marcar") {
+      const { uid, pasta, estado } = body;
+      if (!uid || !estado) return erroResposta("uid e estado são obrigatórios.");
+      try {
+        return ok(await acaoMarcar(conta, senha, Number(uid), pasta || "INBOX", String(estado)));
+      } catch (err) {
+        return erroResposta(`Não consegui atualizar essa mensagem. ${erroAmigavel(err)}`, 502);
+      }
+    }
+
+    if (acao === "excluir" || acao === "arquivar") {
+      let uids: string;
+      try { uids = uidsDoBody(body); } catch (err) { return erroResposta((err as Error).message); }
+      const pasta = String(body.pasta || "INBOX");
+      try {
+        return ok(acao === "excluir" ? await acaoExcluir(conta, senha, uids, pasta) : await acaoArquivar(conta, senha, uids, pasta));
+      } catch (err) {
+        return erroResposta(`Não consegui ${acao === "excluir" ? "excluir" : "arquivar"}. ${erroAmigavel(err)}`, 502);
       }
     }
 
