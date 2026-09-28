@@ -1021,7 +1021,12 @@ alter table cobranca_lembretes enable row level security;
 -- Repasse de honorários aos sócios: percentual de rateio por sócio (role = 'socio'),
 -- só admin/sócio configura ou vê.
 create table repasse_socios (
-  org_id uuid not null references organizations(id) on delete cascade,
+  -- Sem FK pra organizations de propósito: FK pra profiles E organizations faz o PostgREST
+  -- tratar esta tabela como ponte profiles<->organizations, e todo embed
+  -- profiles->organizations(...) (useAuth, Edge Functions) quebrava por ambiguidade
+  -- (PGRST201) — derrubou o login de todo mundo em 2026-09-28. org_id segue garantido por
+  -- set_org_id + RLS; apagar a empresa apaga os profiles, que apagam estas linhas.
+  org_id uuid not null,
   profile_id uuid not null references profiles(id) on delete cascade,
   percentual numeric(5,2) not null check (percentual >= 0 and percentual <= 100),
   primary key (org_id, profile_id)

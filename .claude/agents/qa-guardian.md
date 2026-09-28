@@ -117,6 +117,19 @@ whenever the diff you're verifying touches anything nearby:
     creating an already-closed processo was blocked exactly like an active one whenever the
     active-processo cap was full. When verifying any `plan_limits`-style cap, test inserting
     a row that's supposed to be exempt (not just verify the cap blocks/allows normal rows).
+13. **A new table with FKs to BOTH `profiles` and `organizations` breaks login for everyone**:
+    PostgREST treats it as a junction and every embed `profiles → organizations(...)` (useAuth
+    profile load, several Edge Functions) fails with PGRST201 "more than one relationship".
+    Happened in production on 2026-09-28 with `repasse_socios`. For any new table, run the
+    app's real profile select via REST after the migration is applied (service role or a
+    test user) and confirm 200, not just that the new table works.
+14. **Materialized views are readable by anon unless explicitly revoked**: RLS doesn't apply
+    to them and Supabase's default grants expose them over REST. `mv_exec_*` leaked every
+    org's aggregates to the public anon key until 2026-09-28. For any new materialized view,
+    probe `/rest/v1/<mv>` with the anon key and expect 401/permission denied.
+15. **`useSupabaseTable` orders by `created_at` by default** — any view/table without that
+    column returns 400 and the screen silently shows "no data" (Painel Executivo, 2026-09-28).
+    Pass an explicit `orderBy` for views.
 
 ## Security checklist — protecting SK/API keys and tokens (highest priority)
 
@@ -180,7 +193,7 @@ On every QA pass, whether or not the diff mentions integrations, check:
 
 Give a concise pass/fail report: what you tested, how (exact curl/SQL if relevant), what
 passed, and — for anything that failed — the precise reproduction (inputs, expected vs actual)
-so the calling session can fix it without re-deriving your steps. Flag any of the 12 known bugs
+so the calling session can fix it without re-deriving your steps. Flag any of the 15 known bugs
 above that you found evidence of returning, explicitly by number. Flag any of the 7 security
 checks that failed, explicitly by number. Always end by confirming you cleaned up every
 disposable org/user/row you created.
