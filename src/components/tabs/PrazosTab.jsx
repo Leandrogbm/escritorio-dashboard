@@ -65,7 +65,7 @@ function CalendarioPrazos({ prazos, onEdit, onDelete, onToggleFeito }) {
     ...Array.from({ length: primeiroDiaSemana }, () => null),
     ...Array.from({ length: totalDias }, (_, i) => i + 1),
   ];
-  const hojeStr = new Date().toISOString().slice(0, 10);
+  const hojeStr = new Date().toLocaleDateString("sv");
 
   const dataStr = (dia) => `${ano}-${String(mes + 1).padStart(2, "0")}-${String(dia).padStart(2, "0")}`;
 
@@ -157,7 +157,11 @@ export default function PrazosTab({ orgId } = {}) {
   const onToggleFeito = (p) => update(p.id, { feito: !p.feito });
   // Subabas: prazo marcado como feito sai de "Em aberto" e vai pra "Concluídos".
   const [aba, setAba] = useState("abertos"); // "abertos" | "concluidos"
-  const qtdConcluidos = prazos.filter((p) => p.feito).length;
+  // Contagem das subabas segue o filtro de data escolhido (Hoje / Todos / Data).
+  const noPeriodo = (p) => filtroData === "todos" || p.data === (filtroData === "hoje" ? hojeStr : dataEscolhida);
+  const doPeriodo = prazos.filter(noPeriodo);
+  const qtdConcluidos = doPeriodo.filter((p) => p.feito).length;
+  const qtdAbertos = doPeriodo.length - qtdConcluidos;
 
   // "Data" pode ser digitada direto (prazo simples) OU calculada a partir de início +
   // quantidade de dias (dias_uteis pula sábado/domingo/feriado nacional) — se início e
@@ -241,7 +245,7 @@ export default function PrazosTab({ orgId } = {}) {
 
       <div className="flex gap-2 mb-4">
         {[
-          { v: "abertos", l: `Em aberto (${prazos.length - qtdConcluidos})` },
+          { v: "abertos", l: `Em aberto (${qtdAbertos})` },
           { v: "concluidos", l: `Concluídos (${qtdConcluidos})` },
         ].map((o) => (
           <button
